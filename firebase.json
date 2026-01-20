@@ -13,19 +13,19 @@
     }
   ],
   "hosting": {
-  "public": "public",
-  "rewrites": [
-    {
-      "source": "**",
-      "run": {
-        "serviceId": "bidtechv1", // Point this to your App Hosting container
-        "region": "us-east5"
+    "public": "public",
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "bidtechauctions1",
+          "region": "us-east5"
+        }
       }
-    }
-  ]
-},
+    ]
+  },
   "apphosting": {
-    "backendId": "bidtechv1",
+    "backendId": "bidtechauctions1",
     "region": "us-east5",
     "rootDir": "/",
     "ignore": [
