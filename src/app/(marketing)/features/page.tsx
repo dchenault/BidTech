@@ -7,7 +7,7 @@ export default function FeaturesPage() {
       <div className="flex flex-col items-center justify-center space-y-4 text-center">
         <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl">Features</h1>
         <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-          Discover all the powerful features that Bidtech has to offer.
+          Discover all the powerful features that BidTech has to offer.
         </p>
       </div>
       <div className="mx-auto grid max-w-5xl gap-6 py-12 lg:grid-cols-2 lg:gap-12">

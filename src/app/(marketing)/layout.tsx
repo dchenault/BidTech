@@ -18,7 +18,7 @@ export default function MarketingLayout({
       <header className="px-4 lg:px-6 h-14 flex items-center bg-background border-b">
         <Link href="/" className="flex items-center justify-center">
           <Gavel className="h-6 w-6 text-primary" />
-          <span className="ml-2 text-lg font-semibold">AuctioneerPro</span>
+          <span className="ml-2 text-lg font-semibold">BidTech</span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <Link
@@ -55,7 +55,7 @@ export default function MarketingLayout({
       <main className="flex-1">{children}</main>
        <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} AuctioneerPro Inc. All rights reserved.
+          &copy; {new Date().getFullYear()} BidTech Inc. All rights reserved.
         </p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4">

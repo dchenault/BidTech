@@ -1,7 +1,7 @@
 
-# Product Requirement Document (PRD): AuctioneerPro
+# Product Requirement Document (PRD): BidTech
 
-This document outlines the ideal series of prompts to build the AuctioneerPro application from the ground up, ensuring a smooth development and deployment process.
+This document outlines the ideal series of prompts to build the BidTech application from the ground up, ensuring a smooth development and deployment process.
 
 ---
 
@@ -25,7 +25,7 @@ This document outlines the ideal series of prompts to build the AuctioneerPro ap
 > "Create a marketing front-end for the application with a shared layout and three distinct pages.
 >
 > 1.  **Create the Marketing Layout:** Build a layout in `src/app/(marketing)/layout.tsx` that includes:
->     *   A header with the app name "AuctioneerPro", a Gavel icon, and navigation links for "Features," "Pricing," and "Support."
+>     *   A header with the app name "BidTech", a Gavel icon, and navigation links for "Features," "Pricing," and "Support."
 >     *   A "Login" button in the header.
 >     *   A simple footer with a copyright notice and links for "Terms of Service" and "Privacy."
 > 2.  **Build the Landing Page:** Create `src/app/(marketing)/page.tsx` with:
