@@ -1,0 +1,82 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // By default, deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isOwner(accountId) {
+      return request.auth != null && get(/databases/$(database)/documents/accounts/$(accountId)).data.adminUserId == request.auth.uid;
+    }
+
+    function isAccountMember(accountId) {
+      return request.auth != null && exists(/databases/$(database)/documents/accounts/$(accountId)/users/$(request.auth.uid));
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /accounts/{accountId} {
+      allow get: if isOwner(accountId) || isAccountMember(accountId);
+      // Allow a user to create an account if they are setting themselves as the admin.
+      // This is the entry point for the very first user.
+      allow create: if isSignedIn() && request.resource.data.adminUserId == request.auth.uid;
+      allow update: if isOwner(accountId);
+      
+      // Nobody can list or delete accounts for safety
+      allow list, delete: if false;
+
+      match /users/{userId} {
+        // Any member of the account can read the list of users.
+        allow get, list: if isAccountMember(accountId);
+        
+        // A new user can create THEIR OWN user document. This fixes the setup issue.
+        allow create: if isSignedIn() && request.auth.uid == userId;
+
+        // An admin can update or delete any user.
+        allow update, delete: if isOwner(accountId);
+      }
+
+      match /patrons/{patronId} {
+        // Any member of the account can manage the master patron list
+        allow read, write: if isAccountMember(accountId);
+      }
+
+      match /invitations/{inviteId} {
+        allow read: if isAccountMember(accountId) || request.auth.token.email == resource.data.email;
+        allow write: if isAccountMember(accountId);
+      }
+
+      match /auctions/{auctionId} {
+        function isAuctionManager() {
+          return request.auth != null && resource.data.managers[request.auth.uid] != null;
+        }
+
+        allow read: if isAccountMember(accountId);
+        // Allow creation if the user is the account admin (for the first user) OR if they are already a member of the account.
+        allow create: if isSignedIn() && (request.resource.data.adminUserId == request.auth.uid || isAccountMember(accountId)) && request.resource.data.accountId == accountId;
+        allow update: if isOwner(accountId) || isAuctionManager();
+        allow delete: if isOwner(accountId);
+
+        match /items/{itemId} {
+          allow read, write: if isAccountMember(accountId);
+        }
+
+        match /lots/{lotId} {
+          allow read, write: if isAccountMember(accountId);
+        }
+
+        match /categories/{categoryId} {
+          allow read, write: if isAccountMember(accountId);
+        }
+
+        match /registered_patrons/{regPatronId} {
+          allow read, write: if isAccountMember(accountId);
+        }
+      }
+    }
+  }
+}

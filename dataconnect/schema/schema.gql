@@ -1,0 +1,51 @@
+type User @table {
+  username: String!
+  email: String!
+  passwordHash: String!
+  createdAt: Timestamp!
+  displayName: String
+  shippingAddress: String
+  billingAddress: String
+  phoneNumber: String
+}
+
+type Item @table {
+  title: String!
+  description: String!
+  startingBid: Float!
+  startTime: Timestamp!
+  endTime: Timestamp!
+  createdAt: Timestamp!
+  seller: User
+  reservePrice: Float
+  currentHighestBid: Float
+  category: String
+  condition: String
+  imageUrls: [String]
+}
+
+type Bid @table {
+  bidAmount: Float!
+  bidTime: Timestamp!
+  createdAt: Timestamp!
+  bidder: User
+  item: Item
+}
+
+type Auction @table {
+  status: String!
+  createdAt: Timestamp!
+  item: Item
+  winningBidId: UUID
+  winnerUser: User
+}
+
+type Notification @table {
+  type: String!
+  message: String!
+  createdAt: Timestamp!
+  isRead: Boolean!
+  user: User
+  itemId: UUID
+  bidId: UUID
+}

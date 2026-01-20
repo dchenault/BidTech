@@ -1,0 +1,40 @@
+{
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "Default user avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1535643302794-19c3804b874b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzYyNDcxNjQxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "item-image-1",
+      "description": "Vintage painting",
+      "imageUrl": "https://images.unsplash.com/photo-1578926372062-6ddf6fc55e0e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8dmludGFnZSUyMHBhaW50aW5nfGVufDB8fHx8MTc2MjUxMTUwMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "vintage painting"
+    },
+    {
+      "id": "item-image-2",
+      "description": "Antique sculpture",
+      "imageUrl": "https://images.unsplash.com/photo-1640607747951-91bb676e3f96?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YW50aXF1ZSUyMHNjdWxwdHVyZXxlbnwwfHx8fDE3NjI1NDk0OTN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "antique sculpture"
+    },
+    {
+      "id": "item-image-3",
+      "description": "Designer handbag",
+      "imageUrl": "https://images.unsplash.com/photo-1758959791346-66e1e8ab21ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxkZXNpZ25lciUyMGhhbmRiYWd8ZW58MHx8fHwxNzYyNTM4ODgxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "designer handbag"
+    },
+    {
+      "id": "item-image-4",
+      "description": "Luxury watch",
+      "imageUrl": "https://images.unsplash.com/photo-1636639818651-d97365346a5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxsdXh1cnklMjB3YXRjaHxlbnwwfHx8fDE3NjI1MzE2NTN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "luxury watch"
+    },
+    {
+      "id": "item-image-5",
+      "description": "Signed memorabilia",
+      "imageUrl": "https://images.unsplash.com/photo-1571821807283-80c42f13810a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzaWduZWQlMjBtZW1vcmFiaWxpYXxlbnwwfHx8fDE3NjI1NDk0OTN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "signed memorabilia"
+    }
+  ]
+}

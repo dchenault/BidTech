@@ -1,0 +1,58 @@
+mutation CreateSeedData @auth(level: PUBLIC, insecureReason: "This mutation is used to populate the database with seed data") {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      username: "demouser1",
+      email: "demouser1@example.com",
+      passwordHash: "passwordhash1",
+      createdAt: "2024-04-27T12:00:00Z"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      username: "demouser2",
+      email: "demouser2@example.com",
+      passwordHash: "passwordhash2",
+      createdAt: "2024-04-27T13:00:00Z"
+    }
+  ])
+  item_insertMany(data: [
+    {
+      id: "650e8400-e29b-41d4-a716-446655440000",
+      sellerId: "550e8400-e29b-41d4-a716-446655440000",
+      title: "Demo Item 1",
+      description: "Demo item 1 description",
+      startingBid: 10.0,
+      startTime: "2024-04-28T10:00:00Z",
+      endTime: "2024-04-29T10:00:00Z",
+      createdAt: "2024-04-27T14:00:00Z"
+    },
+    {
+      id: "650e8400-e29b-41d4-a716-446655440001",
+      sellerId: "550e8400-e29b-41d4-a716-446655440001",
+      title: "Demo Item 2",
+      description: "Demo item 2 description",
+      startingBid: 20.0,
+      startTime: "2024-04-28T11:00:00Z",
+      endTime: "2024-04-29T11:00:00Z",
+      createdAt: "2024-04-27T15:00:00Z"
+    }
+  ])
+  bid_insertMany(data: [
+    {
+      id: "750e8400-e29b-41d4-a716-446655440000",
+      bidderId: "550e8400-e29b-41d4-a716-446655440001",
+      itemId: "650e8400-e29b-41d4-a716-446655440000",
+      bidAmount: 15.0,
+      bidTime: "2024-04-28T12:00:00Z",
+      createdAt: "2024-04-27T16:00:00Z"
+    },
+    {
+      id: "750e8400-e29b-41d4-a716-446655440001",
+      bidderId: "550e8400-e29b-41d4-a716-446655440000",
+      itemId: "650e8400-e29b-41d4-a716-446655440001",
+      bidAmount: 25.0,
+      bidTime: "2024-04-28T13:00:00Z",
+      createdAt: "2024-04-27T17:00:00Z"
+    }
+  ])
+}

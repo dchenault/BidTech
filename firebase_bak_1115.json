@@ -1,0 +1,23 @@
+
+{
+  "apphosting": {
+    "source": ".",
+    "backendId": "bidtech-backend",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "region": "us-central1"
+  },
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "**",
+        "appHosting": {
+          "backendId": "bidtech-backend"
+        }
+      }
+    ]
+  }
+}

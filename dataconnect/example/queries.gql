@@ -1,0 +1,34 @@
+mutation CreateSampleUser @auth(level: PUBLIC, insecureReason: "This is a sample mutation") {
+  user_insert(data: {
+    username: "sampleuser",
+    email: "sample@example.com",
+    passwordHash: "hashed_password",
+    createdAt_expr: "request.time"
+  })
+}
+
+query ListItems @auth(level: PUBLIC, insecureReason: "This is a sample query") {
+  items {
+    id
+    title
+    description
+  }
+}
+
+mutation UpdateItemDescription($id: UUID!, $description: String!) @auth(level: USER, insecureReason: "This is a sample mutation") {
+  item_update(
+    id: $id,
+    data: {
+      description: $description
+    }
+  )
+}
+
+query GetUserNotifications($userId: UUID!) @auth(level: USER, insecureReason: "This is a sample query") {
+  notifications(where: {userId: {eq: $userId}}) {
+    id
+    message
+    isRead
+    createdAt
+  }
+}
