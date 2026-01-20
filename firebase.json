@@ -17,10 +17,7 @@
     "rewrites": [
       {
         "source": "**",
-        "run": {
-          "serviceId": "bidtechv1",
-          "region": "us-east5"
-        }
+        "function": "bidtechMain"
       }
     ]
   },
