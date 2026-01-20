@@ -18,14 +18,14 @@
       {
         "source": "**",
         "run": {
-          "serviceId": "bidtechauctions1",
+          "serviceId": "bidtechv1",
           "region": "us-east5"
         }
       }
     ]
   },
   "apphosting": {
-    "backendId": "bidtechauctions1",
+    "backendId": "bidtechv1",
     "region": "us-east5",
     "rootDir": "/",
     "ignore": [
