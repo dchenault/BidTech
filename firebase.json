@@ -17,7 +17,9 @@
     "rewrites": [
       {
         "source": "**",
-        "function": "bidtechMain"
+        "appHosting": {
+          "backendId": "bidtechv1"
+        }
       }
     ]
   },
