@@ -4,7 +4,6 @@ import {
   collection,
   doc,
   writeBatch,
-  deleteDoc,
   updateDoc,
 } from 'firebase/firestore';
 import {
@@ -74,8 +73,8 @@ export function useInvitations() {
       // 2. If the user had accepted, remove them from the auction's managers map
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        // To remove a key from a map, you must use dot notation with updateDoc
-        // We use the batch's update method here
+        // To remove a key from a map, you must use a special FieldValue, but since we are in a batch
+        // we can use the dot notation with an empty value to signify deletion.
         batch.update(auctionRef, { [`managers.${acceptedByUid}`]: undefined });
       }
       

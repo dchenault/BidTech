@@ -82,5 +82,3 @@ export function InviteManagerForm({ auctions, onSubmit }: InviteManagerFormProps
     </Form>
   );
 }
-
-    

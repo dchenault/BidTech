@@ -46,7 +46,10 @@ service cloud.firestore {
       }
 
       match /invitations/{inviteId} {
+        // Any account member can read the list of invites to display them in the UI.
+        // The invited user can read their specific invite via the accept page.
         allow read: if isAccountMember(accountId) || request.auth.token.email == resource.data.email;
+        // Only account members (admins/managers) can create/update/delete invites.
         allow write: if isAccountMember(accountId);
       }
 
@@ -56,9 +59,13 @@ service cloud.firestore {
         }
 
         allow read: if isAccountMember(accountId);
-        // Allow creation if the user is the account admin (for the first user) OR if they are already a member of the account.
         allow create: if isSignedIn() && (request.resource.data.adminUserId == request.auth.uid || isAccountMember(accountId)) && request.resource.data.accountId == accountId;
-        allow update: if isOwner(accountId) || isAuctionManager();
+        // Allow update if user is owner, existing manager, or if they are adding ONLY themselves to the managers map
+        allow update: if isOwner(accountId) || isAuctionManager() || 
+                      (isAccountMember(accountId) && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) && 
+                       request.resource.data.managers.diff(resource.data.managers).addedKeys().hasOnly([request.auth.uid]));
+
         allow delete: if isOwner(accountId);
 
         match /items/{itemId} {

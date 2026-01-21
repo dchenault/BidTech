@@ -89,11 +89,17 @@ export function useUserSetup() {
             const invitationSnapshot = await getDocs(q);
 
             if (!invitationSnapshot.empty) {
+                let acceptedCount = 0;
                 invitationSnapshot.forEach(invitationDoc => {
                     const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', invitationDoc.data().auctionId);
                     batch.update(auctionRef, { [`managers.${user.uid}`]: invitationDoc.data().role || 'manager' });
                     batch.update(invitationDoc.ref, { status: 'accepted', acceptedBy: user.uid });
+                    acceptedCount++;
                 });
+                toast({
+                    title: "Invitation Accepted",
+                    description: `You now have manager access to ${acceptedCount} new auction(s).`
+                })
             }
         }
         
