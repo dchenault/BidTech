@@ -20,21 +20,27 @@ service cloud.firestore {
     }
 
     match /accounts/{accountId} {
+      // Any signed-in user can read the main account document. This is safe as it contains no secrets.
+      // This is necessary for the useUserSetup hook to check if an account exists.
       allow get: if isSignedIn();
+      
+      // Only a new user creating the very first account can write to it.
       allow create: if isSignedIn() && request.resource.data.adminUserId == request.auth.uid;
+      
+      // Only the designated admin can update their account.
       allow update: if isOwner(accountId);
+      
+      // Disallow listing all accounts for security.
       allow list, delete: if false;
 
       match /users/{userId} {
-        // Allow a user to read their own profile, or any member to read any profile.
-        allow get: if isAccountMember(accountId) || (isSignedIn() && request.auth.uid == userId);
-        // Only members can list all users.
-        allow list: if isAccountMember(accountId);
-        
-        // A new user can create THEIR OWN user document.
+        // A user can create THEIR OWN user document. This is the key to breaking the permissions deadlock.
         allow create: if isSignedIn() && request.auth.uid == userId;
 
-        // An admin can update or delete any user.
+        // Any member of the account can view any other member's profile.
+        allow get, list: if isAccountMember(accountId);
+        
+        // Only the account owner can update or delete users.
         allow update, delete: if isOwner(accountId);
       }
 
@@ -43,8 +49,13 @@ service cloud.firestore {
       }
 
       match /invitations/{inviteId} {
-        allow read: if isAccountMember(accountId) || request.auth.token.email == resource.data.email;
+        // An admin can read all invites. A user can read an invite if it's for their email.
+        allow read: if isOwner(accountId) || (isSignedIn() && request.auth.token.email == resource.data.email);
+        
+        // Only admins can create or delete invites.
         allow create, delete: if isOwner(accountId);
+        
+        // An admin or the invited user can update the status (i.e., accept it).
         allow update: if isOwner(accountId) || (isSignedIn() && request.auth.token.email == resource.data.email);
       }
 
@@ -53,10 +64,14 @@ service cloud.firestore {
           return request.auth != null && resource.data.managers[request.auth.uid] != null;
         }
 
+        // Any member of the account can read auctions.
         allow read: if isAccountMember(accountId);
-        allow create: if isSignedIn() && (request.resource.data.adminUserId == request.auth.uid || isAccountMember(accountId)) && request.resource.data.accountId == accountId;
+
+        // Any member can create an auction.
+        allow create: if isAccountMember(accountId) && request.resource.data.accountId == accountId;
         
-        // Allow update if user is owner, existing manager, OR if they are an account member adding ONLY themselves to managers.
+        // Admins or auction managers can update. Also, an account member can add themselves to the managers list.
+        // This is used by the invitation flow.
         allow update: if isOwner(accountId) || isAuctionManager() || 
                       (isAccountMember(accountId) && 
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) && 

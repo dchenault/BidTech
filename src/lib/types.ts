@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export type User = {
@@ -111,7 +110,7 @@ export type Invitation = {
 }
 
 
-const auctionFormSchema = z.object({
+export const auctionFormSchema = z.object({
   name: z.string().min(2, {
     message: "Auction name must be at least 2 characters.",
   }),
@@ -123,6 +122,21 @@ const auctionFormSchema = z.object({
 });
 
 export type FormValues = z.infer<typeof auctionFormSchema>;
+
+export const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address.'),
+  password: z.string().min(1, 'Password is required.'),
+});
+export type LoginValues = z.infer<typeof loginSchema>;
+
+export const signupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters.'),
+  email: z.string().email('Please enter a valid email address.'),
+  password: z
+    .string()
+    .min(6, 'Password must be at least 6 characters long.'),
+});
+export type SignupValues = z.infer<typeof signupSchema>;
 
 
 export const patronFormSchema = z.object({

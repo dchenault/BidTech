@@ -22,62 +22,60 @@ import { Input } from '@/components/ui/input';
 import { Gavel, Loader2 } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import {
-  signInWithPopup,
-  GoogleAuthProvider,
-  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
 } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, type LoginValues } from '@/lib/types';
+import { signupSchema, type SignupValues } from '@/lib/types';
 import Link from 'next/link';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+  const form = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+    },
   });
 
-  const handleAuthError = (error: any, method: string) => {
-    console.error(`${method} sign-in error`, error);
-    toast({
-      variant: 'destructive',
-      title: 'Authentication Error',
-      description: error.message || `Could not sign in with ${method}.`,
-    });
-    setIsGoogleLoading(false);
-    setIsEmailLoading(false);
-  };
-
-  const handleGoogleLogin = () => {
+  const handleEmailSignup = async (values: SignupValues) => {
     if (!auth) {
-      handleAuthError({ message: 'Firebase Auth is not available.' }, 'Google');
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: 'Firebase Auth is not available.',
+      });
       return;
     }
-    setIsGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider).catch((error) =>
-      handleAuthError(error, 'Google')
-    );
-  };
-
-  const handleEmailLogin = (values: LoginValues) => {
-    if (!auth) {
-      handleAuthError({ message: 'Firebase Auth is not available.' }, 'Email');
-      return;
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        values.email,
+        values.password
+      );
+      // After creating the user, update their profile with the name
+      await updateProfile(userCredential.user, {
+        displayName: values.name,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign Up Error',
+        description: error.message || 'Could not create your account.',
+      });
+      setIsLoading(false);
     }
-    setIsEmailLoading(true);
-    signInWithEmailAndPassword(auth, values.email, values.password).catch(
-      (error) => handleAuthError(error, 'Email')
-    );
   };
 
   useEffect(() => {
@@ -94,8 +92,6 @@ export default function LoginPage() {
     );
   }
 
-  const isLoading = isGoogleLoading || isEmailLoading;
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md shadow-2xl">
@@ -104,16 +100,31 @@ export default function LoginPage() {
             <Gavel className="h-8 w-8 text-primary-foreground" />
           </div>
           <CardTitle className="text-3xl font-headline font-bold">
-            Sign In to Bidtech
+            Create an Account
           </CardTitle>
-          <CardDescription>Modern Auction Management</CardDescription>
+          <CardDescription>
+            Join Bidtech to start managing your auctions.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(handleEmailLogin)}
+              onSubmit={form.handleSubmit(handleEmailSignup)}
               className="space-y-4"
             >
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
@@ -145,58 +156,21 @@ export default function LoginPage() {
                 )}
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isEmailLoading && (
+                {isLoading && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Sign In with Email
+                Create Account
               </Button>
             </form>
           </Form>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-          <Button
-            onClick={handleGoogleLogin}
-            variant="outline"
-            className="w-full"
-            disabled={isLoading}
-          >
-            {isGoogleLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <svg
-                className="mr-2 h-4 w-4"
-                aria-hidden="true"
-                focusable="false"
-                data-prefix="fab"
-                data-icon="google"
-                role="img"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 488 512"
-              >
-                <path
-                  fill="currentColor"
-                  d="M488 261.8C488 403.3 381.5 512 244 512 111.8 512 0 400.2 0 264.8S111.8 17.6 244 17.6c70.1 0 129.2 28.2 174.4 73.4l-66.2 64.3c-24-22.9-56.2-39-94.2-39-70.1 0-127.1 57.1-127.1 127.1s57.1 127.1 127.1 127.1c78.8 0 112.3-59.3 115.8-87.1H244V253.3h239.3c5.4 28.7 8.7 59.8 8.7 94.5z"
-                ></path>
-              </svg>
-            )}
-            Sign In with Google
-          </Button>
         </CardContent>
         <CardFooter className="flex-col gap-4 pt-6">
           <div className="text-sm">
             <Link
-              href="/signup"
+              href="/login"
               className="font-medium text-primary hover:underline"
             >
-              Don't have an account? Sign up.
+              Already have an account? Sign in.
             </Link>
           </div>
         </CardFooter>

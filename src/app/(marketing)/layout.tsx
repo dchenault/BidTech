@@ -38,17 +38,21 @@ export default function MarketingLayout({
           >
             Support
           </Link>
-          {!isUserLoading && (
-            user ? (
+          {!isUserLoading &&
+            (user ? (
               <Button asChild>
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
             ) : (
-              <Button asChild>
-                <Link href="/login">Login</Link>
-              </Button>
-            )
-          )}
+              <>
+                <Button asChild variant="ghost">
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
+              </>
+            ))}
         </nav>
       </header>
       <main className="flex-1">{children}</main>

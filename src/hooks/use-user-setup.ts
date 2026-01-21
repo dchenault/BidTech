@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,10 +6,9 @@ import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * A hook to handle one-time setup for a newly authenticated user on a standard login.
- * 1. Checks if the user is the first user, and if so, creates the primary account.
- * 2. Creates a user document for the new user if one doesn't exist.
- * This hook NO LONGER handles invitations; that is managed by the InvitePage itself.
+ * A hook to handle one-time setup for a newly authenticated user.
+ * It ensures the account and user documents exist.
+ * This hook is now simplified and does not handle invitation logic, which is managed by the InvitePage.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -20,22 +18,15 @@ export function useUserSetup() {
   const [isSetupComplete, setIsSetupComplete] = useState(false);
 
   useEffect(() => {
-    // If auth is loading, or we have no user, or setup is already done, we don't need to do anything.
+    // Exit conditions: auth is loading, no user, no firestore, or setup already done.
     if (isAuthLoading || !user || !firestore || isSetupComplete) {
-      if (!isAuthLoading && !user) {
-        // If the user is definitely logged out, setup is not needed and not processing.
-        setIsSetupProcessing(false);
+      if (!isAuthLoading) {
+        setIsSetupProcessing(false); // Ensure loading stops if auth resolves to null
       }
       return;
     }
 
     const performUserSetup = async () => {
-      // Avoid re-running setup if it's already completed for this session
-      if (isSetupComplete) {
-        setIsSetupProcessing(false);
-        return;
-      }
-
       setIsSetupProcessing(true);
       try {
         const accountId = 'account-1'; // Hardcoded for this single-account application.
@@ -43,54 +34,60 @@ export function useUserSetup() {
 
         const accountRef = doc(firestore, 'accounts', accountId);
         const userRef = doc(firestore, 'accounts', accountId, 'users', user.uid);
-        
+
+        // Check for account and user documents in parallel.
         const [accountDoc, userDoc] = await Promise.all([
-            getDoc(accountRef),
-            getDoc(userRef)
+          getDoc(accountRef),
+          getDoc(userRef),
         ]);
 
-        let isFirstUserEver = !accountDoc.exists();
+        const isFirstUserEver = !accountDoc.exists();
 
+        // Scenario 1: This is the very first user signing up.
         if (isFirstUserEver) {
-            const accountData = {
-                id: accountId,
-                adminUserId: user.uid,
-                name: user.displayName ? `${user.displayName}'s Account` : 'My Account',
-                lastItemSku: 1000,
-            };
-            batch.set(accountRef, accountData);
-            toast({
-                title: 'Welcome!',
-                description: 'Your account has been created, and you are the administrator.',
-            });
+          const accountData = {
+            id: accountId,
+            adminUserId: user.uid,
+            name: user.displayName ? `${user.displayName}'s Account` : 'My Account',
+            lastItemSku: 1000,
+          };
+          batch.set(accountRef, accountData);
+          toast({
+            title: 'Welcome!',
+            description: 'Your account has been created, and you are the administrator.',
+          });
         }
 
+        // Scenario 2: The user document does not exist for the current user.
         if (!userDoc.exists()) {
-            const userData = {
-                id: user.uid,
-                accountId: accountId,
-                email: user.email,
-                role: isFirstUserEver ? 'admin' : 'user', // Default role for non-invited signups
-                avatarUrl: user.photoURL,
-            };
-            batch.set(userRef, userData);
-             if (!isFirstUserEver) {
-                 toast({
-                    title: 'Welcome!',
-                    description: 'Your user profile has been created.',
-                });
-            }
+          const userData = {
+            id: user.uid,
+            accountId: accountId,
+            email: user.email,
+            // If they are the first user ever, make them an admin. Otherwise, 'user'.
+            // Invitation flow handles promoting to 'manager'.
+            role: isFirstUserEver ? 'admin' : 'user', 
+            avatarUrl: user.photoURL || null,
+            name: user.displayName || 'New User',
+          };
+          batch.set(userRef, userData);
+          if (!isFirstUserEver) {
+            toast({
+              title: 'Profile Created',
+              description: 'Your user profile has been successfully created.',
+            });
+          }
         }
-        
+
         await batch.commit();
         setIsSetupComplete(true);
       } catch (error) {
-        console.error("Error during user setup:", error);
+        console.error('Error during user setup:', error);
         toast({
-            variant: "destructive",
-            title: "Setup Error",
-            description: "Could not complete initial account setup. Please try again later."
-        })
+          variant: 'destructive',
+          title: 'Setup Error',
+          description: 'Could not complete initial account setup. Please check permissions and try again.',
+        });
       } finally {
         setIsSetupProcessing(false);
       }
@@ -99,6 +96,6 @@ export function useUserSetup() {
     performUserSetup();
   }, [user, firestore, toast, isSetupComplete, isAuthLoading]);
 
-  // isSetupLoading is true if auth is still resolving or if our setup logic is running
+  // isSetupLoading is true if auth is still resolving or if our specific setup logic is running.
   return { isSetupLoading: isAuthLoading || isSetupProcessing };
 }
