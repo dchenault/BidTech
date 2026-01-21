@@ -1,10 +1,10 @@
-
 'use client';
 import {
   collection,
   doc,
   writeBatch,
   updateDoc,
+  addDoc,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -13,7 +13,6 @@ import {
   useUser,
 } from '@/firebase';
 import type { Invitation, InviteManagerFormValues } from '@/lib/types';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from './use-toast';
 
 
@@ -30,8 +29,8 @@ export function useInvitations() {
   
   const { data: invitations, isLoading } = useCollection<Invitation>(invitationsRef);
 
-  const sendInvitation = async (values: InviteManagerFormValues) => {
-    if (!invitationsRef) return;
+  const sendInvitation = async (values: InviteManagerFormValues): Promise<string | undefined> => {
+    if (!invitationsRef) return undefined;
 
     try {
         const newInvitation = {
@@ -40,12 +39,14 @@ export function useInvitations() {
             status: 'pending',
             accountId: accountId,
         };
-      await addDocumentNonBlocking(invitationsRef, newInvitation);
+      const docRef = await addDoc(invitationsRef, newInvitation);
       
       toast({
-        title: 'Invitation Sent!',
-        description: `${values.email} has been invited to manage the selected auction. They will gain access upon their next login.`
+        title: 'Invitation Link Ready!',
+        description: `A unique link has been generated for ${values.email}.`
       });
+
+      return docRef.id;
 
     } catch (error) {
       console.error('Error sending invitation:', error);
@@ -54,6 +55,7 @@ export function useInvitations() {
         title: 'Error',
         description: 'Failed to create invitation.',
       });
+      return undefined;
     }
   };
   
@@ -73,8 +75,9 @@ export function useInvitations() {
       // 2. If the user had accepted, remove them from the auction's managers map
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        // To remove a key from a map, you must use a special FieldValue, but since we are in a batch
-        // we can use the dot notation with an empty value to signify deletion.
+        // To remove a key from a map, we can use dot notation with `delete` field value, 
+        // but since we are in a transaction we can just set it to undefined which works for Firestore.
+        // We will remove the field from the map.
         batch.update(auctionRef, { [`managers.${acceptedByUid}`]: undefined });
       }
       

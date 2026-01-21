@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -61,6 +60,7 @@ export default function SettingsPage() {
   const [exportType, setExportType] = useState<'items' | 'bids' | 'patrons' | 'donations' | null>(null);
   const [isProcessingExport, setIsProcessingExport] = useState(false);
   const [invitationToRevoke, setInvitationToRevoke] = useState<Invitation | null>(null);
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
   
   const { auctions, isLoading: isLoadingAuctions } = useAuctions();
   const { patrons, isLoading: isLoadingPatrons } = usePatrons();
@@ -69,8 +69,30 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const handleInviteSubmit = async (values: { email: string, auctionId: string }) => {
-    await sendInvitation(values);
+    const newInviteId = await sendInvitation(values);
     setIsInviteDialogOpen(false); 
+    if (newInviteId) {
+      const newLink = `${window.location.origin}/invite/${newInviteId}`;
+      setInvitationLink(newLink);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (!invitationLink) return;
+    navigator.clipboard.writeText(invitationLink).then(() => {
+        toast({
+            title: "Link Copied!",
+            description: "The invitation link has been copied to your clipboard.",
+        });
+        setInvitationLink(null);
+    }).catch(err => {
+        console.error("Failed to copy link:", err);
+        toast({
+            variant: "destructive",
+            title: "Copy Failed",
+            description: "Could not copy the link. Please copy it manually.",
+        });
+    });
   };
 
   const handleExportAllPatrons = () => {
@@ -296,6 +318,26 @@ export default function SettingsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleRevoke} className="bg-destructive hover:bg-destructive/90">
               Revoke Access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!invitationLink} onOpenChange={(isOpen) => !isOpen && setInvitationLink(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Invitation Link Generated</AlertDialogTitle>
+            <AlertDialogDescription>
+              Share this unique link with the manager. They must use this link to accept the invitation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="p-4 my-2 bg-muted rounded-md text-sm break-all font-mono">
+            {invitationLink}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCopyLink}>
+              Copy Link & Close
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
