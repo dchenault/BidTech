@@ -20,7 +20,9 @@ service cloud.firestore {
     }
 
     match /accounts/{accountId} {
-      allow get: if isOwner(accountId) || isAccountMember(accountId);
+      // Allow any signed-in user to read basic account info.
+      // This is safe and necessary for the user setup hook to run for new managers.
+      allow get: if isSignedIn();
       // Allow a user to create an account if they are setting themselves as the admin.
       // This is the entry point for the very first user.
       allow create: if isSignedIn() && request.resource.data.adminUserId == request.auth.uid;
@@ -49,8 +51,12 @@ service cloud.firestore {
         // Any account member can read the list of invites to display them in the UI.
         // The invited user can read their specific invite via the accept page.
         allow read: if isAccountMember(accountId) || request.auth.token.email == resource.data.email;
-        // Only account members (admins/managers) can create/update/delete invites.
-        allow write: if isAccountMember(accountId);
+        
+        // An owner can create or delete invites.
+        allow create, delete: if isOwner(accountId);
+        
+        // An owner OR the invited user can update the invitation (to accept it).
+        allow update: if isOwner(accountId) || (isSignedIn() && request.auth.token.email == resource.data.email);
       }
 
       match /auctions/{auctionId} {
