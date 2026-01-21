@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,11 +45,29 @@ export default function InvitePage() {
 
       try {
         const accountId = 'account-1'; // Hardcoded for this app
+
+        // Step 1: Ensure the user's own document exists before proceeding.
+        const userRef = doc(firestore, 'accounts', accountId, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          // User document doesn't exist, create it.
+          const newUserDoc = {
+            id: user.uid,
+            accountId: accountId,
+            email: user.email,
+            role: 'manager', // Invited users are managers
+            avatarUrl: user.photoURL,
+          };
+          await setDoc(userRef, newUserDoc);
+        }
+        
+        // Step 2: Now that the user is guaranteed to be an account member, process the invite.
         const inviteRef = doc(firestore, 'accounts', accountId, 'invitations', inviteId);
         const inviteSnap = await getDoc(inviteRef);
 
         if (!inviteSnap.exists()) {
-          setError('This invitation is invalid or has expired.');
+          setError('This invitation is invalid or has been revoked.');
           setStatus('error');
           return;
         }
@@ -65,7 +83,6 @@ export default function InvitePage() {
         if (inviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
           setError(`This invitation is for ${inviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
           setStatus('error');
-          // Optionally sign the user out: await signOut(auth);
           return;
         }
 
@@ -73,6 +90,7 @@ export default function InvitePage() {
         const batch = writeBatch(firestore);
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', inviteData.auctionId);
         
+        // Use dot notation to update a specific field in the managers map
         batch.update(auctionRef, { [`managers.${user.uid}`]: inviteData.role || 'manager' });
         batch.update(inviteRef, { status: 'accepted', acceptedBy: user.uid });
 
@@ -87,7 +105,7 @@ export default function InvitePage() {
 
       } catch (e: any) {
         console.error("Error processing invitation:", e);
-        setError(e.message || 'An error occurred while trying to accept the invitation.');
+        setError(e.message || 'An error occurred while trying to accept the invitation. The security rules may have blocked the action.');
         setStatus('error');
       }
     };
@@ -118,7 +136,7 @@ export default function InvitePage() {
         return (
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">{status === 'loading' ? 'Verifying invitation...' : 'Accepting invitation...'}</p>
+            <p className="text-muted-foreground">{status === 'loading' ? 'Verifying invitation...' : 'Finalizing permissions...'}</p>
           </div>
         );
       case 'requires_login':
@@ -126,7 +144,7 @@ export default function InvitePage() {
             <>
             <CardHeader>
                 <CardTitle className="text-2xl">You're Invited!</CardTitle>
-                <CardDescription>To accept your invitation, please sign in with your Google account.</CardDescription>
+                <CardDescription>To accept your invitation to manage an auction, please sign in.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Button onClick={handleGoogleLogin} className="w-full" size="lg" disabled={isAuthCallLoading}>

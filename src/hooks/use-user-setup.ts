@@ -2,15 +2,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch, setDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * A hook to handle one-time setup for a newly authenticated user.
+ * A hook to handle one-time setup for a newly authenticated user on a standard login.
  * 1. Checks if the user is the first user, and if so, creates the primary account.
  * 2. Creates a user document for the new user if one doesn't exist.
- * 3. Checks for and processes any pending invitations for the user's email.
+ * This hook NO LONGER handles invitations; that is managed by the InvitePage itself.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -70,7 +70,7 @@ export function useUserSetup() {
                 id: user.uid,
                 accountId: accountId,
                 email: user.email,
-                role: isFirstUserEver ? 'admin' : 'manager', // New users are managers by default
+                role: isFirstUserEver ? 'admin' : 'user', // Default role for non-invited signups
                 avatarUrl: user.photoURL,
             };
             batch.set(userRef, userData);
@@ -79,27 +79,6 @@ export function useUserSetup() {
                     title: 'Welcome!',
                     description: 'Your user profile has been created.',
                 });
-            }
-        }
-
-        // Check for and process pending invitations
-        if (user.email) {
-            const invitationsRef = collection(firestore, 'accounts', accountId, 'invitations');
-            const q = query(invitationsRef, where('email', '==', user.email), where('status', '==', 'pending'));
-            const invitationSnapshot = await getDocs(q);
-
-            if (!invitationSnapshot.empty) {
-                let acceptedCount = 0;
-                invitationSnapshot.forEach(invitationDoc => {
-                    const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', invitationDoc.data().auctionId);
-                    batch.update(auctionRef, { [`managers.${user.uid}`]: invitationDoc.data().role || 'manager' });
-                    batch.update(invitationDoc.ref, { status: 'accepted', acceptedBy: user.uid });
-                    acceptedCount++;
-                });
-                toast({
-                    title: "Invitation Accepted",
-                    description: `You now have manager access to ${acceptedCount} new auction(s).`
-                })
             }
         }
         
