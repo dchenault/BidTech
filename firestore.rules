@@ -34,11 +34,15 @@ service cloud.firestore {
       allow list, delete: if false;
 
       match /users/{userId} {
-        // A user can create THEIR OWN user document. This is the key to breaking the permissions deadlock.
+        // A user can create THEIR OWN user document. This is key to breaking the permissions deadlock.
         allow create: if isSignedIn() && request.auth.uid == userId;
 
-        // Any member of the account can view any other member's profile.
-        allow get, list: if isAccountMember(accountId);
+        // A user can read their own user document. An admin can also read any user document.
+        // This is required for the setup hooks to check if a user document already exists.
+        allow get: if (isSignedIn() && request.auth.uid == userId) || isOwner(accountId);
+
+        // Any member of the account can view the list of other members.
+        allow list: if isAccountMember(accountId) || isOwner(accountId);
         
         // Only the account owner can update or delete users.
         allow update, delete: if isOwner(accountId);
