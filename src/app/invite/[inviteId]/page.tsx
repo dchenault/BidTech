@@ -58,6 +58,7 @@ export default function InvitePage() {
             email: user.email,
             role: 'manager', // Invited users are managers
             avatarUrl: user.photoURL,
+            name: user.displayName,
           };
           await setDoc(userRef, newUserDoc);
         }

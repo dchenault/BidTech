@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // By default, deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isOwner(accountId) {
+      return request.auth != null && get(/databases/$(database)/documents/accounts/$(accountId)).data.adminUserId == request.auth.uid;
+    }
+
+    function isAccountMember(accountId) {
+      return request.auth != null && exists(/databases/$(database)/documents/accounts/$(accountId)/users/$(request.auth.uid));
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /accounts/{accountId} {
+      // Any signed-in user can read the main account document to check if it exists.
+      allow get: if isSignedIn();
+      
+      // Only a new user creating the very first account can write to it.
+      allow create: if isSignedIn() && request.resource.data.adminUserId == request.auth.uid;
+      
+      // Only the designated admin can update their account.
+      allow update: if isOwner(accountId);
+      
+      // Disallow listing all accounts for security.
+      allow list, delete: if false;
+
+      match /users/{userId} {
+        // A user can create THEIR OWN user document. This is key to breaking the permissions deadlock.
+        allow create: if isSignedIn() && request.auth.uid == userId;
+
+        // A user can read their own user document. An admin can also read any user document.
+        allow get: if (isSignedIn() && request.auth.uid == userId) || isOwner(accountId);
+
+        // Any member of the account can view the list of other members.
+        allow list: if isAccountMember(accountId) || isOwner(accountId);
+        
+        // Only the account owner can update or delete users.
+        allow update, delete: if isOwner(accountId);
+      }
+
+      match /patrons/{patronId} {
+        allow read, write: if isAccountMember(accountId) || isOwner(accountId);
+      }
+
+      match /invitations/{inviteId} {
+        // An admin can read all invites. A user can read an invite if it's for their email.
+        allow read: if isOwner(accountId) || (isSignedIn() && request.auth.token.email == resource.data.email);
+        
+        // Only admins can create or delete invites.
+        allow create, delete: if isOwner(accountId);
+        
+        // An admin or the invited user can update the status (i.e., accept it).
+        allow update: if isOwner(accountId) || (isSignedIn() && request.auth.token.email == resource.data.email);
+      }
+
+      match /auctions/{auctionId} {
+        function isAuctionManager() {
+          // Use `get` instead of `resource.data` to check current stored state
+          return request.auth != null && get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.managers[request.auth.uid] != null;
+        }
+
+        // Any member of the account can read auctions.
+        allow read: if isAccountMember(accountId) || isOwner(accountId);
+
+        // Any member can create an auction.
+        allow create: if isAccountMember(accountId) && request.resource.data.accountId == accountId;
+        
+        // Admins or auction managers can update.
+        // Also, an account member can add themselves to the managers list if they're not already there.
+        // This is used by the invitation flow to prevent a race condition.
+        allow update: if isOwner(accountId) || isAuctionManager() || 
+                      (isAccountMember(accountId) && 
+                       !isAuctionManager() && // Can only add, not modify role
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) && 
+                       request.resource.data.managers.diff(resource.data.managers).addedKeys().hasOnly([request.auth.uid]));
+
+        allow delete: if isOwner(accountId);
+
+        match /items/{itemId} {
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
+        }
+
+        match /lots/{lotId} {
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
+        }
+
+        match /categories/{categoryId} {
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
+        }
+
+        match /registered_patrons/{regPatronId} {
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
+        }
+      }
+    }
+  }
+}
