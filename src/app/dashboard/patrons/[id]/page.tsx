@@ -124,7 +124,7 @@ export default function PatronDetailsPage() {
     }
 
     exportPatronReceiptToHTML({
-        patron: { ...patron, biddingNumber: itemsForReceipt[0]?.winner?.biddingNumber },
+        patron: { ...patron, biddingNumber: itemsForReceipt[0]?.winner?.biddingNumber } as any,
         items: itemsForReceipt,
         auction: selectedAuction
     });
