@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -20,8 +19,7 @@ service cloud.firestore {
     }
 
     match /accounts/{accountId} {
-      // Any signed-in user can read the main account document. This is safe as it contains no secrets.
-      // This is necessary for the useUserSetup hook to check if an account exists.
+      // Any signed-in user can read the main account document to check if it exists.
       allow get: if isSignedIn();
       
       // Only a new user creating the very first account can write to it.
@@ -38,7 +36,6 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.auth.uid == userId;
 
         // A user can read their own user document. An admin can also read any user document.
-        // This is required for the setup hooks to check if a user document already exists.
         allow get: if (isSignedIn() && request.auth.uid == userId) || isOwner(accountId);
 
         // Any member of the account can view the list of other members.
@@ -49,7 +46,7 @@ service cloud.firestore {
       }
 
       match /patrons/{patronId} {
-        allow read, write: if isAccountMember(accountId);
+        allow read, write: if isAccountMember(accountId) || isOwner(accountId);
       }
 
       match /invitations/{inviteId} {
@@ -65,38 +62,41 @@ service cloud.firestore {
 
       match /auctions/{auctionId} {
         function isAuctionManager() {
-          return request.auth != null && resource.data.managers[request.auth.uid] != null;
+          // Use `get` instead of `resource.data` to check current stored state
+          return request.auth != null && get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.managers[request.auth.uid] != null;
         }
 
         // Any member of the account can read auctions.
-        allow read: if isAccountMember(accountId);
+        allow read: if isAccountMember(accountId) || isOwner(accountId);
 
         // Any member can create an auction.
         allow create: if isAccountMember(accountId) && request.resource.data.accountId == accountId;
         
-        // Admins or auction managers can update. Also, an account member can add themselves to the managers list.
-        // This is used by the invitation flow.
+        // Admins or auction managers can update.
+        // Also, an account member can add themselves to the managers list if they're not already there.
+        // This is used by the invitation flow to prevent a race condition.
         allow update: if isOwner(accountId) || isAuctionManager() || 
                       (isAccountMember(accountId) && 
+                       !isAuctionManager() && // Can only add, not modify role
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) && 
                        request.resource.data.managers.diff(resource.data.managers).addedKeys().hasOnly([request.auth.uid]));
 
         allow delete: if isOwner(accountId);
 
         match /items/{itemId} {
-          allow read, write: if isAccountMember(accountId);
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
         }
 
         match /lots/{lotId} {
-          allow read, write: if isAccountMember(accountId);
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
         }
 
         match /categories/{categoryId} {
-          allow read, write: if isAccountMember(accountId);
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
         }
 
         match /registered_patrons/{regPatronId} {
-          allow read, write: if isAccountMember(accountId);
+          allow read, write: if isAccountMember(accountId) || isOwner(accountId);
         }
       }
     }

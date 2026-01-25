@@ -8,7 +8,6 @@ import { useToast } from '@/hooks/use-toast';
 /**
  * A hook to handle one-time setup for a newly authenticated user.
  * It ensures the account and user documents exist.
- * This hook is now simplified and does not handle invitation logic, which is managed by the InvitePage.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -41,10 +40,12 @@ export function useUserSetup() {
           getDoc(userRef),
         ]);
 
+        let hasWritten = false;
         const isFirstUserEver = !accountDoc.exists();
 
         // Scenario 1: This is the very first user signing up.
         if (isFirstUserEver) {
+          hasWritten = true;
           const accountData = {
             id: accountId,
             adminUserId: user.uid,
@@ -60,6 +61,7 @@ export function useUserSetup() {
 
         // Scenario 2: The user document does not exist for the current user.
         if (!userDoc.exists()) {
+          hasWritten = true;
           const userData = {
             id: user.uid,
             accountId: accountId,
@@ -78,8 +80,11 @@ export function useUserSetup() {
             });
           }
         }
+        
+        if (hasWritten) {
+            await batch.commit();
+        }
 
-        await batch.commit();
         setIsSetupComplete(true);
       } catch (error) {
         console.error('Error during user setup:', error);
