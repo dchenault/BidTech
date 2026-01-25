@@ -32,7 +32,7 @@ export function EditDonorForm({
 }) {
   const { toast } = useToast();
   
-  const defaultValues = useMemo(() => donor ? {
+  const defaultValues = useMemo<DonorFormValues>(() => donor ? {
     name: donor.name,
     type: donor.type,
     contactPerson: donor.contactPerson || '',
