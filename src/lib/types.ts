@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export type User = {
@@ -9,6 +10,7 @@ export type User = {
   accounts: { [accountId: string]: 'admin' | 'manager' };
   // The account the user is currently viewing.
   activeAccountId: string;
+  role?: string;
 };
 
 export type Category = {

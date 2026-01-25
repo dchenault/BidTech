@@ -6,6 +6,8 @@ export const mockUser: User = {
   name: 'Admin User',
   email: 'admin@auctioneerpro.com',
   avatarUrl: 'https://picsum.photos/seed/100/100/100',
+  accounts: { 'account-1': 'admin' },
+  activeAccountId: 'account-1',
   role: 'admin',
 };
 
