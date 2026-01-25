@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -12,6 +11,7 @@ import { Gavel, Loader2, AlertTriangle } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import type { Invitation } from '@/lib/types';
 import Link from 'next/link';
+import { setupNewUser } from '@/firebase/user-setup';
 
 type Status = 'loading' | 'requires_login' | 'error' | 'success' | 'processing';
 
@@ -34,7 +34,6 @@ export default function InvitePage() {
       return;
     }
 
-    // Step 1: Fetch the invitation data from the root collection.
     const inviteRef = doc(firestore, 'invitations', inviteId);
     const inviteSnap = await getDoc(inviteRef);
 
@@ -47,19 +46,16 @@ export default function InvitePage() {
     const fetchedInviteData = inviteSnap.data() as Invitation;
     setInviteData(fetchedInviteData);
 
-    // Step 2: If the user isn't logged in, wait for them to log in.
     if (!user) {
       setStatus('requires_login');
       return;
     }
     
-    // Step 3: User is logged in, begin processing.
     setStatus('processing');
 
     try {
-      if (fetchedInviteData.status === 'accepted') {
-        toast({ title: "Invitation already accepted.", description: "You already have access to this auction." });
-        // A better UX might switch their active account and redirect. For now, just redirect to dashboard.
+      if (fetchedInviteData.status === 'accepted' && fetchedInviteData.acceptedBy === user.uid) {
+        toast({ title: "Invitation already accepted", description: "Redirecting to your dashboard." });
         router.push(`/dashboard`);
         return;
       }
@@ -70,19 +66,21 @@ export default function InvitePage() {
         return;
       }
       
-      // All checks passed, accept the invitation
+      const userRef = doc(firestore, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        await setupNewUser(firestore, user);
+      }
+      
       const batch = writeBatch(firestore);
       
-      // A. Add the invited account to the user's own profile.
-      const userRef = doc(firestore, 'users', user.uid);
       batch.update(userRef, { [`accounts.${fetchedInviteData.accountId}`]: 'manager' });
       
-      // B. Add user to the auction's managers map
       const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
       batch.update(auctionRef, { [`managers.${user.uid}`]: true });
 
-      // C. Update the invitation status to 'accepted'
-      batch.update(inviteRef, { status: 'accepted', acceptedBy: user.uid });
+      const updatedInviteRef = doc(firestore, 'invitations', inviteId);
+      batch.update(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
 
       await batch.commit();
 
@@ -102,10 +100,10 @@ export default function InvitePage() {
 
   useEffect(() => {
     if (isUserLoading) {
-      return; // Wait until auth state is known
+      return; 
     }
     processInvitation();
-  }, [isUserLoading, processInvitation]);
+  }, [isUserLoading, processInvitation, user]);
 
   const handleGoogleLogin = () => {
     if (!auth) return;
