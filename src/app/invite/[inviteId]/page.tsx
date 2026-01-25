@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -33,23 +34,21 @@ export default function InvitePage() {
       return;
     }
 
-    // If auth is still loading, wait.
     if (isUserLoading) {
       setStatus('loading');
       return;
     }
 
-    // If auth is done loading and there's no user, prompt for login.
-    // We no longer attempt to fetch invite data here to avoid permission errors.
     if (!user) {
       setStatus('requires_login');
       return;
     }
     
-    // If we have a user, we can now proceed with processing.
     setStatus('processing');
 
     try {
+      // Step 1: Fetch the invitation document.
+      // A user can only read an invite if their email matches (per security rules).
       const inviteRef = doc(firestore, 'invitations', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
@@ -70,33 +69,35 @@ export default function InvitePage() {
         throw new Error(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
       }
       
+      // Step 2: Ensure user profile exists. If not, create it.
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
-      // Step 1: Ensure user profile exists and user is a member of the target account.
       if (!userSnap.exists()) {
         // User is brand new to the app. Create their profile and personal account.
         await setupNewUser(firestore, user);
       }
-      // Add membership to the invited account. This is a separate write operation.
-      await updateDoc(userRef, { [`accounts.${fetchedInviteData.accountId}`]: 'manager' });
-
-      // Step 2: Now that user is a member, they have permission to update the auction.
-      // Update the auction and the invitation atomically in a batch.
-      const batch = writeBatch(firestore);
       
+      // Step 3: Add membership to the invited account AND set it as the active account.
+      // This is a single, self-contained update to the user's own profile, which is allowed by rules.
+      await updateDoc(userRef, { 
+        [`accounts.${fetchedInviteData.accountId}`]: 'manager',
+        activeAccountId: fetchedInviteData.accountId,
+      });
+
+      // Step 4: Now that membership is established, update the auction's manager list.
+      // This is a separate write, which relies on the previous write completing successfully.
       const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
-      batch.update(auctionRef, { [`managers.${user.uid}`]: true });
+      await updateDoc(auctionRef, { [`managers.${user.uid}`]: true });
 
+      // Step 5: Finally, mark the invitation as accepted.
       const updatedInviteRef = doc(firestore, 'invitations', inviteId);
-      batch.update(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
-
-      await batch.commit();
+      await updateDoc(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
 
       setStatus('success');
       toast({
         title: 'Invitation Accepted!',
-        description: "You've been granted access to the auction.",
+        description: "You've been granted access to the auction. Welcome aboard!",
       });
       router.push(`/dashboard`);
 
