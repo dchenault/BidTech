@@ -15,7 +15,7 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Gift } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -83,6 +83,33 @@ export default function ItemDetailsPage() {
               </div>
             </CardContent>
           </Card>
+          {item.donor && (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Donated By</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-4">
+                        <Avatar className="hidden h-12 w-12 sm:flex">
+                           <AvatarFallback>
+                                <Gift />
+                           </AvatarFallback>
+                        </Avatar>
+                        <div className="grid gap-1">
+                            <p className="text-sm font-medium leading-none">
+                                {item.donor.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{item.donor.email}</p>
+                        </div>
+                        <div className="ml-auto font-medium">
+                            <Button asChild size="sm" variant="outline">
+                                <Link href={`/dashboard/donors/${item.donor.id}`}>View Donor</Link>
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+          )}
           {item.winner && (
             <Card>
               <CardHeader>

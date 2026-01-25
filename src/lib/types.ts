@@ -46,12 +46,30 @@ export type Item = {
   paid?: boolean;
   paymentMethod?: PaymentMethod;
   imageDataUri?: string;
+  donorId?: string;
+  donor?: Donor;
 };
 
 export type Lot = {
   id: string;
   name: string;
   auctionId: string;
+};
+
+export type Donor = {
+  id: string;
+  accountId: string;
+  name: string;
+  type: 'Individual' | 'Business';
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
 };
 
 export type Auction = {
@@ -166,6 +184,7 @@ export const itemFormSchema = z.object({
   categoryId: z.string({ required_error: "Category is required."}),
   imageDataUri: z.string().optional(),
   lotId: z.string().optional(),
+  donorId: z.string().optional(),
 });
 
 export type ItemFormValues = z.infer<typeof itemFormSchema>;
@@ -181,6 +200,23 @@ export const lotFormSchema = z.object({
 });
 
 export type LotFormValues = z.infer<typeof lotFormSchema>;
+
+export const donorFormSchema = z.object({
+  name: z.string().min(2, "Donor name is required."),
+  type: z.enum(['Individual', 'Business'], { required_error: "Donor type is required."}),
+  contactPerson: z.string().optional(),
+  email: z.string().email("Invalid email address.").optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.object({
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zip: z.string().optional(),
+  }).optional(),
+});
+
+export type DonorFormValues = z.infer<typeof donorFormSchema>;
+
 
 export const inviteManagerSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),

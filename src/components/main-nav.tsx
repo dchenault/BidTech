@@ -1,8 +1,9 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Gavel, LayoutDashboard, Settings, Users } from 'lucide-react';
+import { Gavel, LayoutDashboard, Settings, Users, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -15,6 +16,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/auctions', label: 'Auctions', icon: Gavel },
   { href: '/dashboard/patrons', label: 'Patrons', icon: Users },
+  { href: '/dashboard/donors', label: 'Donors', icon: Gift },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -25,7 +27,7 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
     <TooltipProvider>
       <nav className={cn('flex flex-col gap-2', className)}>
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true);
           return isCollapsed ? (
             <Tooltip key={item.href} delayDuration={0}>
               <TooltipTrigger asChild>

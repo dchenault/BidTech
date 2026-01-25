@@ -23,7 +23,7 @@ import {
   useUser,
   type WithId,
 } from '@/firebase';
-import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron } from '@/lib/types';
+import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
@@ -81,6 +81,15 @@ export function useAuctions() {
             const newSku = (accountData.lastItemSku || 999) + 1;
 
             const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+            
+            let donor: Donor | undefined = undefined;
+            if (itemData.donorId) {
+                const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+                const donorSnap = await transaction.get(donorRef);
+                if (donorSnap.exists()) {
+                    donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+                }
+            }
 
             const newItem: { [key: string]: any } = {
                 ...itemData,
@@ -90,6 +99,7 @@ export function useAuctions() {
                 auctionId: auctionId,
                 accountId: accountId,
                 paid: false,
+                donor: donor || null,
             };
             
             Object.keys(newItem).forEach(key => {
