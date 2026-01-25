@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirebase } from '@/firebase';
+import { useFirebase, useUser } from '@/firebase';
 import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,8 @@ import { setupNewUser } from '@/firebase/user-setup';
 type Status = 'loading' | 'requires_login' | 'error' | 'success' | 'processing';
 
 export default function InvitePage() {
-  const { user, firestore, auth, isUserLoading } = useFirebase();
+  const { firestore, auth, isUserLoading } = useFirebase();
+  const { user } = useUser();
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -28,32 +29,44 @@ export default function InvitePage() {
   const [inviteData, setInviteData] = useState<Invitation | null>(null);
 
   const processInvitation = useCallback(async () => {
-    if (!firestore || !inviteId || !auth) {
-      setError('An unexpected error occurred. The invitation is invalid.');
-      setStatus('error');
-      return;
-    }
+    // This guard is important. We only proceed if auth is loaded AND we have a user.
+    if (!firestore || !inviteId || !auth || !user) {
+      // If auth is done loading and there's still no user, we check the invite
+      // and then prompt for login.
+      if (!isUserLoading && !user && firestore) {
+          setStatus('loading');
+          const inviteRef = doc(firestore, 'invitations', inviteId);
+          try {
+            const inviteSnap = await getDoc(inviteRef);
 
-    const inviteRef = doc(firestore, 'invitations', inviteId);
-    const inviteSnap = await getDoc(inviteRef);
-
-    if (!inviteSnap.exists()) {
-      setError('This invitation is invalid or has been revoked.');
-      setStatus('error');
-      return;
-    }
-    
-    const fetchedInviteData = inviteSnap.data() as Invitation;
-    setInviteData(fetchedInviteData);
-
-    if (!user) {
-      setStatus('requires_login');
+            if (inviteSnap.exists()) {
+                setInviteData(inviteSnap.data() as Invitation);
+                setStatus('requires_login');
+            } else {
+                setError('This invitation is invalid or has been revoked.');
+                setStatus('error');
+            }
+          } catch(e) {
+            setError('Could not verify invitation.');
+            setStatus('error');
+          }
+      }
       return;
     }
     
     setStatus('processing');
 
     try {
+      const inviteRef = doc(firestore, 'invitations', inviteId);
+      const inviteSnap = await getDoc(inviteRef);
+
+      if (!inviteSnap.exists()) {
+        throw new Error('This invitation is invalid or has been revoked.');
+      }
+      
+      const fetchedInviteData = inviteSnap.data() as Invitation;
+      setInviteData(fetchedInviteData);
+
       if (fetchedInviteData.status === 'accepted' && fetchedInviteData.acceptedBy === user.uid) {
         toast({ title: "Invitation already accepted", description: "Redirecting to your dashboard." });
         router.push(`/dashboard`);
@@ -61,20 +74,23 @@ export default function InvitePage() {
       }
 
       if (fetchedInviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
-        setError(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
-        setStatus('error');
-        return;
+        throw new Error(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
       }
       
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
+      
+      // Step 1: Ensure user profile exists and user is a member of the target account.
       if (!userSnap.exists()) {
+        // User is brand new to the app. Create their profile and personal account.
         await setupNewUser(firestore, user);
       }
-      
+      // Add membership to the invited account. This is a separate write operation.
+      await updateDoc(userRef, { [`accounts.${fetchedInviteData.accountId}`]: 'manager' });
+
+      // Step 2: Now that user is a member, they have permission to update the auction.
+      // Update the auction and the invitation atomically in a batch.
       const batch = writeBatch(firestore);
-      
-      batch.update(userRef, { [`accounts.${fetchedInviteData.accountId}`]: 'manager' });
       
       const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
       batch.update(auctionRef, { [`managers.${user.uid}`]: true });
@@ -96,14 +112,12 @@ export default function InvitePage() {
       setError(e.message || 'An error occurred while trying to accept the invitation.');
       setStatus('error');
     }
-  }, [user, firestore, inviteId, router, toast, auth]);
+  }, [user, isUserLoading, firestore, inviteId, router, toast, auth]);
 
   useEffect(() => {
-    if (isUserLoading) {
-      return; 
-    }
+    // This effect will run whenever the user's auth state is resolved or changes.
     processInvitation();
-  }, [isUserLoading, processInvitation, user]);
+  }, [processInvitation]);
 
   const handleGoogleLogin = () => {
     if (!auth) return;
