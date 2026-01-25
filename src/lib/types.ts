@@ -91,6 +91,7 @@ export type Patron = {
   itemsWon: number;
   notes?: string;
   avatarUrl?: string;
+  biddingNumber?: number;
 };
 
 export type RegisteredPatron = {
