@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -9,17 +8,15 @@ import { useToast } from '@/hooks/use-toast';
 import type { Account, User as UserProfile } from '@/lib/types';
 
 /**
- * Handles one-time setup for a newly authenticated user. It relies on the useAccount
- * hook to determine if the user profile exists, and only triggers a write operation
- * if the user is new.
+ * Handles the one-time setup for a newly authenticated user. This hook is now a "writer"
+ * that relies on the `useAccount` hook to determine if setup is needed.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
   const { firestore, user, isUserLoading: isAuthLoading } = useFirebase();
-  // Rely on useAccount as the source of truth for whether a user profile exists.
+  // `useAccount` is now the single source of truth for loading and profile data.
   const { isLoading: isAccountLoading, accountId } = useAccount();
   const { toast } = useToast();
-  // This state is now only for the brief moment we are committing the batch write.
   const [isProcessing, setIsProcessing] = useState(false);
 
   const performUserSetup = useCallback(async () => {
@@ -27,7 +24,7 @@ export function useUserSetup() {
     if (isAuthLoading || isAccountLoading) {
       return;
     }
-    
+
     // If we have an accountId, it means the user's profile exists and setup is complete.
     if (accountId) {
       setIsProcessing(false);
@@ -37,7 +34,7 @@ export function useUserSetup() {
     // If we get here, it means auth and account hooks are done loading, but there's
     // no accountId. This is the definitive signal that this is a new user.
     if (!user || !firestore) {
-        return; // Should not happen if auth is loaded, but a safe guard.
+      return; // Should not happen if auth is loaded, but a safe guard.
     }
 
     setIsProcessing(true);

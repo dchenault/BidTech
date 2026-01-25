@@ -3,7 +3,6 @@
 
 import { ClientLayout } from '@/components/client-layout';
 import { useUserSetup } from '@/hooks/use-user-setup';
-import { useAccount } from '@/hooks/use-account';
 import { Loader2, Gavel } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
