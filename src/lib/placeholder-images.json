@@ -5,6 +5,12 @@
       "description": "Default user avatar",
       "imageUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjkyODc2NjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "person portrait"
+    },
+    {
+      "id": "item-image",
+      "description": "Default item image placeholder",
+      "imageUrl": "https://images.unsplash.com/photo-1580920124991-7a5906253164?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxhdWN0aW9uJTIwZ2F2ZWx8ZW58MHx8fHwxNzY5MzYzMTcyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "auction gavel"
     }
   ]
 }

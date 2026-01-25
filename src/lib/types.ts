@@ -46,6 +46,8 @@ export type Item = {
   paymentMethod?: PaymentMethod;
   donorId?: string;
   donor?: Donor;
+  imageUrl?: string;
+  thumbnailUrl?: string;
 };
 
 export type Lot = {
@@ -182,6 +184,7 @@ export const itemFormSchema = z.object({
   categoryId: z.string({ required_error: "Category is required."}),
   lotId: z.string().optional(),
   donorId: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 export type ItemFormValues = z.infer<typeof itemFormSchema>;

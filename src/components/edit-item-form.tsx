@@ -33,6 +33,7 @@ import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
 import { PlusCircle } from "lucide-react";
+import { ImageUploader } from "./image-uploader";
 
 
 export function EditItemForm({
@@ -66,6 +67,7 @@ export function EditItemForm({
         categoryId: item.category.name,
         lotId: item.lotId,
         donorId: item.donorId,
+        imageUrl: item.imageUrl || "",
       }
     : {
         name: "",
@@ -74,6 +76,7 @@ export function EditItemForm({
         categoryId: "",
         lotId: undefined,
         donorId: undefined,
+        imageUrl: "",
       };
 
   const form = useForm<ItemFormValues>({
@@ -90,6 +93,7 @@ export function EditItemForm({
         categoryId: item.category.name,
         lotId: item.lotId,
         donorId: item.donorId,
+        imageUrl: item.imageUrl || "",
       });
     }
   }, [item, form]);
@@ -101,10 +105,6 @@ export function EditItemForm({
       submissionValues.lotId = undefined;
     }
 
-    toast({
-      title: "Item Updated!",
-      description: `The "${values.name}" item has been successfully updated.`,
-    });
     onSuccess(submissionValues);
   }
   
@@ -130,6 +130,22 @@ export function EditItemForm({
      <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <FormField
+            control={form.control}
+            name="imageUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Item Image (Optional)</FormLabel>
+                <FormControl>
+                  <ImageUploader
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="name"

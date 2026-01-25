@@ -3,6 +3,7 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -51,11 +52,35 @@ export default function ItemDetailsPage() {
         </Badge>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 space-y-6">
           <CardHeader>
             <CardTitle>{item.name}</CardTitle>
             <CardDescription>{item.description}</CardDescription>
           </CardHeader>
+          <CardContent>
+             <Card>
+              <CardHeader>
+                <CardTitle>Item Image</CardTitle>
+              </CardHeader>
+              <CardContent className="flex justify-center items-center">
+                <div className="relative aspect-video w-full max-w-lg bg-muted rounded-lg flex items-center justify-center">
+                  {item.imageUrl ? (
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      fill
+                      className="object-contain rounded-lg"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <ImageIcon className="h-12 w-12" />
+                      <p>No image uploaded</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </CardContent>
         </Card>
         <div className="space-y-4">
           <Card>

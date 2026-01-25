@@ -33,6 +33,7 @@ import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
 import { PlusCircle } from "lucide-react";
+import { ImageUploader } from "./image-uploader";
 
 export function AddItemForm({
   onSuccess,
@@ -64,14 +65,11 @@ export function AddItemForm({
       categoryId: undefined,
       lotId: undefined,
       donorId: undefined,
+      imageUrl: "",
     },
   });
 
   function onSubmit(values: ItemFormValues) {
-    toast({
-      title: "Item Added!",
-      description: `The "${values.name}" item has been successfully added.`,
-    });
     onSuccess(values);
     form.reset();
   }
@@ -98,6 +96,22 @@ export function AddItemForm({
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <FormField
+            control={form.control}
+            name="imageUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Item Image (Optional)</FormLabel>
+                <FormControl>
+                  <ImageUploader
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="name"

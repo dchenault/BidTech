@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -52,7 +52,6 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc, collection, addDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
@@ -65,6 +64,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
+import Image from 'next/image';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -97,6 +98,8 @@ export default function AuctionDetailsPage() {
   const auction = getAuction(auctionId);
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
+
+  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-image');
 
   const registeredPatronsRef = useMemoFirebase(
     () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
@@ -240,17 +243,15 @@ export default function AuctionDetailsPage() {
 
   const handleWinningBidSubmit = (winningBid: number, winner: Patron) => {
     if (!auction || !selectedItem || !firestore || !accountId) return;
-
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     updateDocumentNonBlocking(itemRef, { winningBid: winningBid, winningBidderId: winner.id, winner: winner });
-
     setIsWinningBidDialogOpen(false);
     setSelectedItem(null);
   };
 
   const handleItemUpdate = (updatedItemData: ItemFormValues) => {
     if (!auction || !selectedItem) return;
-    updateItemInAuction(auction.id, selectedItem.id, updatedItemData);
+    updateItemInAuction(auction.id, selectedItem.id, selectedItem, updatedItemData);
     setIsEditDialogOpen(false);
     setSelectedItem(null);
   }
@@ -328,6 +329,7 @@ export default function AuctionDetailsPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
+                        <TableHead className="hidden sm:table-cell">Image</TableHead>
                         <TableHead>SKU</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Category</TableHead>
@@ -342,6 +344,21 @@ export default function AuctionDetailsPage() {
                     <TableBody>
                     {itemsToRender.map((item) => (
                         <TableRow key={item.id}>
+                          <TableCell className="hidden sm:table-cell">
+                            <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                              {item.thumbnailUrl ? (
+                                <Image
+                                  alt={item.name}
+                                  className="aspect-square rounded-md object-cover"
+                                  height="64"
+                                  src={item.thumbnailUrl}
+                                  width="64"
+                                />
+                              ) : (
+                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                              )}
+                            </div>
+                          </TableCell>
                         <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
                         <TableCell className="font-medium">
                             <Link href={`/dashboard/auctions/${auction.id}/items/${item.id}`} className="hover:underline">
