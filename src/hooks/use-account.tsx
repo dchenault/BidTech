@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { doc } from 'firebase/firestore';
-import { useFirestore, useUser, useDoc, WithId } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import type { User } from '@/lib/types';
 import { Loader2, Gavel } from 'lucide-react';
 
@@ -18,7 +18,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
 
-  const userProfileRef = useMemo(() => {
+  // Correctly reference the user's profile in the root `users` collection.
+  const userProfileRef = useMemoFirebase(() => {
     if (firestore && user) {
       return doc(firestore, 'users', user.uid);
     }
@@ -28,30 +29,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<User>(userProfileRef);
 
   const accountId = useMemo(() => {
-    // Determine the active account ID.
-    // For now, we'll just use the first account where the user is an admin.
-    // A future improvement would be to use `userProfile.activeAccountId`.
-    if (userProfile?.accounts) {
-      return Object.keys(userProfile.accounts).find(
-        (id) => userProfile.accounts[id] === 'admin'
-      );
-    }
-    return null;
+    // The active account is stored directly on the user's profile.
+    // The useUserSetup hook sets this for new users.
+    return userProfile?.activeAccountId || null;
   }, [userProfile]);
 
   const isLoading = isAuthLoading || isProfileLoading;
 
-  if (isLoading) {
-     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-background">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary">
-              <Gavel className="h-10 w-10 text-primary-foreground" />
-          </div>
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="mt-4 text-muted-foreground">Loading account...</p>
-      </div>
-    );
-  }
+  // The loading UI is handled by the DashboardLayout, not this global provider.
+  // Removing the loading screen from here fixes the 404 on public pages.
 
   return (
     <AccountContext.Provider value={{ accountId: accountId || null, isLoading }}>

@@ -8,8 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { Account, User } from '@/lib/types';
 
 /**
- * Handles one-time setup for a newly authenticated user in a multi-account system.
- * It ensures every new user gets their own account and user profile document.
+ * Handles one-time setup for a newly authenticated user.
+ * It creates a user profile and a personal account for every new user.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -29,26 +29,23 @@ export function useUserSetup() {
     setIsSetupProcessing(true);
     
     try {
-      // Every user has a profile document in the root `users` collection.
       const userRef = doc(firestore, 'users', user.uid);
       const userDoc = await getDoc(userRef);
 
-      // If the user document already exists, setup is complete.
+      // If the user document already exists, setup is complete for them.
       if (userDoc.exists()) {
         setIsSetupProcessing(false);
         return;
       }
       
-      // --- This is a new user, create their account and profile ---
-
-      // The new account will have an ID matching the user's UID.
-      const newAccountId = user.uid;
-      const accountRef = doc(firestore, 'accounts', newAccountId);
-
-      // Create a batch to write both documents atomically.
+      // --- This is a new user, create their profile and their own account ---
+      
       const batch = writeBatch(firestore);
 
-      // 1. Define the new account document.
+      // 1. Define the new user's personal account.
+      // The account ID will match the user's UID for a 1-to-1 mapping.
+      const newAccountId = user.uid;
+      const accountRef = doc(firestore, 'accounts', newAccountId);
       const newAccount: Account = {
         id: newAccountId,
         adminUserId: user.uid,
@@ -57,19 +54,19 @@ export function useUserSetup() {
       };
       batch.set(accountRef, newAccount);
 
-      // 2. Define the new user profile document.
+      // 2. Define the new user's profile document in the root `users` collection.
       const newUser: Omit<User, 'id'> = {
         name: user.displayName || 'New User',
         email: user.email || '',
         avatarUrl: user.photoURL || '',
         accounts: {
-          [newAccountId]: 'admin', // The user is the admin of their own account.
+          [newAccountId]: 'admin', // The user is the admin of their own new account.
         },
         activeAccountId: newAccountId, // Their new account is active by default.
       };
       batch.set(userRef, newUser);
       
-      // 3. Commit the batch.
+      // 3. Commit both writes as a single atomic operation.
       await batch.commit();
 
       toast({
@@ -93,5 +90,6 @@ export function useUserSetup() {
     performUserSetup();
   }, [performUserSetup]);
 
+  // The overall loading state is true if auth is loading OR setup is processing.
   return { isSetupLoading: isAuthLoading || isSetupProcessing };
 }

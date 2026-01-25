@@ -10,7 +10,6 @@ import {
   useFirestore,
   useCollection,
   useMemoFirebase,
-  useUser,
 } from '@/firebase';
 import type { Invitation, InviteManagerFormValues } from '@/lib/types';
 import { useToast } from './use-toast';
@@ -19,16 +18,22 @@ import { useAccount } from './use-account';
 
 export function useInvitations() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
   const { accountId } = useAccount();
   const { toast } = useToast();
 
+  // Invitations are now a root collection. We query them based on the current accountId.
   const invitationsRef = useMemoFirebase(
-    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'invitations') : null),
-    [firestore, accountId]
+    () => (firestore ? collection(firestore, 'invitations') : null),
+    [firestore]
   );
   
-  const { data: invitations, isLoading } = useCollection<Invitation>(invitationsRef);
+  const { data: allInvitations, isLoading } = useCollection<Invitation>(invitationsRef);
+
+  const invitations = useMemoFirebase(() => {
+      if (!allInvitations || !accountId) return [];
+      return allInvitations.filter(inv => inv.accountId === accountId);
+  }, [allInvitations, accountId]);
+
 
   const sendInvitation = async (values: InviteManagerFormValues): Promise<string | undefined> => {
     if (!invitationsRef || !accountId) return undefined;
@@ -38,7 +43,7 @@ export function useInvitations() {
             ...values,
             role: 'manager',
             status: 'pending',
-            accountId: accountId,
+            accountId: accountId, // The inviting account
         };
       const docRef = await addDoc(invitationsRef, newInvitation);
       
@@ -69,12 +74,17 @@ export function useInvitations() {
     try {
       const batch = writeBatch(firestore);
       
-      const invitationRef = doc(firestore, 'accounts', accountId, 'invitations', invitationId);
+      const invitationRef = doc(firestore, 'invitations', invitationId);
       batch.delete(invitationRef);
       
+      // If the user had accepted, remove them from the auction's managers
+      // and from their own user profile's account list.
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
         batch.update(auctionRef, { [`managers.${acceptedByUid}`]: undefined });
+
+        const userRef = doc(firestore, 'users', acceptedByUid);
+        batch.update(userRef, { [`accounts.${accountId}`]: undefined });
       }
       
       await batch.commit();

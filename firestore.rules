@@ -1,73 +1,117 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    // By default, deny all reads and writes
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper Functions
+    // ========= HELPER FUNCTIONS =========
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function getUser(userId) {
-      return get(/databases/$(database)/documents/users/$(userId));
-    }
     
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     function isAccountAdmin(accountId) {
-      let userDoc = getUser(request.auth.uid).data;
-      return isSignedIn() && userDoc.accounts[accountId] == 'admin';
+      // Use the user's profile document to check for admin role.
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userProfile.data.accounts[accountId] == 'admin';
     }
 
     function isAccountMember(accountId) {
-      let userDoc = getUser(request.auth.uid).data;
-      return isSignedIn() && userDoc.accounts[accountId] != null;
+      // Use the user's profile document to check for any role in the account.
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userProfile.data.accounts[accountId] != null;
     }
+
+    // ========= ROOT COLLECTIONS =========
     
-    // Rules for the root `users` collection
+    // The `users` collection stores a profile for every authenticated user.
     match /users/{userId} {
-      // A user can create their own profile document.
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      // A user can create their own profile. This is key for the signup flow.
+      allow create: if isUser(userId);
       
-      // A user can read or update their own profile document.
-      allow read, update: if isSignedIn() && request.auth.uid == userId;
+      // A user can read or update their own profile.
+      allow read, update: if isUser(userId);
+      
+      // No one can list all users or delete profiles from the client.
+      allow list, delete: if false;
     }
     
-    // Rules for `accounts` and all their subcollections
-    match /accounts/{accountId} {
-       // Only an admin of this account can read or update it.
-      allow read, update: if isAccountAdmin(accountId);
-
-      // A user can create an account document only if they are setting themselves as admin
-      // and the account ID matches their user ID. This enforces a 1-to-1 relationship on creation.
-      allow create: if isSignedIn() && 
-                      request.resource.data.adminUserId == request.auth.uid &&
-                      accountId == request.auth.uid;
+    // The `invitations` collection stores invites for users to manage auctions.
+    match /invitations/{inviteId} {
+      // An admin of the target account can create or delete invites.
+      allow create, delete: if isAccountAdmin(request.resource.data.accountId);
       
-      // Do not allow clients to list or delete accounts.
-      allow list, delete: if false;
+      // An admin can read all invites in their account. The invited user can read their own.
+      allow read: if isAccountAdmin(resource.data.accountId) || 
+                   (isSignedIn() && request.auth.token.email == resource.data.email);
+                   
+      // The invited user can update their own invite to accept it.
+      allow update: if isSignedIn() && request.auth.token.email == resource.data.email;
+    }
+    
+    // `accounts` holds all tenant data. Access is controlled by the user's profile.
+    match /accounts/{accountId} {
+      // A user can create their own account document. This happens in the same
+      // batch as user profile creation, so we check the incoming request data.
+      allow create: if isUser(request.resource.data.adminUserId) && request.resource.data.id == accountId;
 
-      // Secure all subcollections of an account
-      match /{subcollection}/{docId} {
-        allow read, write: if isAccountMember(accountId);
+      // Only a member of the account can read the account document.
+      allow read: if isAccountMember(accountId);
+      
+      // Only the admin of the account can update or delete it.
+      allow update, delete: if isAccountAdmin(accountId);
+
+      // Disallow listing all accounts for security.
+      allow list: if false;
+
+      // --- Subcollections of an Account ---
+      
+      // All direct subcollections are accessible by any member of the account.
+      // This provides a secure default for patrons, etc.
+      match /patrons/{patronId} {
+          allow read, write: if isAccountMember(accountId);
       }
-
-      // More specific rules for auctions to allow for managers
+      
+      // Auctions have more granular rules for managers.
       match /auctions/{auctionId} {
+        
         function isAuctionManager() {
-          return get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.managers[request.auth.uid] != null;
+          // Check the currently stored data, not the incoming request data.
+          return get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.managers[request.auth.uid] == true;
         }
 
-        // Members can read, admins/managers can update/delete
-        allow read: if isAccountMember(accountId);
-        allow create: if isAccountMember(accountId);
-        allow update, delete: if isAccountAdmin(accountId) || isAuctionManager();
+        // Any account member can read or create an auction.
+        allow read, create: if isAccountMember(accountId);
+        
+        // Only admins or auction managers can delete an auction.
+        allow delete: if isAccountAdmin(accountId) || isAuctionManager();
 
-        // Rules for subcollections of an auction inherit the parent auction's member check
-        // but can have their own manager logic if needed. For now, we keep it simple.
-         match /{subcollection}/{docId} {
+        // Update logic is the most complex.
+        allow update: if 
+          // An account admin can always update.
+          isAccountAdmin(accountId) ||
+          // An existing auction manager can update.
+          isAuctionManager() ||
+          // A new user accepting a valid invite can add themselves to the managers list.
+          (
+            isAccountMember(accountId) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) &&
+            request.resource.data.managers.size() == resource.data.managers.size() + 1 &&
+            request.resource.data.managers[request.auth.uid] == true
+          );
+
+        // Rules for auction subcollections inherit from the auction's permissions.
+        match /{subcollection}/{docId} {
+            // Only account admins or auction managers can read/write items, lots, etc.
             allow read, write: if isAccountAdmin(accountId) || isAuctionManager();
-         }
+        }
       }
     }
   }
