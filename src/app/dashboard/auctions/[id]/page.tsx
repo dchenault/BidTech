@@ -52,7 +52,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -241,12 +241,26 @@ export default function AuctionDetailsPage() {
     setIsEditCategoryDialogOpen(true);
   }
 
-  const handleWinningBidSubmit = (winningBid: number, winner: Patron) => {
+  const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
     if (!auction || !selectedItem || !firestore || !accountId) return;
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
-    updateDocumentNonBlocking(itemRef, { winningBid: winningBid, winningBidderId: winner.id, winner: winner });
-    setIsWinningBidDialogOpen(false);
-    setSelectedItem(null);
+    
+    try {
+      await updateDoc(itemRef, { 
+        winningBid: winningBid, 
+        winningBidderId: winner.id, 
+        winner: winner 
+      });
+      setIsWinningBidDialogOpen(false);
+      setSelectedItem(null);
+    } catch (error) {
+      console.error("Error submitting winning bid:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not save the winning bid. Please try again.'
+      });
+    }
   };
 
   const handleItemUpdate = (updatedItemData: ItemFormValues) => {
