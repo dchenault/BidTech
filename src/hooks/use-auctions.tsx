@@ -73,13 +73,13 @@ export function useAuctions() {
     if (!firestore || !auctionsData || !accountId || !storage) return;
 
     try {
-        // Step 1: Handle image upload BEFORE the transaction.
-        let imageUrl: string | undefined = undefined;
-        if (itemData.imageDataUri) {
-            imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
+        // Step 1: Handle image upload COMPLETELY SEPARATE from the transaction.
+        let finalImageUrl: string | null = null;
+        if (itemData.imageDataUri) { // This will be a data URI if a new image was selected
+            finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
         }
 
-        // Step 2: Run the database transaction with the final imageUrl.
+        // Step 2: Run the database-only transaction with the final image URL.
         await runTransaction(firestore, async (transaction) => {
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
@@ -103,26 +103,20 @@ export function useAuctions() {
             }
             
             const newItemPayload = {
-                ...itemData,
-                imageUrl: imageUrl || null, // Use the pre-uploaded URL
+                name: itemData.name,
+                description: itemData.description,
+                estimatedValue: itemData.estimatedValue,
+                lotId: itemData.lotId || null,
+                donorId: itemData.donorId || null,
+                imageUrl: finalImageUrl,
                 sku: newSku,
                 category,
                 auctionId: auctionId,
                 accountId: accountId,
                 paid: false,
                 donor: donor || null,
+                categoryId: category.id,
             };
-            delete (newItemPayload as Partial<typeof newItemPayload>).imageDataUri; // Don't save the base64 string
-
-            Object.keys(newItemPayload).forEach(key => {
-                if ((newItemPayload as any)[key] === undefined) {
-                    delete (newItemPayload as any)[key];
-                }
-            });
-
-            if ((newItemPayload as any).lotId === 'none' || (newItemPayload as any).lotId === '') {
-                delete (newItemPayload as any).lotId;
-            }
 
             const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const itemsColRef = collection(auctionDocRef, 'items');
@@ -152,28 +146,24 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
     if (!firestore || !accountId || !storage || !auctionsData) return;
 
     try {
-        // Step 1: Handle image state changes BEFORE the transaction.
         const itemRefForRead = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
         const itemSnapForRead = await getDoc(itemRefForRead);
         if (!itemSnapForRead.exists()) throw new Error("Item not found");
         const currentItem = itemSnapForRead.data() as Item;
 
-        let finalImageUrl: string | null | undefined = currentItem.imageUrl;
+        // Step 1: Handle image logic COMPLETELY SEPARATE from the transaction.
+        let finalImageUrl: string | null = currentItem.imageUrl || null;
 
         if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
-            // New image was uploaded, so upload it and get the URL.
             finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
-        } else if (itemData.imageDataUri === '') {
-            // Image was explicitly removed.
+        } 
+        else if (itemData.imageDataUri === '') {
             finalImageUrl = null;
         }
-        // If imageDataUri is an existing https:// URL, it means no change was made, so finalImageUrl remains the same.
-        
-        // Step 2: Run the database transaction with the final imageUrl.
+
+        // Step 2: Run the database-only transaction.
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
-            const itemSnap = await transaction.get(itemRef); // Re-read inside transaction for safety
-            if (!itemSnap.exists()) throw new Error("Item not found");
             
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
@@ -190,18 +180,20 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
             }
 
             const updatePayload: { [key: string]: any } = {
-                ...itemData,
-                imageUrl: finalImageUrl, // Use the pre-uploaded URL
+                name: itemData.name,
+                description: itemData.description,
+                estimatedValue: itemData.estimatedValue,
+                imageUrl: finalImageUrl,
                 category,
+                categoryId: category.id,
                 donor: donor === undefined ? deleteField() : (donor || null),
+                donorId: itemData.donorId || deleteField(),
             };
             
-            delete updatePayload.imageDataUri; // Never save the data URI
-
-            if (updatePayload.lotId === 'none' || !updatePayload.lotId) {
-                updatePayload.lotId = deleteField();
+            if(itemData.lotId && itemData.lotId !== 'none') {
+                updatePayload.lotId = itemData.lotId;
             } else {
-                 updatePayload.lotId = itemData.lotId;
+                updatePayload.lotId = deleteField();
             }
 
             transaction.update(itemRef, updatePayload);
@@ -439,3 +431,5 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
+
+    

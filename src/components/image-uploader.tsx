@@ -14,7 +14,6 @@ interface ImageUploaderProps {
 }
 
 export function ImageUploader({ value, onChange }: ImageUploaderProps) {
-  const [preview, setPreview] = useState<string | null>(value || null);
   const [isLoading, setIsLoading] = useState(false);
 
   const onDrop = useCallback(
@@ -26,7 +25,6 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
         reader.onloadend = () => {
           const dataUri = reader.result as string;
           onChange(dataUri);
-          setPreview(dataUri);
           setIsLoading(false);
         };
         reader.readAsDataURL(file);
@@ -43,7 +41,6 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
 
   const handleRemoveImage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setPreview(null);
     onChange("");
   };
 
@@ -56,11 +53,11 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
     );
   }
 
-  if (preview) {
+  if (value) {
     return (
       <div className="relative h-64 w-full rounded-md border-2 border-dashed border-gray-300">
         <Image
-          src={preview}
+          src={value}
           alt="Image preview"
           layout="fill"
           objectFit="contain"
@@ -98,3 +95,5 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
     </div>
   );
 }
+
+    
