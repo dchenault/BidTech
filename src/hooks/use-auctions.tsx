@@ -106,7 +106,7 @@ export function useAuctions() {
             
             const newItemPayload: Omit<Item, 'id'> = {
                 name: itemData.name,
-                description: itemData.description,
+                description: itemData.description || "",
                 estimatedValue: itemData.estimatedValue,
                 lotId: itemData.lotId || undefined,
                 donorId: itemData.donorId || undefined,
@@ -185,7 +185,7 @@ export function useAuctions() {
 
             const updatePayload: { [key: string]: any } = {
                 name: itemData.name,
-                description: itemData.description,
+                description: itemData.description || "",
                 estimatedValue: itemData.estimatedValue,
                 category,
                 categoryId: category.id,
