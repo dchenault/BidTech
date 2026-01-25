@@ -19,6 +19,7 @@ service cloud.firestore {
 
     function isAccountAdmin(accountId) {
       // Use the user's profile document to check for admin role.
+      // This requires the user running the check to be able to read their own user profile.
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return isSignedIn() && userProfile.data.accounts[accountId] == 'admin';
     }
@@ -33,11 +34,26 @@ service cloud.firestore {
     
     // The `users` collection stores a profile for every authenticated user.
     match /users/{userId} {
-      // A user can create their own profile. This is key for the signup flow.
+      // A user can create their own profile.
       allow create: if isUser(userId);
       
-      // A user can read or update their own profile.
-      allow read, update: if isUser(userId);
+      // A user can read their own profile.
+      allow read: if isUser(userId);
+
+      // A user can update their own profile.
+      // An account admin can also update a user's profile, but ONLY to remove that user
+      // from the account they administrate. This is for revoking manager access.
+      allow update: if isUser(userId) || (
+        // The only change is to the 'accounts' map
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accounts']) &&
+        // The size of the map is decreasing by one
+        request.resource.data.accounts.size() == resource.data.accounts.size() - 1 &&
+        // There exists an accountId that was in the old map but not the new one,
+        // AND the requester is an admin of that specific account.
+        resource.data.accounts.keys().exists(
+          accountId => !(accountId in request.resource.data.accounts) && isAccountAdmin(accountId)
+        )
+      );
       
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
@@ -46,17 +62,18 @@ service cloud.firestore {
     // The `invitations` collection stores invites for users to manage auctions.
     match /invitations/{inviteId} {
       // An admin of the target account can create or delete invites.
-      allow create, delete: if isAccountAdmin(request.resource.data.accountId);
+      allow create: if isAccountAdmin(request.resource.data.accountId);
+      allow delete: if isAccountAdmin(resource.data.accountId);
       
       // An admin can read their own invites. The invited user can read their own invite once logged in.
       allow get: if isAccountAdmin(resource.data.accountId) || 
-                   (isSignedIn() && request.auth.token.email == resource.data.email);
+                   (isSignedIn() && request.auth.token.email.lower() == resource.data.email.lower());
       
       // An admin can list the invites for their account via a query.
       allow list: if isSignedIn() && request.query.accountId != null && isAccountAdmin(request.query.accountId);
                    
       // The invited user can update their own invite to accept it.
-      allow update: if isSignedIn() && request.auth.token.email == resource.data.email;
+      allow update: if isSignedIn() && request.auth.token.email.lower() == resource.data.email.lower();
     }
     
     // `accounts` holds all tenant data. Access is controlled by the user's profile.
@@ -89,7 +106,7 @@ service cloud.firestore {
         
         function isAuctionManager() {
           // Check the currently stored data, not the incoming request data.
-          return get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.managers[request.auth.uid] == true;
+          return isSignedIn() && resource.data.managers[request.auth.uid] == true;
         }
 
         // Any account member can read or create an auction.

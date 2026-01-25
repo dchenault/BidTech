@@ -1,3 +1,4 @@
+
 'use client';
 import {
   collection,
@@ -6,6 +7,7 @@ import {
   addDoc,
   query,
   where,
+  deleteField,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -42,6 +44,7 @@ export function useInvitations() {
     try {
         const newInvitation = {
             ...values,
+            email: values.email.toLowerCase(),
             role: 'manager',
             status: 'pending',
             accountId: accountId, // The inviting account
@@ -82,10 +85,10 @@ export function useInvitations() {
       // and from their own user profile's account list.
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        batch.update(auctionRef, { [`managers.${acceptedByUid}`]: undefined });
+        batch.update(auctionRef, { [`managers.${acceptedByUid}`]: deleteField() });
 
         const userRef = doc(firestore, 'users', acceptedByUid);
-        batch.update(userRef, { [`accounts.${accountId}`]: undefined });
+        batch.update(userRef, { [`accounts.${accountId}`]: deleteField() });
       }
       
       await batch.commit();
