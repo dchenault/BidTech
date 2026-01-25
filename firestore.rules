@@ -29,6 +29,19 @@ service cloud.firestore {
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return isSignedIn() && userProfile.data.accounts[accountId] != null;
     }
+    
+    function canAdminRevokeAccess() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let oldAccountKeys = resource.data.accounts.keys();
+      let newAccountKeys = request.resource.data.accounts.keys();
+      let removedKeys = oldAccountKeys.difference(newAccountKeys);
+      let addedKeys = newAccountKeys.difference(oldAccountKeys);
+      
+      return affectedKeys.hasOnly(['accounts']) &&
+        addedKeys.size() == 0 &&
+        removedKeys.size() == 1 &&
+        isAccountAdmin(removedKeys.toList()[0]);
+    }
 
     // ========= ROOT COLLECTIONS =========
     
@@ -42,19 +55,7 @@ service cloud.firestore {
 
       // A user can update their own profile. An account admin can also update a user's
       // profile, but ONLY to remove that user from the account they administrate.
-      allow update: if isUser(userId) || (
-        // This logic allows an account admin to revoke a user's manager access.
-        let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-        let oldAccountKeys = resource.data.accounts.keys();
-        let newAccountKeys = request.resource.data.accounts.keys();
-        let removedKeys = oldAccountKeys.difference(newAccountKeys);
-        let addedKeys = newAccountKeys.difference(oldAccountKeys);
-        
-        affectedKeys.hasOnly(['accounts']) &&
-        addedKeys.size() == 0 &&
-        removedKeys.size() == 1 &&
-        isAccountAdmin(removedKeys.toList()[0])
-      );
+      allow update: if isUser(userId) || canAdminRevokeAccess();
       
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
