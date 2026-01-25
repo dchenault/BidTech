@@ -12,6 +12,7 @@ import {
 import type { Donor, DonorFormValues } from "@/lib/types";
 import { EditDonorForm } from "./edit-donor-form";
 import { useDonors } from "@/hooks/use-donors";
+import { useToast } from "@/hooks/use-toast";
 
 interface AddDonorDialogProps {
   isOpen: boolean;
@@ -21,15 +22,29 @@ interface AddDonorDialogProps {
 
 export function AddDonorDialog({ isOpen, onClose, onSuccess }: AddDonorDialogProps) {
   const { addDonor } = useDonors();
+  const { toast } = useToast();
   const [formKey, setFormKey] = useState(Date.now());
 
   const handleSuccess = async (values: DonorFormValues) => {
-    const newDonor = await addDonor(values);
-    if (newDonor) {
-      onSuccess(newDonor as Donor);
+    try {
+      const newDonor = await addDonor(values);
+      if (newDonor) {
+        onSuccess(newDonor as Donor);
+        toast({
+          title: "Donor Added!",
+          description: `The details for ${values.name} have been successfully added.`,
+        });
+      }
+      onClose();
+      setFormKey(Date.now()); // Reset form for next time
+    } catch (error) {
+       toast({
+        variant: "destructive",
+        title: "Error Adding Donor",
+        description: "Could not save the new donor. Please try again.",
+      });
+      console.error("Error adding donor from dialog:", error);
     }
-    onClose();
-    setFormKey(Date.now()); // Reset form for next time
   };
 
   return (

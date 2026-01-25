@@ -76,12 +76,29 @@ export default function DonorsPage() {
     if (!editingDonor) return;
     updateDonor(editingDonor.id, updatedDonorData);
     setEditingDonor(null);
+     toast({
+        title: "Donor Updated!",
+        description: `The details for ${updatedDonorData.name} have been successfully updated.`,
+    });
   };
   
-  const handleDonorAdded = (newDonorData: DonorFormValues) => {
-    addDonor(newDonorData);
-    setIsAddDonorDialogOpen(false);
-    setAddFormKey(Date.now()); // Reset the form for the next time
+  const handleDonorAdded = async (newDonorData: DonorFormValues) => {
+    try {
+        await addDonor(newDonorData);
+        setIsAddDonorDialogOpen(false);
+        setAddFormKey(Date.now()); // Reset the form for the next time
+        toast({
+            title: "Donor Added!",
+            description: `The details for ${newDonorData.name} have been successfully added.`,
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error Adding Donor",
+            description: "Could not save the new donor. Please try again.",
+        });
+        console.error("Error adding donor:", error);
+    }
   }
 
   const handleDeleteClick = (donor: Donor) => {

@@ -16,7 +16,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import type { Donor, DonorFormValues } from "@/lib/types";
 import { donorFormSchema } from "@/lib/types";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
@@ -30,7 +29,6 @@ export function EditDonorForm({
   donor?: Donor | null;
   submitButtonText?: string;
 }) {
-  const { toast } = useToast();
   
   const defaultValues = useMemo<DonorFormValues>(() => donor ? {
     name: donor.name,
@@ -66,11 +64,6 @@ export function EditDonorForm({
 
 
   function onSubmit(values: DonorFormValues) {
-    const action = donor ? "Updated" : "Added";
-    toast({
-      title: `Donor ${action}!`,
-      description: `The details for ${values.name} have been successfully ${action.toLowerCase()}.`,
-    });
     if (onSuccess) {
       onSuccess(values);
     }
