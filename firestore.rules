@@ -40,19 +40,20 @@ service cloud.firestore {
       // A user can read their own profile.
       allow read: if isUser(userId);
 
-      // A user can update their own profile.
-      // An account admin can also update a user's profile, but ONLY to remove that user
-      // from the account they administrate. This is for revoking manager access.
+      // A user can update their own profile. An account admin can also update a user's
+      // profile, but ONLY to remove that user from the account they administrate.
       allow update: if isUser(userId) || (
-        // The only change is to the 'accounts' map
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accounts']) &&
-        // The size of the map is decreasing by one
-        request.resource.data.accounts.size() == resource.data.accounts.size() - 1 &&
-        // There exists an accountId that was in the old map but not the new one,
-        // AND the requester is an admin of that specific account.
-        resource.data.accounts.keys().exists(
-          accountId => !(accountId in request.resource.data.accounts) && isAccountAdmin(accountId)
-        )
+        // This logic allows an account admin to revoke a user's manager access.
+        let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+        let oldAccountKeys = resource.data.accounts.keys();
+        let newAccountKeys = request.resource.data.accounts.keys();
+        let removedKeys = oldAccountKeys.difference(newAccountKeys);
+        let addedKeys = newAccountKeys.difference(oldAccountKeys);
+        
+        affectedKeys.hasOnly(['accounts']) &&
+        addedKeys.size() == 0 &&
+        removedKeys.size() == 1 &&
+        isAccountAdmin(removedKeys.toList()[0])
       );
       
       // No one can list all users or delete profiles from the client.
