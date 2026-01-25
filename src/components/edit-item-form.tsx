@@ -32,7 +32,7 @@ import { useAuctions } from "@/hooks/use-auctions";
 import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Loader2 } from "lucide-react";
 import { ImageUploader } from "./image-uploader";
 
 
@@ -42,6 +42,7 @@ export function EditItemForm({
   categories,
   lots,
   auctionType,
+  isSubmitting,
   submitButtonText = "Update Item",
 }: {
   onSuccess: (data: ItemFormValues) => void;
@@ -49,6 +50,7 @@ export function EditItemForm({
   categories: Category[];
   lots: Lot[];
   auctionType: Auction['type'];
+  isSubmitting: boolean;
   submitButtonText?: string;
 }) {
   const { toast } = useToast();
@@ -88,7 +90,7 @@ export function EditItemForm({
     if (item) {
       form.reset({
         name: item.name,
-        description: item.description,
+        description: item.description || "",
         estimatedValue: item.estimatedValue,
         categoryId: item.category.name,
         lotId: item.lotId,
@@ -140,6 +142,7 @@ export function EditItemForm({
                   <ImageUploader
                     value={field.value || ""}
                     onChange={field.onChange}
+                    disabled={isSubmitting}
                   />
                 </FormControl>
                 <FormMessage />
@@ -289,7 +292,10 @@ export function EditItemForm({
             />
           )}
 
-          <Button type="submit">{submitButtonText}</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSubmitting ? 'Saving...' : submitButtonText}
+          </Button>
         </form>
       </Form>
        <AddDonorDialog 
@@ -308,3 +314,5 @@ export function EditItemForm({
     </>
   );
 }
+
+    

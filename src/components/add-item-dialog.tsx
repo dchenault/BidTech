@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import { AddItemForm } from "./add-item-form";
 interface AddItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (values: ItemFormValues) => void;
+  onSubmit: (values: ItemFormValues) => Promise<void>;
   categories: Category[];
   lots: Lot[];
   auctionType: Auction['type'];
@@ -28,10 +29,19 @@ export function AddItemDialog({
   lots,
   auctionType
 }: AddItemDialogProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSuccess = (values: ItemFormValues) => {
-    onSubmit(values);
-    onClose();
+  const handleSuccess = async (values: ItemFormValues) => {
+    setIsSubmitting(true);
+    try {
+      await onSubmit(values);
+      onClose();
+    } catch (error) {
+      // Error is handled by the hook's toast, just need to re-enable the form.
+      console.error("Submission failed:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,9 +59,12 @@ export function AddItemDialog({
             categories={categories}
             lots={lots}
             auctionType={auctionType}
+            isSubmitting={isSubmitting}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
+    

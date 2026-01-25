@@ -65,7 +65,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
 import Image from 'next/image';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -99,8 +98,6 @@ export default function AuctionDetailsPage() {
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
 
-  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-image');
-
   const registeredPatronsRef = useMemoFirebase(
     () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
     [firestore, accountId, auctionId]
@@ -115,7 +112,7 @@ export default function AuctionDetailsPage() {
     
     return actualItems.filter(item => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         item.sku.toString().includes(searchQuery)
     );
   }, [items, searchQuery]);
@@ -263,17 +260,14 @@ export default function AuctionDetailsPage() {
     }
   };
 
-  const handleItemUpdate = (updatedItemData: ItemFormValues) => {
+  const handleItemUpdate = async (updatedItemData: ItemFormValues) => {
     if (!auction || !selectedItem) return;
-    updateItemInAuction(auction.id, selectedItem.id, selectedItem, updatedItemData);
-    setIsEditDialogOpen(false);
-    setSelectedItem(null);
+    await updateItemInAuction(auction.id, selectedItem.id, selectedItem, updatedItemData);
   }
 
-  const handleItemAdd = (newItemData: ItemFormValues) => {
+  const handleItemAdd = async (newItemData: ItemFormValues) => {
     if (!auction) return;
-    addItemToAuction(auction.id, newItemData);
-    setIsAddItemDialogOpen(false);
+    await addItemToAuction(auction.id, newItemData);
   }
 
   const handleAddCategory = (values: CategoryFormValues) => {
@@ -772,7 +766,10 @@ export default function AuctionDetailsPage() {
       {selectedItem && (
         <EditItemDialog
             isOpen={isEditDialogOpen}
-            onClose={() => setIsEditDialogOpen(false)}
+            onClose={() => {
+                setIsEditDialogOpen(false);
+                setSelectedItem(null);
+            }}
             item={selectedItem}
             onSubmit={handleItemUpdate}
             categories={auction.categories || []}
@@ -847,3 +844,5 @@ export default function AuctionDetailsPage() {
     </>
   );
 }
+
+    

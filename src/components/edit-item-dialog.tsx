@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ interface EditItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
   item: Item | null;
-  onSubmit: (values: ItemFormValues) => void;
+  onSubmit: (values: ItemFormValues) => Promise<void>;
   categories: Category[];
   lots: Lot[];
   auctionType: Auction['type'];
@@ -30,12 +31,20 @@ export function EditItemDialog({
   lots,
   auctionType,
 }: EditItemDialogProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!item) return null;
 
-  const handleSuccess = (values: ItemFormValues) => {
-    onSubmit(values);
-    onClose();
+  const handleSuccess = async (values: ItemFormValues) => {
+    setIsSubmitting(true);
+    try {
+      await onSubmit(values);
+      onClose();
+    } catch (error) {
+      console.error("Submission failed:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,9 +63,12 @@ export function EditItemDialog({
             categories={categories}
             lots={lots}
             auctionType={auctionType}
+            isSubmitting={isSubmitting}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
+    
