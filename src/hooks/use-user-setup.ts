@@ -2,48 +2,51 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { useFirebase } from '@/firebase';
+import { useAccount } from '@/hooks/use-account';
 import { useToast } from '@/hooks/use-toast';
-import type { Account, User } from '@/lib/types';
+import type { Account, User as UserProfile } from '@/lib/types';
 
 /**
- * Handles one-time setup for a newly authenticated user.
- * It creates a user profile and a personal account for every new user.
+ * Handles one-time setup for a newly authenticated user. It relies on the useAccount
+ * hook to determine if the user profile exists, and only triggers a write operation
+ * if the user is new.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
   const { firestore, user, isUserLoading: isAuthLoading } = useFirebase();
+  // Rely on useAccount as the source of truth for whether a user profile exists.
+  const { isLoading: isAccountLoading, accountId } = useAccount();
   const { toast } = useToast();
-  const [isSetupProcessing, setIsSetupProcessing] = useState(true);
+  // This state is now only for the brief moment we are committing the batch write.
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const performUserSetup = useCallback(async () => {
-    // Exit if auth is loading, user is not logged in, or firestore is not available.
-    if (isAuthLoading || !user || !firestore) {
-      if (!isAuthLoading) {
-        setIsSetupProcessing(false);
-      }
+    // Wait until both auth and the account profile check have completed.
+    if (isAuthLoading || isAccountLoading) {
+      return;
+    }
+    
+    // If we have an accountId, it means the user's profile exists and setup is complete.
+    if (accountId) {
+      setIsProcessing(false);
       return;
     }
 
-    setIsSetupProcessing(true);
+    // If we get here, it means auth and account hooks are done loading, but there's
+    // no accountId. This is the definitive signal that this is a new user.
+    if (!user || !firestore) {
+        return; // Should not happen if auth is loaded, but a safe guard.
+    }
+
+    setIsProcessing(true);
     
     try {
-      const userRef = doc(firestore, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-
-      // If the user document already exists, setup is complete for them.
-      if (userDoc.exists()) {
-        setIsSetupProcessing(false);
-        return;
-      }
-      
-      // --- This is a new user, create their profile and their own account ---
-      
+      // Create the user's profile and their personal account in one atomic batch.
       const batch = writeBatch(firestore);
 
-      // 1. Define the new user's personal account.
-      // The account ID will match the user's UID for a 1-to-1 mapping.
+      // Define the new account document. The account ID is the user's UID.
       const newAccountId = user.uid;
       const accountRef = doc(firestore, 'accounts', newAccountId);
       const newAccount: Account = {
@@ -54,19 +57,19 @@ export function useUserSetup() {
       };
       batch.set(accountRef, newAccount);
 
-      // 2. Define the new user's profile document in the root `users` collection.
-      const newUser: Omit<User, 'id'> = {
+      // Define the new user profile document in the root /users collection.
+      const userRef = doc(firestore, 'users', user.uid);
+      const newUser: Omit<UserProfile, 'id'> = {
         name: user.displayName || 'New User',
         email: user.email || '',
         avatarUrl: user.photoURL || '',
         accounts: {
-          [newAccountId]: 'admin', // The user is the admin of their own new account.
+          [newAccountId]: 'admin', // User is the admin of their own new account
         },
-        activeAccountId: newAccountId, // Their new account is active by default.
+        activeAccountId: newAccountId, // Their new account is active by default
       };
       batch.set(userRef, newUser);
       
-      // 3. Commit both writes as a single atomic operation.
       await batch.commit();
 
       toast({
@@ -82,14 +85,17 @@ export function useUserSetup() {
         description: 'Could not complete initial account setup. Please try again.',
       });
     } finally {
-      setIsSetupProcessing(false);
+      // The setup process is finished. The useAccount hook will now pick up the
+      // new profile on its next render and the loading state will resolve.
+      setIsProcessing(false);
     }
-  }, [user, firestore, toast, isAuthLoading]);
+  }, [user, firestore, toast, isAuthLoading, isAccountLoading, accountId]);
 
   useEffect(() => {
     performUserSetup();
   }, [performUserSetup]);
 
-  // The overall loading state is true if auth is loading OR setup is processing.
-  return { isSetupLoading: isAuthLoading || isSetupProcessing };
+  // The overall loading state for the dashboard setup is now a combination of
+  // the main account loading state and the brief processing window.
+  return { isSetupLoading: isAccountLoading || isProcessing };
 }

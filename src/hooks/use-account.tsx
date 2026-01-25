@@ -2,7 +2,9 @@
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { useUser } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import type { User as UserProfile } from '@/lib/types';
 
 interface AccountContextType {
   accountId: string | null;
@@ -12,14 +14,21 @@ interface AccountContextType {
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading: isAuthLoading } = useUser();
+  const firestore = useFirestore();
 
-  // The accountId is now directly derived from the authenticated user's UID.
-  // This simplifies the logic, removes a database fetch, and fixes build/race condition issues.
-  const accountId = user ? user.uid : null;
+  // The user's profile contains the `activeAccountId`. We need to fetch this.
+  // This is now the single source of truth for the user's profile data.
+  const userProfileRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user]
+  );
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-  // The loading state of the account is now synonymous with the auth loading state.
-  const isLoading = isUserLoading;
+  const accountId = useMemo(() => userProfile?.activeAccountId || null, [userProfile]);
+
+  // The overall loading state is true if auth is loading OR the user profile is loading.
+  const isLoading = isAuthLoading || isProfileLoading;
 
   return (
     <AccountContext.Provider value={{ accountId, isLoading }}>
