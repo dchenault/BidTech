@@ -123,11 +123,12 @@ export default function PatronDetailsPage() {
       return;
     }
 
+    // @ts-ignore
     exportPatronReceiptToHTML({
-        patron: { ...patron, biddingNumber: itemsForReceipt[0]?.winner?.biddingNumber } as any,
-        items: itemsForReceipt,
-        auction: selectedAuction
-    });
+      patron: { ...patron, biddingNumber: itemsForReceipt[0]?.winner?.biddingNumber } as any,
+      items: itemsForReceipt,
+      auction: selectedAuction
+    } as any);
   };
 
   const handleAddDonation = async (amount: number, auctionId: string) => {
