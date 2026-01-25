@@ -79,14 +79,12 @@ export function useAuctions() {
     let newThumbnailUrl: string | undefined = undefined;
 
     try {
-        // Step 1: Handle image upload first, outside the transaction.
         if (itemData.imageUrl && itemData.imageUrl.startsWith('data:')) {
             const imagePath = `items/${accountId}/${auctionId}`;
             newImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageUrl, imagePath);
             newThumbnailUrl = newImageUrl;
         }
 
-        // Step 2: Run a transaction to add the item and update counts.
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const auctionSnap = await transaction.get(auctionRef);
@@ -146,8 +144,6 @@ export function useAuctions() {
             title: "Error adding item",
             description: error.message || "Could not add the new item due to an unexpected error."
         });
-        // Re-throw the error so the calling component knows the submission failed.
-        throw error;
     }
   }, [firestore, accountId, storage, toast]);
 
@@ -162,7 +158,6 @@ export function useAuctions() {
     let newThumbnailUrl: string | undefined = item.thumbnailUrl;
 
     try {
-        // Step 1: Handle image changes first, outside the transaction.
         if (itemData.imageUrl && itemData.imageUrl.startsWith('data:')) {
             if (item.imageUrl) {
                 await deleteFileByUrl(storage, item.imageUrl);
@@ -176,7 +171,6 @@ export function useAuctions() {
             newThumbnailUrl = undefined;
         }
 
-        // Step 2: Update Firestore in a transaction
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -223,7 +217,6 @@ export function useAuctions() {
             title: "Error Updating Item",
             description: error.message || "Could not update the item due to an unexpected error."
         });
-        throw error;
     }
   }, [firestore, accountId, storage, toast]);
 
@@ -452,5 +445,3 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
-
-    
