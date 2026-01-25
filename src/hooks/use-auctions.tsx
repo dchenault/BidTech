@@ -74,7 +74,6 @@ export function useAuctions() {
 
     try {
         let imageUrl: string | undefined = undefined;
-        // Upload image if it exists, before starting the transaction
         if (itemData.imageDataUri) {
             imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
         }
@@ -100,35 +99,34 @@ export function useAuctions() {
                     donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
                 }
             }
-
-            const newItem: { [key: string]: any } = {
+            
+            const newItemPayload = {
                 ...itemData,
-                imageUrl, // Add the public image URL
+                imageUrl: imageUrl || null,
                 sku: newSku,
                 category,
-                categoryId: category.id,
                 auctionId: auctionId,
                 accountId: accountId,
                 paid: false,
                 donor: donor || null,
             };
-            // Don't save the large base64 string to Firestore
-            delete newItem.imageDataUri;
-            
-            Object.keys(newItem).forEach(key => {
-                if (newItem[key] === undefined) {
-                    delete newItem[key];
+            delete (newItemPayload as Partial<typeof newItemPayload>).imageDataUri; // Don't save the base64 string
+
+            Object.keys(newItemPayload).forEach(key => {
+                if ((newItemPayload as any)[key] === undefined) {
+                    delete (newItemPayload as any)[key];
                 }
             });
-            if (newItem.lotId === 'none' || newItem.lotId === '') {
-                delete newItem.lotId;
+
+            if ((newItemPayload as any).lotId === 'none' || (newItemPayload as any).lotId === '') {
+                delete (newItemPayload as any).lotId;
             }
 
             const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const itemsColRef = collection(auctionDocRef, 'items');
             const newItemRef = doc(itemsColRef); 
 
-            transaction.set(newItemRef, newItem);
+            transaction.set(newItemRef, newItemPayload);
             transaction.update(auctionDocRef, { itemCount: (auction.itemCount || 0) + 1 });
             transaction.update(accountRef, { lastItemSku: newSku });
         });
@@ -146,19 +144,29 @@ export function useAuctions() {
     }
 }, [firestore, storage, accountId, auctionsData, toast]);
 
+
 const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage || !auctionsData) return;
 
     try {
-        // Determine image URL before the transaction.
-        let imageUrl = itemData.imageDataUri || null; // Start with the value from the form (which could be an existing URL or empty).
-        if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
-            // If it's a new base64 upload, get the new URL.
-            imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
-        }
-
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+            const itemSnap = await transaction.get(itemRef);
+            if (!itemSnap.exists()) throw new Error("Item not found");
+            
+            const currentItem = itemSnap.data() as Item;
+            
+            let finalImageUrl: string | null | undefined = currentItem.imageUrl;
+
+            if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
+                // New image was uploaded
+                finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
+            } else if (itemData.imageDataUri === '') {
+                // Image was removed
+                finalImageUrl = null;
+            }
+            // If imageDataUri is an existing https:// URL, finalImageUrl remains unchanged from currentItem.imageUrl, which is correct.
+
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
 
@@ -175,17 +183,17 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
 
             const updatePayload: { [key: string]: any } = {
                 ...itemData,
-                imageUrl, // This is now the correct public URL or null
+                imageUrl: finalImageUrl,
                 category,
-                categoryId: category.id,
-                // Use deleteField for robust removal of optional fields
                 donor: donor === undefined ? deleteField() : (donor || null),
             };
-
-            delete updatePayload.imageDataUri; // Never save the data URI to Firestore
+            
+            delete updatePayload.imageDataUri; // Never save the data URI
 
             if (updatePayload.lotId === 'none' || !updatePayload.lotId) {
                 updatePayload.lotId = deleteField();
+            } else {
+                 updatePayload.lotId = itemData.lotId;
             }
 
             transaction.update(itemRef, updatePayload);
