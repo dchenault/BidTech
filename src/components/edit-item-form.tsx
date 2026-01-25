@@ -65,7 +65,7 @@ export function EditItemForm({
         description: item.description,
         estimatedValue: item.estimatedValue,
         categoryId: item.category.name,
-        imageDataUri: item.imageDataUri,
+        imageDataUri: item.imageUrl,
         lotId: item.lotId,
         donorId: item.donorId,
       }
@@ -91,7 +91,7 @@ export function EditItemForm({
         description: item.description,
         estimatedValue: item.estimatedValue,
         categoryId: item.category.name,
-        imageDataUri: item.imageDataUri,
+        imageDataUri: item.imageUrl,
         lotId: item.lotId,
         donorId: item.donorId,
       });

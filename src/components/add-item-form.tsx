@@ -70,14 +70,6 @@ export function AddItemForm({
   });
 
   function onSubmit(values: ItemFormValues) {
-    if (!values.imageDataUri) {
-      toast({
-        variant: "destructive",
-        title: "Image Required",
-        description: "Please upload an image for the item.",
-      });
-      return;
-    }
     toast({
       title: "Item Added!",
       description: `The "${values.name}" item has been successfully added.`,

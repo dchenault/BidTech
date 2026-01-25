@@ -55,7 +55,7 @@ import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc, collection, addDoc } from 'firebase/firestore';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useStorage } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -66,10 +66,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
+import { uploadDataUriAndGetURL } from '@/firebase/storage';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
   const firestore = useFirestore();
+  const storage = useStorage();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId } = useAccount();
@@ -248,11 +250,10 @@ export default function AuctionDetailsPage() {
     setSelectedItem(null);
   };
 
-  const handleItemUpdate = (updatedItemData: ItemFormValues) => {
-    if (!auction || !selectedItem || !firestore || !accountId) return;
+  const handleItemUpdate = async (updatedItemData: ItemFormValues) => {
+    if (!auction || !selectedItem || !firestore || !accountId || !storage) return;
+
     const category = auction.categories.find(c => c.name === updatedItemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
-    
-    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     
     const payload: { [key: string]: any } = {
         ...updatedItemData,
@@ -260,11 +261,34 @@ export default function AuctionDetailsPage() {
         categoryId: category.id,
     };
 
+    // Image handling logic
+    if (payload.imageDataUri && payload.imageDataUri.startsWith('data:')) {
+        // This is a new base64 image, upload it
+        try {
+            const newImageUrl = await uploadDataUriAndGetURL(storage, payload.imageDataUri, `items/${accountId}/${auction.id}`);
+            payload.imageUrl = newImageUrl;
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Image Upload Failed', description: 'Could not upload the new image. Please try again.' });
+            return; // Stop the update if image upload fails
+        }
+    } else if (payload.imageDataUri) {
+        // This is an existing URL, just make sure it's in the imageUrl field
+        payload.imageUrl = payload.imageDataUri;
+    } else {
+        // The image was removed, so we set imageUrl to null
+        payload.imageUrl = null;
+    }
+
+    // We no longer need imageDataUri in the final payload
+    delete payload.imageDataUri;
+
+
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
     if (payload.lotId === 'none') {
         payload.lotId = null;
     }
-
+    
+    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     updateDocumentNonBlocking(itemRef, payload);
 
     setIsEditDialogOpen(false);

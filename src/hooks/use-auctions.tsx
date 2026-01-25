@@ -21,6 +21,7 @@ import {
   useCollection,
   useMemoFirebase,
   useUser,
+  useStorage,
   type WithId,
 } from '@/firebase';
 import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
@@ -31,10 +32,12 @@ import {
 import { useMemo, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
+import { uploadDataUriAndGetURL } from '@/firebase/storage';
 
 
 export function useAuctions() {
   const firestore = useFirestore();
+  const storage = useStorage();
   const { user, isUserLoading } = useUser();
   const { accountId } = useAccount();
   const { toast } = useToast();
@@ -66,9 +69,15 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
-    if (!firestore || !auctionsData || !accountId) return;
+    if (!firestore || !auctionsData || !accountId || !storage) return;
 
     try {
+        let imageUrl: string | undefined = undefined;
+        // Upload image if it exists, before starting the transaction
+        if (itemData.imageDataUri) {
+            imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
+        }
+
         await runTransaction(firestore, async (transaction) => {
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
@@ -93,6 +102,7 @@ export function useAuctions() {
 
             const newItem: { [key: string]: any } = {
                 ...itemData,
+                imageUrl, // Add the public image URL
                 sku: newSku,
                 category,
                 categoryId: category.id,
@@ -101,6 +111,8 @@ export function useAuctions() {
                 paid: false,
                 donor: donor || null,
             };
+            // Don't save the large base64 string to Firestore
+            delete newItem.imageDataUri;
             
             Object.keys(newItem).forEach(key => {
                 if (newItem[key] === undefined) {
@@ -131,7 +143,7 @@ export function useAuctions() {
             description: error.message || "Could not add the new item due to an unexpected error."
         });
     }
-}, [firestore, accountId, auctionsData, toast]);
+}, [firestore, storage, accountId, auctionsData, toast]);
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
     if (!firestore || !accountId) throw new Error("Firestore not available");
