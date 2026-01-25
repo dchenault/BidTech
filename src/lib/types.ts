@@ -33,7 +33,6 @@ export type Item = {
   sku: number | string;
   name: string;
   description: string;
-  imageUrl?: string;
   estimatedValue: number;
   category: Category;
   winningBid?: number;
@@ -45,7 +44,6 @@ export type Item = {
   lotId?: string;
   paid?: boolean;
   paymentMethod?: PaymentMethod;
-  imageDataUri?: string;
   donorId?: string;
   donor?: Donor;
 };
@@ -182,7 +180,6 @@ export const itemFormSchema = z.object({
   description: z.string().optional(),
   estimatedValue: z.number().min(0, "Estimated value must be positive."),
   categoryId: z.string({ required_error: "Category is required."}),
-  imageDataUri: z.string().optional(),
   lotId: z.string().optional(),
   donorId: z.string().optional(),
 });

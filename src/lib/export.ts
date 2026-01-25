@@ -1,3 +1,4 @@
+
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -226,13 +227,11 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         .item-row td { padding: 0.125rem 0.25rem; vertical-align: middle; border-bottom: 1px solid #e5e7eb; }
         .category-header { padding: 0; }
         .category-header td { border: none; }
-        .sku-cell { width: 5%; font-weight: 700; font-family: monospace; }
-        .image-cell { width: 5%; }
-        .item-image { width: 32px; height: 32px; object-fit: cover; border-radius: 0.25rem; }
-        .name-cell { width: 15%; font-weight: 600; }
-        .description-cell { width: 30%; color: #4b5563; }
+        .sku-cell { width: 10%; font-weight: 700; font-family: monospace; }
+        .name-cell { width: 20%; font-weight: 600; }
+        .description-cell { width: 35%; color: #4b5563; }
         .value-cell { width: 10%; white-space: nowrap; }
-        .notes-cell { width: 35%; border-left: 1px solid #e5e7eb; }
+        .notes-cell { width: 25%; border-left: 1px solid #e5e7eb; }
         .page-break { page-break-before: always; }
         @media print { body { font-size: 9pt; } }
     </style>
@@ -240,7 +239,6 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
     const renderItemRow = (item: Item) => `
         <tr class="item-row">
             <td class="sku-cell">${item.sku}</td>
-            <td class="image-cell"><img src="${item.imageUrl || 'https://picsum.photos/seed/placeholder/40/40'}" alt="${item.name}" class="item-image" /></td>
             <td class="name-cell">${item.name}</td>
             <td class="description-cell">${item.description}</td>
             <td class="value-cell">Estimated Value: ${formatCurrency(item.estimatedValue)}</td>
@@ -251,7 +249,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
     const renderCategoryGroup = (categoryName: string, items: Item[]) => `
         <tbody>
             <tr class="category-header">
-                <td colspan="6"><h3>Category: ${categoryName}</h3></td>
+                <td colspan="5"><h3>Category: ${categoryName}</h3></td>
             </tr>
             ${items.map(renderItemRow).join('')}
         </tbody>

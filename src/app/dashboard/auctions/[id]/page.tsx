@@ -1,7 +1,6 @@
 
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   Card,
@@ -55,7 +54,7 @@ import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc, collection, addDoc } from 'firebase/firestore';
-import { useFirestore, useCollection, useMemoFirebase, useUser, useStorage } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -66,13 +65,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
-import { uploadDataUriAndGetURL } from '@/firebase/storage';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
   const firestore = useFirestore();
-  const storage = useStorage();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId } = useAccount();
@@ -95,7 +91,6 @@ export default function AuctionDetailsPage() {
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   
-  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-placeholder');
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
   
@@ -333,9 +328,6 @@ export default function AuctionDetailsPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead className="hidden w-[100px] sm:table-cell">
-                        <span className="sr-only">Image</span>
-                        </TableHead>
                         <TableHead>SKU</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Category</TableHead>
@@ -350,16 +342,6 @@ export default function AuctionDetailsPage() {
                     <TableBody>
                     {itemsToRender.map((item) => (
                         <TableRow key={item.id}>
-                        <TableCell className="hidden sm:table-cell">
-                            <Image
-                            alt={item.name}
-                            className="aspect-square rounded-md object-cover"
-                            height="64"
-                            src={item.imageUrl || itemPlaceholder?.imageUrl || ''}
-                            width="64"
-                            data-ai-hint="item image"
-                            />
-                        </TableCell>
                         <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
                         <TableCell className="font-medium">
                             <Link href={`/dashboard/auctions/${auction.id}/items/${item.id}`} className="hover:underline">

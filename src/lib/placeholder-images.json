@@ -5,42 +5,6 @@
       "description": "Default user avatar",
       "imageUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjkyODc2NjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "person portrait"
-    },
-    {
-      "id": "item-placeholder",
-      "description": "Default placeholder for auction items",
-      "imageUrl": "https://images.unsplash.com/photo-1694279901755-01be039dfdd9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YXVjdGlvbiUyMGdhdmVsfGVufDB8fHx8MTc2OTM2MzE3Mnww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "auction gavel"
-    },
-    {
-      "id": "item-image-1",
-      "description": "Vintage painting",
-      "imageUrl": "https://images.unsplash.com/flagged/photo-1572392640988-ba48d1a74457?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx2aW50YWdlJTIwcGFpbnRpbmd8ZW58MHx8fHwxNzY5MzIxMzcyfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "vintage painting"
-    },
-    {
-      "id": "item-image-2",
-      "description": "Antique sculpture",
-      "imageUrl": "https://images.unsplash.com/photo-1750324999872-8cace7778dca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxhbnRpcXVlJTIwc2N1bHB0dXJlfGVufDB8fHx8MTc2OTM2MzE3Mnww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "antique sculpture"
-    },
-    {
-      "id": "item-image-3",
-      "description": "Designer handbag",
-      "imageUrl": "https://images.unsplash.com/photo-1623934873142-4bdb137d64eb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxkZXNpZ25lciUyMGhhbmRiYWd8ZW58MHx8fHwxNzY5MzMzNzA2fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "designer handbag"
-    },
-    {
-      "id": "item-image-4",
-      "description": "Luxury watch",
-      "imageUrl": "https://images.unsplash.com/photo-1548171916-c0dea7f94ca6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bHV4dXJ5JTIwd2F0Y2h8ZW58MHx8fHwxNzY5MzUxMjkxfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "luxury watch"
-    },
-    {
-      "id": "item-image-5",
-      "description": "Signed memorabilia",
-      "imageUrl": "https://images.unsplash.com/photo-1571821807283-80c42f13810a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxzaWduZWQlMjBtZW1vcmFiaWxpYXxlbnwwfHx8fDE3NjkzNjMxNzJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "signed memorabilia"
     }
   ]
 }

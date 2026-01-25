@@ -2,7 +2,6 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   Card,
@@ -29,7 +28,6 @@ export default function ItemDetailsPage() {
   const auction = getAuction(auctionId);
   const item = getItem(auctionId, itemId);
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
-  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-placeholder');
 
 
   if (!auction || !item) {
@@ -58,16 +56,6 @@ export default function ItemDetailsPage() {
             <CardTitle>{item.name}</CardTitle>
             <CardDescription>{item.description}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Image
-              alt={item.name}
-              className="aspect-[4/3] w-full rounded-md object-cover"
-              height="400"
-              src={item.imageUrl || itemPlaceholder?.imageUrl || ''}
-              width="600"
-              data-ai-hint="item image"
-            />
-          </CardContent>
         </Card>
         <div className="space-y-4">
           <Card>

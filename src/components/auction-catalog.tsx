@@ -3,7 +3,6 @@
 
 import type { Auction, Item } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import Image from 'next/image';
 
 interface AuctionCatalogProps {
   auction: Auction;
@@ -12,16 +11,6 @@ interface AuctionCatalogProps {
 const renderItemRow = (item: Item) => (
     <tr key={item.id} className="item-row">
         <td className="sku-cell">{item.sku}</td>
-        <td className="image-cell">
-            <Image
-                src={item.imageUrl || 'https://picsum.photos/seed/placeholder/40/40'}
-                alt={item.name}
-                width={40}
-                height={40}
-                className="item-image"
-                data-ai-hint="item image"
-            />
-        </td>
         <td className="name-cell">{item.name}</td>
         <td className="description-cell">{item.description}</td>
         <td className="value-cell">Estimated Value: {formatCurrency(item.estimatedValue)}</td>
@@ -32,7 +21,7 @@ const renderItemRow = (item: Item) => (
 const renderCategoryGroup = (categoryName: string, items: Item[]) => (
     <tbody key={categoryName}>
         <tr>
-            <td colSpan={6} className="category-header">
+            <td colSpan={5} className="category-header">
                 <h3>Category: {categoryName}</h3>
             </td>
         </tr>
@@ -149,25 +138,16 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
                 border-bottom: 1px solid #e5e7eb; /* gray-200 */
             }
             .sku-cell {
-                width: 5%;
+                width: 10%;
                 font-weight: 700;
                 font-family: monospace;
             }
-            .image-cell {
-                width: 5%;
-            }
-            .item-image {
-                width: 32px;
-                height: 32px;
-                object-fit: cover;
-                border-radius: 0.25rem; /* 4px */
-            }
             .name-cell {
-                width: 15%;
+                width: 20%;
                 font-weight: 600;
             }
             .description-cell {
-                width: 30%;
+                width: 35%;
                 color: #4b5563; /* gray-600 */
             }
             .value-cell {
@@ -175,7 +155,7 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
                 white-space: nowrap;
             }
             .notes-cell {
-                width: 35%;
+                width: 25%;
                 border-left: 1px solid #e5e7eb;
             }
         `}</style>

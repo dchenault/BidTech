@@ -22,7 +22,6 @@ import {
   useCollection,
   useMemoFirebase,
   useUser,
-  useStorage,
   type WithId,
 } from '@/firebase';
 import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
@@ -33,12 +32,10 @@ import {
 import { useMemo, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
-import { uploadDataUriAndGetURL } from '@/firebase/storage';
 
 
 export function useAuctions() {
   const firestore = useFirestore();
-  const storage = useStorage();
   const { user, isUserLoading } = useUser();
   const { accountId } = useAccount();
   const { toast } = useToast();
@@ -70,16 +67,9 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
-    if (!firestore || !auctionsData || !accountId || !storage) return;
+    if (!firestore || !auctionsData || !accountId) return;
 
     try {
-        // Step 1: Handle image upload COMPLETELY SEPARATE from the transaction.
-        let finalImageUrl: string | null = null;
-        if (itemData.imageDataUri) { // This will be a data URI if a new image was selected
-            finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
-        }
-
-        // Step 2: Run the database-only transaction with the final image URL.
         await runTransaction(firestore, async (transaction) => {
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
@@ -108,7 +98,6 @@ export function useAuctions() {
                 estimatedValue: itemData.estimatedValue,
                 lotId: itemData.lotId || null,
                 donorId: itemData.donorId || null,
-                imageUrl: finalImageUrl,
                 sku: newSku,
                 category,
                 auctionId: auctionId,
@@ -139,29 +128,13 @@ export function useAuctions() {
             description: error.message || "Could not add the new item due to an unexpected error."
         });
     }
-}, [firestore, storage, accountId, auctionsData, toast]);
+}, [firestore, accountId, auctionsData, toast]);
 
 
 const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, itemData: ItemFormValues) => {
-    if (!firestore || !accountId || !storage || !auctionsData) return;
+    if (!firestore || !accountId || !auctionsData) return;
 
     try {
-        const itemRefForRead = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
-        const itemSnapForRead = await getDoc(itemRefForRead);
-        if (!itemSnapForRead.exists()) throw new Error("Item not found");
-        const currentItem = itemSnapForRead.data() as Item;
-
-        // Step 1: Handle image logic COMPLETELY SEPARATE from the transaction.
-        let finalImageUrl: string | null = currentItem.imageUrl || null;
-
-        if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
-            finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
-        } 
-        else if (itemData.imageDataUri === '') {
-            finalImageUrl = null;
-        }
-
-        // Step 2: Run the database-only transaction.
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
             
@@ -183,7 +156,6 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
                 name: itemData.name,
                 description: itemData.description,
                 estimatedValue: itemData.estimatedValue,
-                imageUrl: finalImageUrl,
                 category,
                 categoryId: category.id,
                 donor: donor === undefined ? deleteField() : (donor || null),
@@ -211,7 +183,7 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
             description: error.message || "Could not update the item due to an unexpected error."
         });
     }
-}, [firestore, storage, accountId, auctionsData, toast]);
+}, [firestore, accountId, auctionsData, toast]);
 
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
@@ -431,5 +403,3 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
-
-    

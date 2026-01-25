@@ -27,7 +27,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { ItemFormValues, Category, Lot, Auction, Donor, CategoryFormValues } from "@/lib/types";
 import { itemFormSchema } from "@/lib/types";
-import { ImageUploader } from "./image-uploader";
 import { useDonors } from "@/hooks/use-donors";
 import { useAuctions } from "@/hooks/use-auctions";
 import { Combobox } from "./ui/combobox";
@@ -63,7 +62,6 @@ export function AddItemForm({
       description: "",
       estimatedValue: 0,
       categoryId: undefined,
-      imageDataUri: "",
       lotId: undefined,
       donorId: undefined,
     },
@@ -100,22 +98,6 @@ export function AddItemForm({
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField
-            control={form.control}
-            name="imageDataUri"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Item Image</FormLabel>
-                <FormControl>
-                  <ImageUploader 
-                    value={field.value || ''}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
           <FormField
             control={form.control}
             name="name"

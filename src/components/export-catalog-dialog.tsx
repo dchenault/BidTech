@@ -15,7 +15,6 @@ import { useSortableList, type GroupedItems } from "@/hooks/use-sortable-list";
 import { SortableItem } from "@/components/sortable-item";
 import { Item, Lot } from "@/lib/types";
 import { Loader2 } from "lucide-react";
-import Image from "next/image";
 
 interface ExportCatalogDialogProps {
   isOpen: boolean;
@@ -107,14 +106,6 @@ export function ExportCatalogDialog({
                         <SortableItem key={item.id} id={item.id}>
                           <div className="flex items-center gap-4 w-full">
                             <SortableItem.DragHandle />
-                            <Image
-                              src={item.imageUrl || 'https://picsum.photos/seed/placeholder/40/40'}
-                              alt={item.name}
-                              width={40}
-                              height={40}
-                              className="rounded-md object-cover aspect-square"
-                              data-ai-hint="item image"
-                            />
                             <div className="flex-grow">
                               <p className="font-medium">{item.name}</p>
                               <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
@@ -146,14 +137,6 @@ export function ExportCatalogDialog({
                             <SortableItem key={item.id} id={item.id}>
                               <div className="flex items-center gap-4 w-full">
                                 <SortableItem.DragHandle />
-                                <Image
-                                  src={item.imageUrl || 'https://picsum.photos/seed/placeholder/40/40'}
-                                  alt={item.name}
-                                  width={40}
-                                  height={40}
-                                  className="rounded-md object-cover aspect-square"
-                                  data-ai-hint="item image"
-                                />
                                 <div className="flex-grow">
                                   <p className="font-medium">{item.name}</p>
                                   <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
