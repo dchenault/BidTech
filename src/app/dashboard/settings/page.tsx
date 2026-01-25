@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -42,8 +41,10 @@ import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } fro
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
+import { useDonors } from '@/hooks/use-donors';
 import {
   exportPatronsToCSV,
+  exportDonorsToCSV,
   exportItemsToCSV,
   exportWinningBidsToCSV,
   exportFullReportToCSV,
@@ -66,6 +67,7 @@ export default function SettingsPage() {
   
   const { auctions, isLoading: isLoadingAuctions } = useAuctions();
   const { patrons, isLoading: isLoadingPatrons } = usePatrons();
+  const { donors, isLoading: isLoadingDonors } = useDonors();
   const { invitations, isLoading: isLoadingInvitations, sendInvitation, revokeInvitation } = useInvitations();
   const firestore = useFirestore();
   const { accountId } = useAccount();
@@ -104,6 +106,14 @@ export default function SettingsPage() {
       return;
     }
     exportPatronsToCSV(patrons);
+  };
+
+  const handleExportAllDonors = () => {
+    if (isLoadingDonors) {
+      toast({ title: "Please wait", description: "Donor data is still loading." });
+      return;
+    }
+    exportDonorsToCSV(donors);
   };
 
   const handleOpenExportDialog = (type: 'items' | 'bids' | 'patrons' | 'donations') => {
@@ -195,6 +205,10 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={handleExportAllPatrons} disabled={isLoadingPatrons}>
               {isLoadingPatrons ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               All Patrons
+            </Button>
+            <Button variant="outline" onClick={handleExportAllDonors} disabled={isLoadingDonors}>
+              {isLoadingDonors ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              All Donors
             </Button>
             <Button variant="outline" onClick={() => handleOpenExportDialog('items')} disabled={isProcessingExport}>
               <Download className="mr-2 h-4 w-4" />

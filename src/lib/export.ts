@@ -1,12 +1,4 @@
-
-
-
-
-
-
-
-
-import type { Auction, Patron, Item, Lot } from './types';
+import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
 
@@ -46,7 +38,33 @@ export function exportPatronsToCSV(patrons: Patron[]) {
   downloadFile(csvContent, 'all_patrons.csv', 'text/csv;charset=utf-s8;');
 }
 
-// 2. Export Auction Patrons
+// 2. Export All Donors (Master List)
+export function exportDonorsToCSV(donors: Donor[]) {
+  const csvHeader = [
+    'ID', 'Account ID', 'Name', 'Type', 'Contact Person', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
+  ].join(',');
+
+  const csvRows = donors.map((d) =>
+    [
+      d.id,
+      d.accountId,
+      `"${d.name}"`,
+      d.type,
+      `"${d.contactPerson || ''}"`,
+      d.email || '',
+      d.phone || '',
+      `"${d.address?.street || ''}"`,
+      `"${d.address?.city || ''}"`,
+      d.address?.state || '',
+      d.address?.zip || '',
+    ].join(',')
+  );
+
+  const csvContent = [csvHeader, ...csvRows].join('\n');
+  downloadFile(csvContent, 'all_donors.csv', 'text/csv;charset=utf-8;');
+}
+
+// 3. Export Auction Patrons
 export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: number})[], auctionName: string) {
     const csvHeader = [
     'Bidder Number', 'First Name', 'Last Name', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
@@ -72,7 +90,7 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 }
 
 
-// 3. Export Auction Items
+// 4. Export Auction Items
 export function exportItemsToCSV(items: Item[], auctionName: string) {
   const csvHeader = [
     'Item ID', 'Auction ID', 'Name', 'Description', 'Category', 'Estimated Value'
@@ -95,7 +113,7 @@ export function exportItemsToCSV(items: Item[], auctionName: string) {
 }
 
 
-// 4. Export Winning Bids for an Auction
+// 5. Export Winning Bids for an Auction
 export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   const winningBids = items.filter(item => item.winningBid && item.winner);
 
@@ -124,7 +142,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
 }
 
-// 5. Export Full Auction Report (All Auctions)
+// 6. Export Full Auction Report (All Auctions)
 export function exportFullReportToCSV(auctions: { id: string; name: string; items: Item[] }[]) {
   const csvHeader = [
     'Auction ID', 'Auction Name', 'Item ID', 'Item Name', 'Winning Bid', 'Bidder ID', 'Winner Name', 'Winner Email'
@@ -165,7 +183,7 @@ export function exportFullReportToCSV(auctions: { id: string; name: string; item
 }
 
 
-// 6. Export Auction Catalog to HTML
+// 7. Export Auction Catalog to HTML
 export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], lots: Lot[] }) {
     const lotsById = new Map((auction.lots || []).map(l => [l.id, l.name]));
 
@@ -296,7 +314,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
   downloadFile(fullHtml, fileName, 'text/html;charset=utf-8;');
 }
 
-// 7. Export Patron Receipt to HTML
+// 8. Export Patron Receipt to HTML
 export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[], auction: Auction }) {
   const { patron, items, auction } = data;
   const totalSpent = items.reduce((sum, item) => sum + (item.winningBid || 0), 0);
@@ -390,7 +408,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
   downloadFile(fullHtml, fileName, 'text/html;charset=utf-8;');
 }
 
-// 8. Export Donations for an Auction
+// 9. Export Donations for an Auction
 export function exportDonationsToCSV(items: Item[], auctionName: string) {
   const donations = items.filter(item => item.sku.toString().startsWith('DON-'));
 
