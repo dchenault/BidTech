@@ -29,31 +29,24 @@ export default function InvitePage() {
   const [inviteData, setInviteData] = useState<Invitation | null>(null);
 
   const processInvitation = useCallback(async () => {
-    // This guard is important. We only proceed if auth is loaded AND we have a user.
-    if (!firestore || !inviteId || !auth || !user) {
-      // If auth is done loading and there's still no user, we check the invite
-      // and then prompt for login.
-      if (!isUserLoading && !user && firestore) {
-          setStatus('loading');
-          const inviteRef = doc(firestore, 'invitations', inviteId);
-          try {
-            const inviteSnap = await getDoc(inviteRef);
+    if (!firestore || !inviteId || !auth) {
+      return;
+    }
 
-            if (inviteSnap.exists()) {
-                setInviteData(inviteSnap.data() as Invitation);
-                setStatus('requires_login');
-            } else {
-                setError('This invitation is invalid or has been revoked.');
-                setStatus('error');
-            }
-          } catch(e) {
-            setError('Could not verify invitation.');
-            setStatus('error');
-          }
-      }
+    // If auth is still loading, wait.
+    if (isUserLoading) {
+      setStatus('loading');
+      return;
+    }
+
+    // If auth is done loading and there's no user, prompt for login.
+    // We no longer attempt to fetch invite data here to avoid permission errors.
+    if (!user) {
+      setStatus('requires_login');
       return;
     }
     
+    // If we have a user, we can now proceed with processing.
     setStatus('processing');
 
     try {
@@ -149,7 +142,7 @@ export default function InvitePage() {
             <>
             <CardHeader>
                 <CardTitle className="text-2xl">You're Invited!</CardTitle>
-                <CardDescription>To accept your invitation for the auction, please sign in or create an account with <span className="font-bold">{inviteData?.email}</span>.</CardDescription>
+                <CardDescription>To accept your invitation, please sign in or create an account.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <Button onClick={handleGoogleLogin} className="w-full" size="lg" disabled={isAuthCallLoading}>

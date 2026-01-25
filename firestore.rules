@@ -48,9 +48,12 @@ service cloud.firestore {
       // An admin of the target account can create or delete invites.
       allow create, delete: if isAccountAdmin(request.resource.data.accountId);
       
-      // An admin can read all invites in their account. The invited user can read their own.
-      allow read: if isAccountAdmin(resource.data.accountId) || 
+      // An admin can read their own invites. The invited user can read their own invite once logged in.
+      allow get: if isAccountAdmin(resource.data.accountId) || 
                    (isSignedIn() && request.auth.token.email == resource.data.email);
+      
+      // An admin can list the invites for their account via a query.
+      allow list: if isSignedIn() && request.query.accountId != null && isAccountAdmin(request.query.accountId);
                    
       // The invited user can update their own invite to accept it.
       allow update: if isSignedIn() && request.auth.token.email == resource.data.email;

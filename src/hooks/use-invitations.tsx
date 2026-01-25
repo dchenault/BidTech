@@ -1,10 +1,11 @@
-
 'use client';
 import {
   collection,
   doc,
   writeBatch,
   addDoc,
+  query,
+  where,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -21,22 +22,22 @@ export function useInvitations() {
   const { accountId } = useAccount();
   const { toast } = useToast();
 
-  // Invitations are now a root collection. We query them based on the current accountId.
-  const invitationsRef = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'invitations') : null),
-    [firestore]
+  // Query for invitations belonging to the current account.
+  const invitationsQueryRef = useMemoFirebase(
+    () => (firestore && accountId 
+      ? query(collection(firestore, 'invitations'), where('accountId', '==', accountId)) 
+      : null),
+    [firestore, accountId]
   );
   
-  const { data: allInvitations, isLoading } = useCollection<Invitation>(invitationsRef);
-
-  const invitations = useMemoFirebase(() => {
-      if (!allInvitations || !accountId) return [];
-      return allInvitations.filter(inv => inv.accountId === accountId);
-  }, [allInvitations, accountId]);
+  // useCollection now fetches only the relevant invitations.
+  const { data: invitations, isLoading } = useCollection<Invitation>(invitationsQueryRef);
 
 
   const sendInvitation = async (values: InviteManagerFormValues): Promise<string | undefined> => {
-    if (!invitationsRef || !accountId) return undefined;
+    if (!firestore || !accountId) return undefined;
+
+    const rootInvitationsRef = collection(firestore, 'invitations');
 
     try {
         const newInvitation = {
@@ -45,7 +46,7 @@ export function useInvitations() {
             status: 'pending',
             accountId: accountId, // The inviting account
         };
-      const docRef = await addDoc(invitationsRef, newInvitation);
+      const docRef = await addDoc(rootInvitationsRef, newInvitation);
       
       toast({
         title: 'Invitation Link Ready!',
