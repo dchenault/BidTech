@@ -73,9 +73,11 @@ service cloud.firestore {
 
       // --- Subcollections of an Account ---
       
-      // All direct subcollections are accessible by any member of the account.
-      // This provides a secure default for patrons, etc.
       match /patrons/{patronId} {
+          allow read, write: if isAccountMember(accountId);
+      }
+
+      match /donors/{donorId} {
           allow read, write: if isAccountMember(accountId);
       }
       
