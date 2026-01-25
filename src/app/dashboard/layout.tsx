@@ -7,14 +7,12 @@ import { useAccount } from '@/hooks/use-account';
 import { Loader2, Gavel } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // useUserSetup must be called to trigger the setup logic for new users.
+  // useUserSetup handles the one-time creation of a user's account and profile docs.
   const { isSetupLoading } = useUserSetup();
   
-  // useAccount determines which account's data to show.
-  const { isLoading: isAccountLoading } = useAccount();
-
-  // The main loading condition depends on both setup and account resolution.
-  if (isSetupLoading || isAccountLoading) {
+  // The main loading condition for the dashboard is now just the setup hook.
+  // The account is available as soon as the user is authenticated.
+  if (isSetupLoading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary">

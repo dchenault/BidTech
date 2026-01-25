@@ -2,10 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { doc } from 'firebase/firestore';
-import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import type { User } from '@/lib/types';
-import { Loader2, Gavel } from 'lucide-react';
+import { useUser } from '@/firebase';
 
 interface AccountContextType {
   accountId: string | null;
@@ -15,32 +12,17 @@ interface AccountContextType {
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const { user, isUserLoading: isAuthLoading } = useUser();
-  const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
 
-  // Correctly reference the user's profile in the root `users` collection.
-  const userProfileRef = useMemoFirebase(() => {
-    if (firestore && user) {
-      return doc(firestore, 'users', user.uid);
-    }
-    return null;
-  }, [firestore, user]);
+  // The accountId is now directly derived from the authenticated user's UID.
+  // This simplifies the logic, removes a database fetch, and fixes build/race condition issues.
+  const accountId = user ? user.uid : null;
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<User>(userProfileRef);
-
-  const accountId = useMemo(() => {
-    // The active account is stored directly on the user's profile.
-    // The useUserSetup hook sets this for new users.
-    return userProfile?.activeAccountId || null;
-  }, [userProfile]);
-
-  const isLoading = isAuthLoading || isProfileLoading;
-
-  // The loading UI is handled by the DashboardLayout, not this global provider.
-  // Removing the loading screen from here fixes the 404 on public pages.
+  // The loading state of the account is now synonymous with the auth loading state.
+  const isLoading = isUserLoading;
 
   return (
-    <AccountContext.Provider value={{ accountId: accountId || null, isLoading }}>
+    <AccountContext.Provider value={{ accountId, isLoading }}>
       {children}
     </AccountContext.Provider>
   );
