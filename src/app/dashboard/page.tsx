@@ -15,20 +15,22 @@ import Link from 'next/link';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccount } from '@/hooks/use-account';
 
 
 export default function DashboardPage() {
     const firestore = useFirestore();
+    const { accountId } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
     const [allItems, setAllItems] = useState<Item[]>([]);
     const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
 
     useEffect(() => {
-        if (firestore && auctions.length > 0) {
+        if (firestore && accountId && auctions.length > 0) {
             setIsLoadingAllItems(true);
             Promise.all(
-                auctions.map(auction => fetchAuctionItems(firestore, auction.id))
+                auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
             ).then(itemArrays => {
                 setAllItems(itemArrays.flat());
                 setIsLoadingAllItems(false);
@@ -38,7 +40,7 @@ export default function DashboardPage() {
         } else if (!isLoadingAuctions) {
             setIsLoadingAllItems(false);
         }
-    }, [firestore, auctions, isLoadingAuctions]);
+    }, [firestore, accountId, auctions, isLoadingAuctions]);
 
     const stats = useMemo(() => {
         const totalRevenue = allItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
@@ -55,9 +57,9 @@ export default function DashboardPage() {
                     .reduce((sum, item) => sum + (item.winningBid || 0), 0);
                 return { name: auction.name, total: auctionRevenue };
             })
-            .filter(data => data.total > 0) // Only show auctions with revenue
+            .filter(data => data.total > 0) 
             .sort((a, b) => b.total - a.total)
-            .slice(0, 5); // Show top 5
+            .slice(0, 5);
     }, [auctions, allItems]);
     
     const chartConfig = {

@@ -65,12 +65,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
+import { useAccount } from '@/hooks/use-account';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
+  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
@@ -91,21 +93,19 @@ export default function AuctionDetailsPage() {
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
-  const accountId = 'account-1'; // Hardcoded for this app
-
+  
   const auction = getAuction(auctionId);
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
 
   const registeredPatronsRef = useMemoFirebase(
-    () => (firestore && !isUserLoading && user ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
-    [firestore, accountId, auctionId, user, isUserLoading]
+    () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
+    [firestore, accountId, auctionId]
   );
   const { data: registeredPatronsData, isLoading: isLoadingRegisteredPatrons } = useCollection<RegisteredPatron>(registeredPatronsRef);
 
   const searchedItems = useMemo(() => {
     if (!items) return [];
-    // Filter out donations first
     const actualItems = items.filter(item => !item.sku.toString().startsWith('DON-'));
 
     if (!searchQuery) return actualItems;
@@ -177,7 +177,7 @@ export default function AuctionDetailsPage() {
   }, [registeredPatronsWithDetails, searchQuery]);
 
 
-  if (!auction) {
+  if (!auction || !accountId) {
     return <div>Loading auction...</div>;
   }
 
@@ -239,7 +239,7 @@ export default function AuctionDetailsPage() {
   }
 
   const handleWinningBidSubmit = (winningBid: number, winner: Patron) => {
-    if (!auction || !selectedItem || !firestore) return;
+    if (!auction || !selectedItem || !firestore || !accountId) return;
 
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     updateDocumentNonBlocking(itemRef, { winningBid: winningBid, winningBidderId: winner.id, winner: winner });
@@ -249,7 +249,7 @@ export default function AuctionDetailsPage() {
   };
 
   const handleItemUpdate = (updatedItemData: ItemFormValues) => {
-    if (!auction || !selectedItem || !firestore) return;
+    if (!auction || !selectedItem || !firestore || !accountId) return;
     const category = auction.categories.find(c => c.name === updatedItemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
     
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
@@ -260,12 +260,10 @@ export default function AuctionDetailsPage() {
         categoryId: category.id,
     };
 
-    // Firestore transactions fail on `undefined` values. Clean the object.
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
     if (payload.lotId === 'none') {
         payload.lotId = null;
     }
-
 
     updateDocumentNonBlocking(itemRef, payload);
 
@@ -304,7 +302,7 @@ export default function AuctionDetailsPage() {
   }
 
   const handleRegisterPatron = async (patron: Patron, bidderNumber: number) => {
-    if (!registeredPatronsRef) return;
+    if (!registeredPatronsRef || !accountId) return;
 
     const newRegistrationData: Omit<RegisteredPatron, 'id'> = {
       accountId: accountId,
@@ -550,7 +548,6 @@ export default function AuctionDetailsPage() {
         return renderItemsTable(searchedItems, 'Auction Items', 'Manage the items for this auction.');
     }
   }
-
 
   return (
     <>

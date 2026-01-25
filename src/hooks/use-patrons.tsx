@@ -14,34 +14,31 @@ import {
 } from '@/firebase';
 import type { Patron, PatronFormValues, Item } from '@/lib/types';
 import {
-  addDocumentNonBlocking,
   updateDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
+import { useAccount } from './use-account';
 
 
 export function usePatrons() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  // TODO: This assumes the user is part of one account. This will need to be updated
-  // if a user can be part of multiple accounts.
-  const accountId = 'account-1';
+  const { accountId } = useAccount();
 
   const patronsRef = useMemoFirebase(
-    () => (firestore && user && !isUserLoading ? collection(firestore, 'accounts', accountId, 'patrons') : null),
-    [firestore, accountId, user, isUserLoading]
+    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'patrons') : null),
+    [firestore, accountId]
   );
   
   const { data: patrons, isLoading } = useCollection<Patron>(patronsRef);
 
   const addPatron = async (patronData: PatronFormValues): Promise<Patron | void> => {
-    if (!patronsRef || !user) return;
+    if (!patronsRef || !accountId) return;
     const newPatron: Omit<Patron, 'id'> = {
         ...patronData,
         accountId: accountId, // Associate with the current account
         totalSpent: 0,
         itemsWon: 0,
     };
-    // Use the blocking version to get the new doc reference
     const docRef = await addDoc(patronsRef, newPatron);
     return {
         id: docRef.id,
@@ -50,13 +47,13 @@ export function usePatrons() {
   };
   
   const updatePatron = (id: string, updatedPatron: Partial<Patron>) => {
-    if (!firestore) return;
+    if (!firestore || !accountId) return;
     const patronDocRef = doc(firestore, 'accounts', accountId, 'patrons', id);
     updateDocumentNonBlocking(patronDocRef, updatedPatron);
   };
 
   const deletePatron = async (patronId: string, allItems: Item[]) => {
-    if (!firestore) {
+    if (!firestore || !accountId) {
       throw new Error("Firestore not available");
     }
 
@@ -77,5 +74,3 @@ export function usePatrons() {
     deletePatron,
   };
 }
-
-    

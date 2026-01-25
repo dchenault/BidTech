@@ -3,7 +3,6 @@
 import {
   collection,
   doc,
-  type DocumentData,
   arrayUnion,
   arrayRemove,
   writeBatch,
@@ -31,22 +30,23 @@ import {
 } from '@/firebase/non-blocking-updates';
 import { useMemo, useCallback } from 'react';
 import { useToast } from './use-toast';
+import { useAccount } from './use-account';
 
 
 export function useAuctions() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const accountId = 'account-1'; // This should be dynamically determined
+  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const auctionsRef = useMemoFirebase(
-    () => (firestore && !isUserLoading && user ? collection(firestore, 'accounts', accountId, 'auctions') : null),
-    [firestore, accountId, user, isUserLoading]
+    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions') : null),
+    [firestore, accountId]
   );
   const { data: auctionsData, isLoading } = useCollection<Auction>(auctionsRef);
 
   const addAuction = useCallback((auctionData: Omit<Auction, 'id' | 'itemCount' | 'items' | 'categories' | 'status' | 'accountId' | 'lots'> & { startDate: string }) => {
-    if (!auctionsRef) return;
+    if (!auctionsRef || !accountId) return;
     const newAuction: Omit<Auction, 'id'> = {
         ...auctionData,
         accountId: accountId,
@@ -60,13 +60,13 @@ export function useAuctions() {
   }, [auctionsRef, accountId]);
 
   const updateAuction = useCallback((id: string, updatedAuction: Partial<Auction>) => {
-    if (!firestore) return;
+    if (!firestore || !accountId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', id);
     updateDocumentNonBlocking(auctionDocRef, updatedAuction);
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
-    if (!firestore || !auctionsData) return;
+    if (!firestore || !auctionsData || !accountId) return;
 
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -92,7 +92,6 @@ export function useAuctions() {
                 paid: false,
             };
             
-            // Firestore transactions fail on `undefined` values. Clean the object.
             Object.keys(newItem).forEach(key => {
                 if (newItem[key] === undefined) {
                     delete newItem[key];
@@ -102,10 +101,9 @@ export function useAuctions() {
                 delete newItem.lotId;
             }
 
-
             const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const itemsColRef = collection(auctionDocRef, 'items');
-            const newItemRef = doc(itemsColRef); // Create a new ref in the subcollection
+            const newItemRef = doc(itemsColRef); 
 
             transaction.set(newItemRef, newItem);
             transaction.update(auctionDocRef, { itemCount: (auction.itemCount || 0) + 1 });
@@ -126,7 +124,7 @@ export function useAuctions() {
 }, [firestore, accountId, auctionsData, toast]);
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
-    if (!firestore) throw new Error("Firestore not available");
+    if (!firestore || !accountId) throw new Error("Firestore not available");
 
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     const itemDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
@@ -146,8 +144,8 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addDonationToAuction = useCallback(async (auctionId: string, patronId: string, amount: number, isPaid: boolean = false) => {
-      if (!firestore) {
-          throw new Error("Firestore not available");
+      if (!firestore || !accountId) {
+          throw new Error("Firestore or account not available");
       }
 
       await runTransaction(firestore, async (transaction) => {
@@ -170,7 +168,7 @@ export function useAuctions() {
               estimatedValue: amount,
               winningBid: amount,
               winningBidderId: patronId,
-              winner: patronData, // Embed patron data directly
+              winner: patronData, 
               auctionId: auctionId,
               accountId: accountId,
               category: { id: "cat-donation", name: "Donation" },
@@ -189,7 +187,7 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addCategoryToAuction = useCallback((auctionId: string, category: Omit<Category, 'id'>) => {
-    if (!firestore) return;
+    if (!firestore || !accountId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     const newCategory = { ...category, id: `cat-${Date.now()}` };
     updateDocumentNonBlocking(auctionDocRef, {
@@ -198,7 +196,7 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const updateCategoryInAuction = useCallback((auctionId: string, updatedCategory: Category) => {
-     if (!auctionsData || !firestore) return;
+     if (!auctionsData || !firestore || !accountId) return;
      const auction = auctionsData.find(a => a.id === auctionId);
      if (!auction || !auction.categories) return;
 
@@ -212,7 +210,7 @@ export function useAuctions() {
   }, [firestore, accountId, auctionsData]);
 
   const addLotToAuction = useCallback((auctionId: string, lotData: LotFormValues) => {
-    if (!firestore) return;
+    if (!firestore || !accountId) return;
     const lotsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
     const newLot: Omit<Lot, 'id'> = {
         ...lotData,
@@ -222,7 +220,7 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const moveItemToLot = useCallback((auctionId: string, itemId: string, lotId: string) => {
-    if (!firestore) return;
+    if (!firestore || !accountId) return;
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
     updateDocumentNonBlocking(itemRef, { lotId: lotId });
   }, [firestore, accountId]);
@@ -233,12 +231,12 @@ export function useAuctions() {
     
     const getAuctionItems = useCallback((auctionId: string) => {
         const itemsRef = useMemoFirebase(
-            () => (firestore && !isUserLoading && user ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items') : null),
-            [firestore, accountId, auctionId, user, isUserLoading]
+            () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items') : null),
+            [firestore, accountId, auctionId]
         );
         const { data: items, isLoading } = useCollection<Item>(itemsRef);
         return { items: items || [], isLoadingItems: isLoading };
-    }, [firestore, accountId, user, isUserLoading]);
+    }, [firestore, accountId]);
     
     const getItem = useCallback((auctionId: string, itemId: string) => {
         const { items } = getAuctionItems(auctionId);
@@ -247,16 +245,16 @@ export function useAuctions() {
 
     const getAuctionLots = useCallback((auctionId: string) => {
         const lotsRef = useMemoFirebase(
-            () => (firestore && !isUserLoading && user ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots') : null),
-            [firestore, accountId, auctionId, user, isUserLoading]
+            () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots') : null),
+            [firestore, accountId, auctionId]
         );
         const { data: lots, isLoading } = useCollection<Lot>(lotsRef);
         return { lots: lots || [], isLoadingLots: isLoading };
-    }, [firestore, accountId, user, isUserLoading]);
+    }, [firestore, accountId]);
 
     const getRegisteredPatrons = useCallback((auctionId: string) => {
         const ref = useMemoFirebase(
-            () => (firestore ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
+            () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
             [firestore, accountId, auctionId]
         );
         const { data, isLoading } = useCollection<RegisteredPatron>(ref);
@@ -264,7 +262,7 @@ export function useAuctions() {
     }, [firestore, accountId]);
 
     const unregisterPatronFromAuction = useCallback(async (auctionId: string, patronId: string, registrationDocId: string) => {
-        if (!firestore) throw new Error("Firestore not available");
+        if (!firestore || !accountId) throw new Error("Firestore not available");
 
         const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
         const q = query(itemsRef, where('winningBidderId', '==', patronId), limit(1));
@@ -301,9 +299,9 @@ export function useAuctions() {
 
 export const fetchAuctionItems = async (
   firestore: Firestore,
+  accountId: string,
   auctionId: string
 ): Promise<Item[]> => {
-  const accountId = 'account-1'; // This should be dynamically determined
   const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
   const snapshot = await getDocs(itemsRef);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
@@ -311,11 +309,9 @@ export const fetchAuctionItems = async (
 
 export const fetchRegisteredPatronsWithDetails = async (
   firestore: Firestore,
+  accountId: string,
   auctionId: string
 ): Promise<(Patron & { biddingNumber: number })[]> => {
-  const accountId = 'account-1'; // This should be dynamically determined
-  
-  // 1. Get registered patron IDs for the auction
   const registeredPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
   const regSnapshot = await getDocs(registeredPatronsRef);
   const registeredPatrons = regSnapshot.docs.map(doc => doc.data() as RegisteredPatron);
@@ -325,13 +321,11 @@ export const fetchRegisteredPatronsWithDetails = async (
     return [];
   }
 
-  // 2. Fetch all patron documents from the master list
   const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
   const patronsSnapshot = await getDocs(patronsRef);
   const allPatrons = patronsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron));
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
 
-  // 3. Map registered patron data to full patron details
   const detailedPatrons = registeredPatrons.map(rp => {
     const patronDetails = patronMap.get(rp.patronId);
     if (!patronDetails) {
@@ -345,4 +339,3 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
-    

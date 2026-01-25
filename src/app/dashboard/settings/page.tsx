@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -53,6 +54,7 @@ import { ExportAuctionDialog } from '@/components/export-auction-dialog';
 import { useInvitations } from '@/hooks/use-invitations';
 import type { Invitation } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { useAccount } from '@/hooks/use-account';
 
 export default function SettingsPage() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -66,6 +68,7 @@ export default function SettingsPage() {
   const { patrons, isLoading: isLoadingPatrons } = usePatrons();
   const { invitations, isLoading: isLoadingInvitations, sendInvitation, revokeInvitation } = useInvitations();
   const firestore = useFirestore();
+  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const handleInviteSubmit = async (values: { email: string, auctionId: string }) => {
@@ -115,7 +118,7 @@ export default function SettingsPage() {
   };
 
   const handleAuctionExport = async (auctionId: string) => {
-    if (!firestore) {
+    if (!firestore || !accountId) {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
       return;
     }
@@ -131,10 +134,10 @@ export default function SettingsPage() {
       }
       
       if (exportType === 'patrons') {
-        const auctionPatrons = await fetchRegisteredPatronsWithDetails(firestore, auctionId);
+        const auctionPatrons = await fetchRegisteredPatronsWithDetails(firestore, accountId, auctionId);
         exportAuctionPatronsToCSV(auctionPatrons, selectedAuction.name);
       } else {
-        const items = await fetchAuctionItems(firestore, auctionId);
+        const items = await fetchAuctionItems(firestore, accountId, auctionId);
         if (exportType === 'items') {
           exportItemsToCSV(items, selectedAuction.name);
         } else if (exportType === 'bids') {
@@ -152,7 +155,7 @@ export default function SettingsPage() {
   };
 
   const handleFullReportExport = async () => {
-    if (!firestore) {
+    if (!firestore || !accountId) {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
       return;
     }
@@ -160,7 +163,7 @@ export default function SettingsPage() {
     try {
       const allAuctionsWithItems = await Promise.all(
         auctions.map(async (auction) => {
-          const items = await fetchAuctionItems(firestore, auction.id);
+          const items = await fetchAuctionItems(firestore, accountId, auction.id);
           return { ...auction, items };
         })
       );

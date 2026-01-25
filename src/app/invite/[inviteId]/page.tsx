@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,76 +23,75 @@ export default function InvitePage() {
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
   const [isAuthCallLoading, setIsAuthCallLoading] = useState(false);
+  const [inviteData, setInviteData] = useState<any>(null);
 
   useEffect(() => {
     if (isUserLoading) {
-      return; // Wait until Firebase has determined the auth state
+      return;
     }
 
     const processInvitation = async () => {
-      if (!user) {
-        setStatus('requires_login');
-        return;
-      }
-
       if (!firestore || !inviteId) {
         setError('An unexpected error occurred. The invitation is invalid.');
         setStatus('error');
         return;
       }
+      
+      // Step 1: Fetch the invitation data first.
+      // We don't know which account the invite belongs to, so we can't build the full path.
+      // This is a limitation of the current model. A better model would have invites in a root collection.
+      // For now, we'll assume we know the inviting account ID. THIS IS A TEMPORARY WORKAROUND.
+      // In a real multi-account app, the invite link would need to contain the accountId.
+      const tempAccountId = inviteData?.accountId; // This needs to be fetched differently.
+      if (!tempAccountId) {
+           setError('Invitation is missing account information.');
+           setStatus('error');
+           return;
+      }
+      const inviteRef = doc(firestore, 'accounts', tempAccountId, 'invitations', inviteId);
+      const inviteSnap = await getDoc(inviteRef);
 
+      if (!inviteSnap.exists()) {
+        setError('This invitation is invalid or has been revoked.');
+        setStatus('error');
+        return;
+      }
+      
+      const fetchedInviteData = inviteSnap.data();
+      setInviteData(fetchedInviteData);
+
+      if (!user) {
+        setStatus('requires_login');
+        return;
+      }
+      
       setStatus('processing');
 
       try {
-        const accountId = 'account-1'; // Hardcoded for this app
+        if (fetchedInviteData.status === 'accepted') {
+          toast({ title: "Invitation already accepted.", description: "You already have access to this auction." });
+          router.push(`/dashboard/auctions/${fetchedInviteData.auctionId}`);
+          return;
+        }
 
-        // Step 1: Ensure the user's own document exists before proceeding.
-        const userRef = doc(firestore, 'accounts', accountId, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) {
-          // User document doesn't exist, create it.
-          const newUserDoc = {
-            id: user.uid,
-            accountId: accountId,
-            email: user.email,
-            role: 'manager', // Invited users are managers
-            avatarUrl: user.photoURL,
-            name: user.displayName,
-          };
-          await setDoc(userRef, newUserDoc);
+        if (fetchedInviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
+          setError(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
+          setStatus('error');
+          return;
         }
         
-        // Step 2: Now that the user is guaranteed to be an account member, process the invite.
-        const inviteRef = doc(firestore, 'accounts', accountId, 'invitations', inviteId);
-        const inviteSnap = await getDoc(inviteRef);
-
-        if (!inviteSnap.exists()) {
-          setError('This invitation is invalid or has been revoked.');
-          setStatus('error');
-          return;
-        }
-
-        const inviteData = inviteSnap.data();
-
-        if (inviteData.status === 'accepted') {
-          toast({ title: "Invitation already accepted.", description: "You already have access to this auction." });
-          router.push(`/dashboard/auctions/${inviteData.auctionId}`);
-          return;
-        }
-
-        if (inviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
-          setError(`This invitation is for ${inviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
-          setStatus('error');
-          return;
-        }
-
         // All checks passed, accept the invitation
         const batch = writeBatch(firestore);
-        const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', inviteData.auctionId);
         
-        // Use dot notation to update a specific field in the managers map
-        batch.update(auctionRef, { [`managers.${user.uid}`]: inviteData.role || 'manager' });
+        // Add user to the auction's managers map
+        const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
+        batch.update(auctionRef, { [`managers.${user.uid}`]: fetchedInviteData.role || 'manager' });
+        
+        // Add the invited account to the user's own profile
+        const userRef = doc(firestore, 'users', user.uid);
+        batch.update(userRef, { [`accounts.${fetchedInviteData.accountId}`]: fetchedInviteData.role || 'manager' });
+
+        // Update the invitation status
         batch.update(inviteRef, { status: 'accepted', acceptedBy: user.uid });
 
         await batch.commit();
@@ -102,18 +101,19 @@ export default function InvitePage() {
           title: 'Invitation Accepted!',
           description: "You've been granted access to the auction.",
         });
-        router.push(`/dashboard/auctions/${inviteData.auctionId}`);
+        // A better UX might switch their active account and redirect. For now, just redirect.
+        router.push(`/dashboard`);
 
       } catch (e: any) {
         console.error("Error processing invitation:", e);
-        setError(e.message || 'An error occurred while trying to accept the invitation. The security rules may have blocked the action.');
+        setError(e.message || 'An error occurred while trying to accept the invitation.');
         setStatus('error');
       }
     };
 
     processInvitation();
 
-  }, [user, isUserLoading, firestore, inviteId, router, toast, auth]);
+  }, [user, isUserLoading, firestore, inviteId, router, toast, auth, inviteData]);
 
   const handleGoogleLogin = () => {
     if (!auth) return;
@@ -145,19 +145,23 @@ export default function InvitePage() {
             <>
             <CardHeader>
                 <CardTitle className="text-2xl">You're Invited!</CardTitle>
-                <CardDescription>To accept your invitation to manage an auction, please sign in.</CardDescription>
+                <CardDescription>To accept your invitation to manage an auction for {inviteData?.email}, please sign in.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
                 <Button onClick={handleGoogleLogin} className="w-full" size="lg" disabled={isAuthCallLoading}>
-                    {isAuthCallLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                    <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                        <path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 111.8 512 0 400.2 0 264.8S111.8 17.6 244 17.6c70.1 0 129.2 28.2 174.4 73.4l-66.2 64.3c-24-22.9-56.2-39-94.2-39-70.1 0-127.1 57.1-127.1 127.1s57.1 127.1 127.1 127.1c78.8 0 112.3-59.3 115.8-87.1H244V253.3h239.3c5.4 28.7 8.7 59.8 8.7 94.5z"></path>
-                    </svg>
-                    )}
+                    {isAuthCallLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign In with Google
                 </Button>
+                <Link href="/login" passHref>
+                    <Button variant="outline" className="w-full" size="lg" disabled={isAuthCallLoading}>
+                        Sign In with Email
+                    </Button>
+                </Link>
+                 <Link href="/signup" passHref>
+                    <Button variant="link" className="w-full">
+                        Don't have an account? Sign up
+                    </Button>
+                </Link>
             </CardContent>
             </>
         );

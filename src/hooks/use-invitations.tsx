@@ -1,9 +1,9 @@
+
 'use client';
 import {
   collection,
   doc,
   writeBatch,
-  updateDoc,
   addDoc,
 } from 'firebase/firestore';
 import {
@@ -14,23 +14,24 @@ import {
 } from '@/firebase';
 import type { Invitation, InviteManagerFormValues } from '@/lib/types';
 import { useToast } from './use-toast';
+import { useAccount } from './use-account';
 
 
 export function useInvitations() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const accountId = 'account-1'; // This should be dynamically determined
+  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const invitationsRef = useMemoFirebase(
-    () => (firestore && !isUserLoading && user ? collection(firestore, 'accounts', accountId, 'invitations') : null),
-    [firestore, accountId, user, isUserLoading]
+    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'invitations') : null),
+    [firestore, accountId]
   );
   
   const { data: invitations, isLoading } = useCollection<Invitation>(invitationsRef);
 
   const sendInvitation = async (values: InviteManagerFormValues): Promise<string | undefined> => {
-    if (!invitationsRef) return undefined;
+    if (!invitationsRef || !accountId) return undefined;
 
     try {
         const newInvitation = {
@@ -60,7 +61,7 @@ export function useInvitations() {
   };
   
   const revokeInvitation = async (invitationId: string, auctionId: string, acceptedByUid?: string) => {
-    if (!firestore) {
+    if (!firestore || !accountId) {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
       return;
     }
@@ -68,16 +69,11 @@ export function useInvitations() {
     try {
       const batch = writeBatch(firestore);
       
-      // 1. Delete the invitation document
       const invitationRef = doc(firestore, 'accounts', accountId, 'invitations', invitationId);
       batch.delete(invitationRef);
       
-      // 2. If the user had accepted, remove them from the auction's managers map
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        // To remove a key from a map, we can use dot notation with `delete` field value, 
-        // but since we are in a transaction we can just set it to undefined which works for Firestore.
-        // We will remove the field from the map.
         batch.update(auctionRef, { [`managers.${acceptedByUid}`]: undefined });
       }
       

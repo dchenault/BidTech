@@ -5,7 +5,10 @@ export type User = {
   name: string;
   email: string;
   avatarUrl: string;
-  role: 'admin' | 'manager';
+  // A user can be an admin of one account and a manager of others.
+  accounts: { [accountId: string]: 'admin' | 'manager' };
+  // The account the user is currently viewing.
+  activeAccountId: string;
 };
 
 export type Category = {
@@ -86,7 +89,6 @@ export type Patron = {
   };
   totalSpent: number;
   itemsWon: number;
-  biddingNumber?: number; 
   notes?: string;
   avatarUrl?: string;
 };

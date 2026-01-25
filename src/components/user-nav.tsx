@@ -15,7 +15,6 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ThemeToggle } from './theme-toggle';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 
@@ -23,7 +22,6 @@ export function UserNav() {
   const router = useRouter();
   const auth = useAuth();
   const { user } = useUser();
-  const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
   const handleLogout = () => {
     if (auth) {
@@ -40,7 +38,7 @@ export function UserNav() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-9 w-9">
-              <AvatarImage src={user?.photoURL || userAvatar?.imageUrl} alt={user?.displayName || 'User'} />
+              <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
               <AvatarFallback>{user?.displayName?.charAt(0) || 'U'}</AvatarFallback>
             </Avatar>
           </Button>
