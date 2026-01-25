@@ -14,6 +14,7 @@ import {
   query,
   where,
   limit,
+  deleteField,
   type Firestore,
 } from 'firebase/firestore';
 import {
@@ -144,6 +145,65 @@ export function useAuctions() {
         });
     }
 }, [firestore, storage, accountId, auctionsData, toast]);
+
+const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, itemData: ItemFormValues) => {
+    if (!firestore || !accountId || !storage || !auctionsData) return;
+
+    try {
+        // Determine image URL before the transaction.
+        let imageUrl = itemData.imageDataUri || null; // Start with the value from the form (which could be an existing URL or empty).
+        if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
+            // If it's a new base64 upload, get the new URL.
+            imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
+        }
+
+        await runTransaction(firestore, async (transaction) => {
+            const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+            const auction = auctionsData.find(a => a.id === auctionId);
+            if (!auction) throw new Error("Auction not found");
+
+            const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+            
+            let donor: Donor | undefined = undefined;
+            if (itemData.donorId) {
+                const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+                const donorSnap = await transaction.get(donorRef);
+                if (donorSnap.exists()) {
+                    donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+                }
+            }
+
+            const updatePayload: { [key: string]: any } = {
+                ...itemData,
+                imageUrl, // This is now the correct public URL or null
+                category,
+                categoryId: category.id,
+                // Use deleteField for robust removal of optional fields
+                donor: donor === undefined ? deleteField() : (donor || null),
+            };
+
+            delete updatePayload.imageDataUri; // Never save the data URI to Firestore
+
+            if (updatePayload.lotId === 'none' || !updatePayload.lotId) {
+                updatePayload.lotId = deleteField();
+            }
+
+            transaction.update(itemRef, updatePayload);
+        });
+        toast({
+            title: "Item Updated",
+            description: `Successfully updated "${itemData.name}".`
+        });
+    } catch (error: any) {
+        console.error("Failed to update item:", error);
+        toast({
+            variant: "destructive",
+            title: "Error Updating Item",
+            description: error.message || "Could not update the item due to an unexpected error."
+        });
+    }
+}, [firestore, storage, accountId, auctionsData, toast]);
+
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
     if (!firestore || !accountId) throw new Error("Firestore not available");
@@ -304,6 +364,7 @@ export function useAuctions() {
       addAuction, 
       updateAuction, 
       addItemToAuction,
+      updateItemInAuction,
       deleteItemFromAuction,
       addCategoryToAuction, 
       updateCategoryInAuction,

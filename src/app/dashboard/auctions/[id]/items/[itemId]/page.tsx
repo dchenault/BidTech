@@ -29,6 +29,8 @@ export default function ItemDetailsPage() {
   const auction = getAuction(auctionId);
   const item = getItem(auctionId, itemId);
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
+  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-placeholder');
+
 
   if (!auction || !item) {
     return <div>Item not found.</div>;
@@ -61,7 +63,7 @@ export default function ItemDetailsPage() {
               alt={item.name}
               className="aspect-[4/3] w-full rounded-md object-cover"
               height="400"
-              src={item.imageUrl || 'https://picsum.photos/seed/placeholder/600/400'}
+              src={item.imageUrl || itemPlaceholder?.imageUrl || ''}
               width="600"
               data-ai-hint="item image"
             />

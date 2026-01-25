@@ -67,6 +67,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
 import { uploadDataUriAndGetURL } from '@/firebase/storage';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -77,7 +78,7 @@ export default function AuctionDetailsPage() {
   const { accountId } = useAccount();
   const { toast } = useToast();
 
-  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
+  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -93,6 +94,8 @@ export default function AuctionDetailsPage() {
   const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
+  
+  const itemPlaceholder = PlaceHolderImages.find((img) => img.id === 'item-placeholder');
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
   
@@ -250,47 +253,9 @@ export default function AuctionDetailsPage() {
     setSelectedItem(null);
   };
 
-  const handleItemUpdate = async (updatedItemData: ItemFormValues) => {
-    if (!auction || !selectedItem || !firestore || !accountId || !storage) return;
-
-    const category = auction.categories.find(c => c.name === updatedItemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
-    
-    const payload: { [key: string]: any } = {
-        ...updatedItemData,
-        category,
-        categoryId: category.id,
-    };
-
-    // Image handling logic
-    if (payload.imageDataUri && payload.imageDataUri.startsWith('data:')) {
-        // This is a new base64 image, upload it
-        try {
-            const newImageUrl = await uploadDataUriAndGetURL(storage, payload.imageDataUri, `items/${accountId}/${auction.id}`);
-            payload.imageUrl = newImageUrl;
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Image Upload Failed', description: 'Could not upload the new image. Please try again.' });
-            return; // Stop the update if image upload fails
-        }
-    } else if (payload.imageDataUri) {
-        // This is an existing URL, just make sure it's in the imageUrl field
-        payload.imageUrl = payload.imageDataUri;
-    } else {
-        // The image was removed, so we set imageUrl to null
-        payload.imageUrl = null;
-    }
-
-    // We no longer need imageDataUri in the final payload
-    delete payload.imageDataUri;
-
-
-    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
-    if (payload.lotId === 'none') {
-        payload.lotId = null;
-    }
-    
-    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
-    updateDocumentNonBlocking(itemRef, payload);
-
+  const handleItemUpdate = (updatedItemData: ItemFormValues) => {
+    if (!auction || !selectedItem) return;
+    updateItemInAuction(auction.id, selectedItem.id, updatedItemData);
     setIsEditDialogOpen(false);
     setSelectedItem(null);
   }
@@ -390,7 +355,7 @@ export default function AuctionDetailsPage() {
                             alt={item.name}
                             className="aspect-square rounded-md object-cover"
                             height="64"
-                            src={item.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
+                            src={item.imageUrl || itemPlaceholder?.imageUrl || ''}
                             width="64"
                             data-ai-hint="item image"
                             />

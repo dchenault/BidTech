@@ -7,6 +7,12 @@
       "imageHint": "person portrait"
     },
     {
+      "id": "item-placeholder",
+      "description": "Default placeholder for auction items",
+      "imageUrl": "https://images.unsplash.com/photo-1575936422774-c36c645e5461?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNDE5ODJ8MHwxfHNlYXJjaHwxfHxnYXZlbHxlbnwwfHx8fDE3MjE4MzY3MDF8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "auction gavel"
+    },
+    {
       "id": "item-image-1",
       "description": "Vintage painting",
       "imageUrl": "https://images.unsplash.com/photo-1578926372062-6ddf6fc55e0e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8dmludGFnZSUyMHBhaW50aW5nfGVufDB8fHx8MTc2MjUxMTUwMnww&ixlib=rb-4.1.0&q=80&w=1080",
