@@ -4,6 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,12 +25,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Item, ItemFormValues, Category, Lot, Auction, Donor } from "@/lib/types";
+import type { Item, ItemFormValues, Category, Lot, Auction, Donor, CategoryFormValues } from "@/lib/types";
 import { itemFormSchema } from "@/lib/types";
 import { ImageUploader } from "./image-uploader";
 import { useDonors } from "@/hooks/use-donors";
+import { useAuctions } from "@/hooks/use-auctions";
 import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
+import { EditCategoryDialog } from "./edit-category-dialog";
 import { PlusCircle } from "lucide-react";
 
 
@@ -49,8 +52,12 @@ export function EditItemForm({
   submitButtonText?: string;
 }) {
   const { toast } = useToast();
+  const params = useParams();
+  const auctionId = typeof params.id === 'string' ? params.id : '';
   const { donors, isLoading: isLoadingDonors } = useDonors();
+  const { addCategoryToAuction } = useAuctions();
   const [isAddDonorOpen, setIsAddDonorOpen] = useState(false);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
   const defaultValues = item
     ? {
@@ -114,6 +121,13 @@ export function EditItemForm({
   
   const handleDonorAdded = (newDonor: Donor) => {
     form.setValue('donorId', newDonor.id);
+  }
+
+  const handleCategoryAdded = (values: CategoryFormValues) => {
+    if (!auctionId) return;
+    addCategoryToAuction(auctionId, { name: values.name });
+    toast({ title: "Category Added", description: `You can now select "${values.name}" from the list.`});
+    setIsAddCategoryOpen(false);
   }
 
   return (
@@ -194,23 +208,28 @@ export function EditItemForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.name} value={cat.name}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.name}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                     <Button type="button" size="sm" variant="outline" onClick={() => setIsAddCategoryOpen(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> New
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -281,6 +300,14 @@ export function EditItemForm({
         isOpen={isAddDonorOpen}
         onClose={() => setIsAddDonorOpen(false)}
         onSuccess={handleDonorAdded}
+      />
+       <EditCategoryDialog
+        isOpen={isAddCategoryOpen}
+        onClose={() => setIsAddCategoryOpen(false)}
+        onSubmit={handleCategoryAdded}
+        title="Add New Category"
+        description="Create a new category. It will be available in the dropdown after creation."
+        submitButtonText="Add Category"
       />
     </>
   );
