@@ -1,12 +1,18 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+    // Allow public read access to all files.
+    // This is necessary for the image URLs to be displayed in the browser.
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read;
+    }
+    
+    // Only allow authenticated users to write (upload) to the 'items' folder.
+    // A more advanced rule could check against Firestore to verify the user's
+    // role (e.g., account member or auction manager) before allowing the upload.
+    match /items/{accountId}/{auctionId}/{fileName} {
+      allow write: if request.auth != null;
     }
   }
 }
