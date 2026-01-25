@@ -6,7 +6,6 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
-    cache: false,
   },
   images: {
     remotePatterns: [
