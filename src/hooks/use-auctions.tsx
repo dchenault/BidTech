@@ -73,11 +73,13 @@ export function useAuctions() {
     if (!firestore || !auctionsData || !accountId || !storage) return;
 
     try {
+        // Step 1: Handle image upload BEFORE the transaction.
         let imageUrl: string | undefined = undefined;
         if (itemData.imageDataUri) {
             imageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
         }
 
+        // Step 2: Run the database transaction with the final imageUrl.
         await runTransaction(firestore, async (transaction) => {
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
@@ -102,7 +104,7 @@ export function useAuctions() {
             
             const newItemPayload = {
                 ...itemData,
-                imageUrl: imageUrl || null,
+                imageUrl: imageUrl || null, // Use the pre-uploaded URL
                 sku: newSku,
                 category,
                 auctionId: auctionId,
@@ -130,6 +132,7 @@ export function useAuctions() {
             transaction.update(auctionDocRef, { itemCount: (auction.itemCount || 0) + 1 });
             transaction.update(accountRef, { lastItemSku: newSku });
         });
+
         toast({
             title: "Item Added",
             description: `Successfully added "${itemData.name}" to the auction.`
@@ -149,24 +152,29 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
     if (!firestore || !accountId || !storage || !auctionsData) return;
 
     try {
+        // Step 1: Handle image state changes BEFORE the transaction.
+        const itemRefForRead = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+        const itemSnapForRead = await getDoc(itemRefForRead);
+        if (!itemSnapForRead.exists()) throw new Error("Item not found");
+        const currentItem = itemSnapForRead.data() as Item;
+
+        let finalImageUrl: string | null | undefined = currentItem.imageUrl;
+
+        if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
+            // New image was uploaded, so upload it and get the URL.
+            finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
+        } else if (itemData.imageDataUri === '') {
+            // Image was explicitly removed.
+            finalImageUrl = null;
+        }
+        // If imageDataUri is an existing https:// URL, it means no change was made, so finalImageUrl remains the same.
+        
+        // Step 2: Run the database transaction with the final imageUrl.
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
-            const itemSnap = await transaction.get(itemRef);
+            const itemSnap = await transaction.get(itemRef); // Re-read inside transaction for safety
             if (!itemSnap.exists()) throw new Error("Item not found");
             
-            const currentItem = itemSnap.data() as Item;
-            
-            let finalImageUrl: string | null | undefined = currentItem.imageUrl;
-
-            if (itemData.imageDataUri && itemData.imageDataUri.startsWith('data:')) {
-                // New image was uploaded
-                finalImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageDataUri, `items/${accountId}/${auctionId}`);
-            } else if (itemData.imageDataUri === '') {
-                // Image was removed
-                finalImageUrl = null;
-            }
-            // If imageDataUri is an existing https:// URL, finalImageUrl remains unchanged from currentItem.imageUrl, which is correct.
-
             const auction = auctionsData.find(a => a.id === auctionId);
             if (!auction) throw new Error("Auction not found");
 
@@ -183,7 +191,7 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
 
             const updatePayload: { [key: string]: any } = {
                 ...itemData,
-                imageUrl: finalImageUrl,
+                imageUrl: finalImageUrl, // Use the pre-uploaded URL
                 category,
                 donor: donor === undefined ? deleteField() : (donor || null),
             };
@@ -198,6 +206,7 @@ const updateItemInAuction = useCallback(async (auctionId: string, itemId: string
 
             transaction.update(itemRef, updatePayload);
         });
+
         toast({
             title: "Item Updated",
             description: `Successfully updated "${itemData.name}".`
