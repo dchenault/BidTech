@@ -101,22 +101,29 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
+    console.log("Starting add process...");
     if (!firestore || !accountId || !storage) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Cannot add item: missing required context.' });
+        window.alert("CRITICAL ERROR: Firebase services not available. Cannot add item.");
         throw new Error('Cannot add item: missing required context.');
     }
 
     let finalImageUrl: string | undefined = undefined;
 
-    try {
-        if (itemData.imageUrl) {
+    // 1. Handle Image Upload
+    if (itemData.imageUrl) {
+        console.log("Image file detected, starting upload...");
+        try {
             finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
+            console.log("Upload successful:", finalImageUrl);
+        } catch (storageErr: any) {
+            window.alert("STORAGE ERROR: " + storageErr.message);
+            // Important: Stop execution if image upload fails
+            throw storageErr;
         }
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Image Upload Failed', description: e.message || 'The image could not be saved. Please try again.' });
-        // Don't re-throw, allow data to be saved without image
     }
 
+    // 2. Add to Firestore
+    console.log("Adding to Firestore...");
     try {
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -166,32 +173,55 @@ export function useAuctions() {
             transaction.update(accountRef, { lastItemSku: newSku });
         });
 
-        toast({
-            title: "Item Added",
-            description: `Successfully added "${itemData.name}" to the auction.`
-        });
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Add Item', description: e.message || 'The item data could not be saved.' });
-        throw e;
+        window.alert("Item Added Successfully!");
+
+    } catch (dbErr: any) {
+        console.error(dbErr);
+        window.alert("FIRESTORE ERROR: " + dbErr.message);
+        // Re-throw the error to be caught by the component's try/catch
+        throw dbErr;
     }
-  }, [firestore, accountId, storage, toast]);
+  }, [firestore, accountId, storage]);
 
 
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
+    console.log("Starting update process...");
     if (!firestore || !accountId || !storage) {
-       toast({ variant: 'destructive', title: 'Error', description: 'Cannot update item: missing required context.' });
+       window.alert("CRITICAL ERROR: Firebase services not available. Cannot update item.");
        throw new Error('Cannot update item: missing required context.');
     }
     
     let finalImageUrl: string | undefined = item.imageUrl;
 
-    try {
+    const isNewImageProvided = itemData.imageUrl && itemData.imageUrl.startsWith('data:');
+    const isImageBeingRemoved = !itemData.imageUrl && item.imageUrl;
+
+    // 1. Handle Image Upload/Deletion
+    if (isNewImageProvided) {
+      console.log("New image data URI detected, starting upload...");
+      try {
+        // _handleImageUpload will delete the old image and upload the new one.
         finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Image Upload Failed', description: e.message || 'The new image could not be saved. The existing image (if any) was preserved.' });
-        finalImageUrl = item.imageUrl;
+        console.log("Upload successful:", finalImageUrl);
+      } catch (storageErr: any) {
+        window.alert("STORAGE ERROR: " + storageErr.message);
+        // Important: Stop execution if image upload fails
+        throw storageErr;
+      }
+    } else if (isImageBeingRemoved) {
+      console.log("Image removal detected, deleting old image...");
+      try {
+        finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, undefined, item.imageUrl);
+        console.log("Old image deleted successfully.");
+      } catch (storageErr: any) {
+        window.alert("STORAGE DELETION ERROR: " + storageErr.message);
+        // Important: Stop execution if image deletion fails
+        throw storageErr;
+      }
     }
     
+    // 2. Update Firestore
+    console.log("Updating Firestore...");
     try {
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
@@ -221,28 +251,22 @@ export function useAuctions() {
                 donor: donor === undefined ? deleteField() : (donor || null),
                 donorId: itemData.donorId || deleteField(),
                 lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
+                imageUrl: finalImageUrl,
+                thumbnailUrl: finalImageUrl,
             };
-            
-            if (finalImageUrl) {
-                updatePayload.imageUrl = finalImageUrl;
-                updatePayload.thumbnailUrl = finalImageUrl;
-            } else {
-                updatePayload.imageUrl = deleteField();
-                updatePayload.thumbnailUrl = deleteField();
-            }
 
             transaction.update(itemRef, updatePayload);
         });
 
-        toast({
-            title: "Item Updated",
-            description: `Successfully updated "${itemData.name}".`
-        });
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Update Item', description: e.message || 'The item data could not be saved.' });
-        throw e;
+        window.alert("Saved Successfully!");
+
+    } catch (dbErr: any) {
+        console.error(dbErr);
+        window.alert("FIRESTORE ERROR: " + dbErr.message);
+        // Re-throw the error to be caught by the component's try/catch
+        throw dbErr;
     }
-  }, [firestore, accountId, storage, toast]);
+  }, [firestore, accountId, storage]);
 
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
@@ -471,3 +495,5 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
+
+    
