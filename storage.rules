@@ -1,21 +1,20 @@
-
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // A user can read/write to an account's items folder if they are a member of that account.
-    // This rule is critical for multi-tenancy, ensuring users from one account
-    // cannot access the images of another account.
+    
+    // This function must mirror the logic in firestore.rules to correctly
+    // verify that the authenticated user is a member of the target account.
+    // It checks the user's root profile document for an entry in the 'accounts' map.
+    function isAccountMember(accountId) {
+      return request.auth != null &&
+             get(/databases/(default)/documents/users/$(request.auth.uid)).data.accounts[accountId] != null;
+    }
+
+    // The path for item images is /items/{accountId}/{allPaths=**}
+    // This rule allows reads and writes only if the user is a member of the account
+    // specified in the file path, ensuring strict multi-tenant isolation.
     match /items/{accountId}/{allPaths=**} {
-      function isAccountMember(accountId) {
-        // Security rules cannot call functions from other rule files.
-        // We must redefine the logic here. It checks if a user is logged in
-        // and if their user profile document contains a reference to the accountId.
-        let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
-        return request.auth != null &&
-               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-               userProfile.data.accounts[accountId] != null;
-      }
       allow read, write: if isAccountMember(accountId);
     }
   }
