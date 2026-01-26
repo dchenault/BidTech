@@ -1,21 +1,26 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // This function must mirror the logic in firestore.rules to correctly
-    // verify that the authenticated user is a member of the target account.
-    // It checks the user's root profile document for an entry in the 'accounts' map.
-    function isAccountMember(accountId) {
-      return request.auth != null &&
-             get(/databases/(default)/documents/users/$(request.auth.uid)).data.accounts[accountId] != null;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // The path for item images is /items/{accountId}/{allPaths=**}
-    // This rule allows reads and writes only if the user is a member of the account
-    // specified in the file path, ensuring strict multi-tenant isolation.
+    // Helper to check if the user is a member of the specified account
+    // by reading their profile from the root /users collection.
+    function isAccountMember(accountId) {
+      let userProfile = get(/databases/(default)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userProfile.data.accounts[accountId] != null;
+    }
+
+    // Rule for item images. The path includes the account ID for security checks.
     match /items/{accountId}/{allPaths=**} {
       allow read, write: if isAccountMember(accountId);
+    }
+    
+    // Fallback rule to deny access to all other paths by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
