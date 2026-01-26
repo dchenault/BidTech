@@ -16,6 +16,8 @@ import {
   limit,
   deleteField,
   type Firestore,
+  addDoc,
+  updateDoc
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -100,18 +102,22 @@ export function useAuctions() {
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Cannot add item: missing required context.' });
         throw new Error('Cannot add item: missing required context.');
     }
 
     let finalImageUrl: string | undefined = undefined;
 
     try {
-        // Step 1: Handle image upload. This must complete before the database transaction.
         if (itemData.imageUrl) {
             finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
         }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Image Upload Failed', description: e.message || 'The image could not be saved. Please try again.' });
+        // Don't re-throw, allow data to be saved without image
+    }
 
-        // Step 2: Run the database transaction.
+    try {
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const auctionSnap = await transaction.get(auctionRef);
@@ -165,8 +171,7 @@ export function useAuctions() {
             description: `Successfully added "${itemData.name}" to the auction.`
         });
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Add Item', description: e.message || 'An unexpected error occurred.' });
-        // Re-throw the error so the calling component knows the operation failed.
+        toast({ variant: 'destructive', title: 'Failed to Add Item', description: e.message || 'The item data could not be saved.' });
         throw e;
     }
   }, [firestore, accountId, storage, toast]);
@@ -174,14 +179,20 @@ export function useAuctions() {
 
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage) {
-        throw new Error('Cannot update item: missing required context.');
+       toast({ variant: 'destructive', title: 'Error', description: 'Cannot update item: missing required context.' });
+       throw new Error('Cannot update item: missing required context.');
+    }
+    
+    let finalImageUrl: string | undefined = item.imageUrl;
+
+    try {
+        finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Image Upload Failed', description: e.message || 'The new image could not be saved. The existing image (if any) was preserved.' });
+        finalImageUrl = item.imageUrl;
     }
     
     try {
-        // Step 1: Handle image upload/deletion. Must complete before the transaction.
-        const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
-
-        // Step 2: Run the database transaction to update the item's data.
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -210,10 +221,16 @@ export function useAuctions() {
                 donor: donor === undefined ? deleteField() : (donor || null),
                 donorId: itemData.donorId || deleteField(),
                 lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
-                imageUrl: finalImageUrl || deleteField(),
-                thumbnailUrl: finalImageUrl || deleteField(),
             };
             
+            if (finalImageUrl) {
+                updatePayload.imageUrl = finalImageUrl;
+                updatePayload.thumbnailUrl = finalImageUrl;
+            } else {
+                updatePayload.imageUrl = deleteField();
+                updatePayload.thumbnailUrl = deleteField();
+            }
+
             transaction.update(itemRef, updatePayload);
         });
 
@@ -222,8 +239,7 @@ export function useAuctions() {
             description: `Successfully updated "${itemData.name}".`
         });
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Update Item', description: e.message || 'An unexpected error occurred.' });
-        // Re-throw the error so the calling component knows the operation failed.
+        toast({ variant: 'destructive', title: 'Failed to Update Item', description: e.message || 'The item data could not be saved.' });
         throw e;
     }
   }, [firestore, accountId, storage, toast]);
@@ -429,7 +445,7 @@ export const fetchRegisteredPatronsWithDetails = async (
   auctionId: string
 ): Promise<(Patron & { biddingNumber: number })[]> => {
   const registeredPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
-  const regSnapshot = await getDocs(regSnapshot);
+  const regSnapshot = await getDocs(registeredPatronsRef);
   const registeredPatrons = regSnapshot.docs.map(doc => doc.data() as RegisteredPatron);
   const patronIds = registeredPatrons.map(rp => rp.patronId);
 
@@ -438,7 +454,7 @@ export const fetchRegisteredPatronsWithDetails = async (
   }
 
   const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
-  const patronsSnapshot = await getDocs(patronsRef);
+  const patronsSnapshot = await getDocs(query(patronsRef, where('id', 'in', patronIds)));
   const allPatrons = patronsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron));
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
 
