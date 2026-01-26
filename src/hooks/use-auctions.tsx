@@ -71,7 +71,7 @@ async function _handleImageUpload(
 
   } catch (error: any) {
     console.error("Image handling failed:", error);
-    return { newUrl: undefined, error: error.message || "Failed to process image." };
+    return { newUrl: oldImageUrl, error: error.message || "Failed to process image." };
   }
 }
 
@@ -111,18 +111,24 @@ export function useAuctions() {
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage) {
         toast({ variant: 'destructive', title: 'Error', description: 'Cannot add item: missing context.' });
-        throw new Error('Missing context'); // Throw error to stop spinner in UI
+        throw new Error('Missing context');
+    }
+
+    let imageUrl: string | undefined = undefined;
+    try {
+        if (itemData.imageUrl && itemData.imageUrl.startsWith('data:')) {
+            const { newUrl, error } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
+            if (error) {
+                toast({ variant: 'destructive', title: 'Image Upload Failed', description: error });
+            } else {
+                imageUrl = newUrl;
+            }
+        }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Image Processing Error', description: e.message || 'Could not process the image file.' });
     }
 
     try {
-        // Step 1: Handle image upload
-        const { newUrl: imageUrl, error: imageError } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
-        
-        if (imageError) {
-          throw new Error(imageError);
-        }
-
-        // Step 2: Run database transaction
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const auctionSnap = await transaction.get(auctionRef);
@@ -160,7 +166,7 @@ export function useAuctions() {
                 donor: donor || undefined,
                 categoryId: category.id,
                 imageUrl: imageUrl,
-                thumbnailUrl: imageUrl, // Use same for now
+                thumbnailUrl: imageUrl,
             };
 
             const itemsColRef = collection(auctionRef, 'items');
@@ -182,7 +188,7 @@ export function useAuctions() {
             title: "Error adding item",
             description: error.message || "Could not add the new item due to an unexpected error."
         });
-        throw error; // Re-throw to be caught by the component's `catch` block
+        throw error;
     }
   }, [firestore, accountId, storage, toast]);
 
@@ -193,15 +199,21 @@ export function useAuctions() {
         throw new Error('Missing context');
     }
 
+    let finalImageUrl: string | undefined = item.imageUrl;
     try {
-        // Step 1: Handle image upload/delete
-        const { newUrl: imageUrl, error: imageError } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
-
-        if (imageError) {
-          throw new Error(imageError);
+        if (itemData.imageUrl !== item.imageUrl) {
+            const { newUrl, error } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
+            if (error) {
+                toast({ variant: 'destructive', title: 'Image Update Failed', description: error });
+            } else {
+                finalImageUrl = newUrl;
+            }
         }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Image Processing Error', description: e.message || 'Could not process the image file.' });
+    }
 
-        // Step 2: Run database transaction
+    try {
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -227,8 +239,8 @@ export function useAuctions() {
                 estimatedValue: itemData.estimatedValue,
                 category,
                 categoryId: category.id,
-                imageUrl: imageUrl,
-                thumbnailUrl: imageUrl,
+                imageUrl: finalImageUrl,
+                thumbnailUrl: finalImageUrl,
                 donor: donor === undefined ? deleteField() : (donor || null),
                 donorId: itemData.donorId || deleteField(),
                 lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
@@ -248,7 +260,7 @@ export function useAuctions() {
             title: "Error Updating Item",
             description: error.message || "Could not update the item due to an unexpected error."
         });
-        throw error; // Re-throw
+        throw error;
     }
   }, [firestore, accountId, storage, toast]);
 
