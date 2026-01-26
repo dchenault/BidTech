@@ -34,7 +34,46 @@ import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
 import { useMemo, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
+import { FirebaseStorage } from 'firebase/storage';
 
+async function _handleImageUpload(
+  storage: FirebaseStorage,
+  accountId: string,
+  auctionId: string,
+  newImageData: string | undefined, // from the form
+  oldImageUrl: string | undefined // from the existing item
+): Promise<{ newUrl: string | undefined, error: string | null }> {
+  // Case 1: No change in image
+  if (newImageData === oldImageUrl) {
+    return { newUrl: oldImageUrl, error: null };
+  }
+
+  try {
+    // Case 2: New image is being uploaded (it's a data URI)
+    if (newImageData && newImageData.startsWith('data:')) {
+      // If there was an old image, delete it first.
+      if (oldImageUrl) {
+        await deleteFileByUrl(storage, oldImageUrl);
+      }
+      const imagePath = `items/${accountId}/${auctionId}`;
+      const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
+      return { newUrl: uploadedUrl, error: null };
+    }
+
+    // Case 3: Image is being removed
+    if (!newImageData && oldImageUrl) {
+      await deleteFileByUrl(storage, oldImageUrl);
+      return { newUrl: undefined, error: null };
+    }
+    
+    // Case 4: No image was present, and none is being added.
+    return { newUrl: undefined, error: null };
+
+  } catch (error: any) {
+    console.error("Image handling failed:", error);
+    return { newUrl: undefined, error: error.message || "Failed to process image." };
+  }
+}
 
 export function useAuctions() {
   const firestore = useFirestore();
@@ -72,19 +111,18 @@ export function useAuctions() {
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage) {
         toast({ variant: 'destructive', title: 'Error', description: 'Cannot add item: missing context.' });
-        return;
+        throw new Error('Missing context'); // Throw error to stop spinner in UI
     }
 
-    let newImageUrl: string | undefined = undefined;
-    let newThumbnailUrl: string | undefined = undefined;
-
     try {
-        if (itemData.imageUrl && itemData.imageUrl.startsWith('data:')) {
-            const imagePath = `items/${accountId}/${auctionId}`;
-            newImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageUrl, imagePath);
-            newThumbnailUrl = newImageUrl;
+        // Step 1: Handle image upload
+        const { newUrl: imageUrl, error: imageError } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
+        
+        if (imageError) {
+          throw new Error(imageError);
         }
 
+        // Step 2: Run database transaction
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
             const auctionSnap = await transaction.get(auctionRef);
@@ -121,8 +159,8 @@ export function useAuctions() {
                 paid: false,
                 donor: donor || undefined,
                 categoryId: category.id,
-                imageUrl: newImageUrl,
-                thumbnailUrl: newThumbnailUrl,
+                imageUrl: imageUrl,
+                thumbnailUrl: imageUrl, // Use same for now
             };
 
             const itemsColRef = collection(auctionRef, 'items');
@@ -144,6 +182,7 @@ export function useAuctions() {
             title: "Error adding item",
             description: error.message || "Could not add the new item due to an unexpected error."
         });
+        throw error; // Re-throw to be caught by the component's `catch` block
     }
   }, [firestore, accountId, storage, toast]);
 
@@ -151,26 +190,18 @@ export function useAuctions() {
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage) {
         toast({ variant: 'destructive', title: 'Error', description: 'Cannot update item: missing context.' });
-        return;
+        throw new Error('Missing context');
     }
 
-    let newImageUrl: string | undefined = item.imageUrl;
-    let newThumbnailUrl: string | undefined = item.thumbnailUrl;
-
     try {
-        if (itemData.imageUrl && itemData.imageUrl.startsWith('data:')) {
-            if (item.imageUrl) {
-                await deleteFileByUrl(storage, item.imageUrl);
-            }
-            const imagePath = `items/${accountId}/${auctionId}`;
-            newImageUrl = await uploadDataUriAndGetURL(storage, itemData.imageUrl, imagePath);
-            newThumbnailUrl = newImageUrl;
-        } else if (itemData.imageUrl === "" && item.imageUrl) {
-            await deleteFileByUrl(storage, item.imageUrl);
-            newImageUrl = undefined;
-            newThumbnailUrl = undefined;
+        // Step 1: Handle image upload/delete
+        const { newUrl: imageUrl, error: imageError } = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
+
+        if (imageError) {
+          throw new Error(imageError);
         }
 
+        // Step 2: Run database transaction
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -196,8 +227,8 @@ export function useAuctions() {
                 estimatedValue: itemData.estimatedValue,
                 category,
                 categoryId: category.id,
-                imageUrl: newImageUrl,
-                thumbnailUrl: newThumbnailUrl,
+                imageUrl: imageUrl,
+                thumbnailUrl: imageUrl,
                 donor: donor === undefined ? deleteField() : (donor || null),
                 donorId: itemData.donorId || deleteField(),
                 lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
@@ -217,6 +248,7 @@ export function useAuctions() {
             title: "Error Updating Item",
             description: error.message || "Could not update the item due to an unexpected error."
         });
+        throw error; // Re-throw
     }
   }, [firestore, accountId, storage, toast]);
 
