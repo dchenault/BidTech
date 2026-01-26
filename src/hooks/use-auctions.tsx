@@ -36,11 +36,11 @@ import { FirebaseStorage } from 'firebase/storage';
 
 async function _handleImageUpload(
   storage: FirebaseStorage,
-  accountId: string,
+  userId: string,
   auctionId: string,
   newImageData: string | undefined, // from the form
   oldImageUrl: string | undefined // from the existing item
-): Promise<string | undefined> {
+): Promise<string | undefined | null> { // Return null to signify a failed but handled upload
   // Case 1: No change in image
   if (newImageData === oldImageUrl) {
     return oldImageUrl;
@@ -58,9 +58,15 @@ async function _handleImageUpload(
 
   // Case 2: New image is being uploaded (it's a data URI)
   if (newImageData && newImageData.startsWith('data:')) {
-    const imagePath = `items/${accountId}/${auctionId}`;
-    const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
-    return uploadedUrl;
+    try {
+        const imagePath = `items/${userId}/${auctionId}`;
+        const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
+        return uploadedUrl;
+    } catch (error) {
+        console.error("Error during image upload:", error);
+        // Return null to signify a handled failure
+        return null;
+    }
   }
 
   // Case 3: Image is being removed (newImageData is empty string) or no image was ever there.
@@ -101,29 +107,22 @@ export function useAuctions() {
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
-    console.log("Starting add process...");
-    if (!firestore || !accountId || !storage) {
-        window.alert("CRITICAL ERROR: Firebase services not available. Cannot add item.");
-        throw new Error('Cannot add item: missing required context.');
+    if (!firestore || !accountId || !storage || !user) {
+        throw new Error('Cannot add item: missing required context or user not authenticated.');
     }
 
-    let finalImageUrl: string | undefined = undefined;
-
     // 1. Handle Image Upload
-    if (itemData.imageUrl) {
-        console.log("Image file detected, starting upload...");
-        try {
-            finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
-            console.log("Upload successful:", finalImageUrl);
-        } catch (storageErr: any) {
-            window.alert("STORAGE ERROR: " + storageErr.message);
-            // Important: Stop execution if image upload fails
-            throw storageErr;
-        }
+    const finalImageUrl = await _handleImageUpload(storage, user.uid, auctionId, itemData.imageUrl, undefined);
+    
+    if (itemData.imageUrl && finalImageUrl === null) {
+        toast({
+            variant: "destructive",
+            title: "Image Upload Failed",
+            description: "The image could not be uploaded, but other item details will still be saved.",
+        });
     }
 
     // 2. Add to Firestore
-    console.log("Adding to Firestore...");
     try {
         await runTransaction(firestore, async (transaction) => {
             const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -161,8 +160,8 @@ export function useAuctions() {
                 paid: false,
                 donor: donor || undefined,
                 categoryId: category.id,
-                imageUrl: finalImageUrl,
-                thumbnailUrl: finalImageUrl, 
+                imageUrl: finalImageUrl || undefined,
+                thumbnailUrl: finalImageUrl || undefined, 
             };
 
             const itemsColRef = collection(auctionRef, 'items');
@@ -173,55 +172,41 @@ export function useAuctions() {
             transaction.update(accountRef, { lastItemSku: newSku });
         });
 
-        window.alert("Item Added Successfully!");
+        toast({
+            title: "Item Added!",
+            description: `"${itemData.name}" has been successfully added.`
+        });
 
     } catch (dbErr: any) {
-        console.error(dbErr);
-        window.alert("FIRESTORE ERROR: " + dbErr.message);
-        // Re-throw the error to be caught by the component's try/catch
+        console.error("Firestore Error:", dbErr);
+        toast({
+            variant: "destructive",
+            title: "Database Error",
+            description: dbErr.message || "Could not save item details."
+        });
+        // Re-throw to be caught by the component and stop the spinner
         throw dbErr;
     }
-  }, [firestore, accountId, storage]);
+  }, [firestore, accountId, storage, user, toast]);
 
 
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
-    console.log("Starting update process...");
-    if (!firestore || !accountId || !storage) {
-       window.alert("CRITICAL ERROR: Firebase services not available. Cannot update item.");
-       throw new Error('Cannot update item: missing required context.');
+    if (!firestore || !accountId || !storage || !user) {
+       throw new Error('Cannot update item: missing required context or user not authenticated.');
     }
     
-    let finalImageUrl: string | undefined = item.imageUrl;
-
-    const isNewImageProvided = itemData.imageUrl && itemData.imageUrl.startsWith('data:');
-    const isImageBeingRemoved = !itemData.imageUrl && item.imageUrl;
-
     // 1. Handle Image Upload/Deletion
-    if (isNewImageProvided) {
-      console.log("New image data URI detected, starting upload...");
-      try {
-        // _handleImageUpload will delete the old image and upload the new one.
-        finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
-        console.log("Upload successful:", finalImageUrl);
-      } catch (storageErr: any) {
-        window.alert("STORAGE ERROR: " + storageErr.message);
-        // Important: Stop execution if image upload fails
-        throw storageErr;
-      }
-    } else if (isImageBeingRemoved) {
-      console.log("Image removal detected, deleting old image...");
-      try {
-        finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, undefined, item.imageUrl);
-        console.log("Old image deleted successfully.");
-      } catch (storageErr: any) {
-        window.alert("STORAGE DELETION ERROR: " + storageErr.message);
-        // Important: Stop execution if image deletion fails
-        throw storageErr;
-      }
+    const finalImageUrl = await _handleImageUpload(storage, user.uid, auctionId, itemData.imageUrl, item.imageUrl);
+
+    if (itemData.imageUrl && finalImageUrl === null) {
+        toast({
+            variant: "destructive",
+            title: "Image Upload Failed",
+            description: "The image could not be uploaded, but other item details will still be saved.",
+        });
     }
     
     // 2. Update Firestore
-    console.log("Updating Firestore...");
     try {
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
@@ -251,22 +236,29 @@ export function useAuctions() {
                 donor: donor === undefined ? deleteField() : (donor || null),
                 donorId: itemData.donorId || deleteField(),
                 lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
-                imageUrl: finalImageUrl,
-                thumbnailUrl: finalImageUrl,
+                // Only include image fields if they have a valid value to avoid writing 'null'
+                ...(finalImageUrl ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
             };
 
             transaction.update(itemRef, updatePayload);
         });
 
-        window.alert("Saved Successfully!");
+        toast({
+            title: "Item Updated!",
+            description: `"${itemData.name}" has been successfully updated.`
+        });
 
     } catch (dbErr: any) {
-        console.error(dbErr);
-        window.alert("FIRESTORE ERROR: " + dbErr.message);
-        // Re-throw the error to be caught by the component's try/catch
+        console.error("Firestore Error:", dbErr);
+        toast({
+            variant: "destructive",
+            title: "Database Error",
+            description: dbErr.message || "Could not save item details."
+        });
+        // Re-throw to be caught by the component and stop the spinner
         throw dbErr;
     }
-  }, [firestore, accountId, storage]);
+  }, [firestore, accountId, storage, user, toast]);
 
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
@@ -495,5 +487,7 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
+
+    
 
     
