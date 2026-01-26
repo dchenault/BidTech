@@ -7,9 +7,12 @@ service firebase.storage {
     }
 
     // Helper to check if the user is a member of the specified account
-    // by reading their profile from the root /users collection.
+    // by reading their profile from the root /users collection in Firestore.
     function isAccountMember(accountId) {
-      let userProfile = get(/databases/(default)/documents/users/$(request.auth.uid));
+      // Use firestore.get() to fetch the user's profile document.
+      let userProfile = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      // Check if the user is signed in and if their profile's 'accounts' map
+      // contains the accountId from the storage path.
       return isSignedIn() && userProfile.data.accounts[accountId] != null;
     }
 
