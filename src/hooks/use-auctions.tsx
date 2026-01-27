@@ -1,4 +1,3 @@
-
 'use client';
 import {
   collection,
@@ -36,11 +35,11 @@ import { FirebaseStorage } from 'firebase/storage';
 
 async function _handleImageUpload(
   storage: FirebaseStorage,
-  userId: string,
+  accountId: string,
   auctionId: string,
   newImageData: string | undefined, // from the form
   oldImageUrl: string | undefined // from the existing item
-): Promise<string | undefined | null> { // Return null to signify a failed but handled upload
+): Promise<string | undefined> { 
   // Case 1: No change in image
   if (newImageData === oldImageUrl) {
     return oldImageUrl;
@@ -51,22 +50,16 @@ async function _handleImageUpload(
       try {
         await deleteFileByUrl(storage, oldImageUrl);
       } catch (e: any) {
-        // Log the error but don't block the upload of a new image
-        console.error("Failed to delete old image, continuing with upload:", e.message);
+        // This is non-critical, so we'll alert but not block the process.
+        window.alert("FYI: Could not delete the old image, it may already be gone. " + e.message);
       }
   }
 
   // Case 2: New image is being uploaded (it's a data URI)
   if (newImageData && newImageData.startsWith('data:')) {
-    try {
-        const imagePath = `items/${userId}/${auctionId}`;
-        const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
-        return uploadedUrl;
-    } catch (error) {
-        console.error("Error during image upload:", error);
-        // Return null to signify a handled failure
-        return null;
-    }
+    const imagePath = `items/${accountId}/${auctionId}`;
+    const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
+    return uploadedUrl;
   }
 
   // Case 3: Image is being removed (newImageData is empty string) or no image was ever there.
@@ -110,84 +103,67 @@ export function useAuctions() {
     if (!firestore || !accountId || !storage || !user) {
         throw new Error('Cannot add item: missing required context or user not authenticated.');
     }
-
-    // 1. Handle Image Upload
-    const finalImageUrl = await _handleImageUpload(storage, user.uid, auctionId, itemData.imageUrl, undefined);
     
-    if (itemData.imageUrl && finalImageUrl === null) {
-        toast({
-            variant: "destructive",
-            title: "Image Upload Failed",
-            description: "The image could not be uploaded, but other item details will still be saved.",
-        });
-    }
-
-    // 2. Add to Firestore
     try {
-        await runTransaction(firestore, async (transaction) => {
-            const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-            const auctionSnap = await transaction.get(auctionRef);
-            if (!auctionSnap.exists()) throw new Error("Auction not found");
-            const auction = auctionSnap.data() as Auction;
+      // 1. Handle Image Upload
+      const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
+    
+      // 2. Add to Firestore
+      await runTransaction(firestore, async (transaction) => {
+          const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+          const auctionSnap = await transaction.get(auctionRef);
+          if (!auctionSnap.exists()) throw new Error("Auction not found");
+          const auction = auctionSnap.data() as Auction;
 
-            const accountRef = doc(firestore, 'accounts', accountId);
-            const accountSnap = await transaction.get(accountRef);
-            if (!accountSnap.exists()) throw new Error("Account not found");
-            const accountData = accountSnap.data() as Account;
-            
-            const newSku = (accountData.lastItemSku || 999) + 1;
-            const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
-            
-            let donor: Donor | undefined = undefined;
-            if (itemData.donorId) {
-                const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
-                const donorSnap = await transaction.get(donorRef);
-                if (donorSnap.exists()) {
-                    donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
-                }
-            }
-            
-            const newItemPayload: Omit<Item, 'id'> = {
-                name: itemData.name,
-                description: itemData.description || "",
-                estimatedValue: itemData.estimatedValue,
-                lotId: itemData.lotId || undefined,
-                donorId: itemData.donorId || undefined,
-                sku: newSku,
-                category,
-                auctionId: auctionId,
-                accountId: accountId,
-                paid: false,
-                donor: donor || undefined,
-                categoryId: category.id,
-                imageUrl: finalImageUrl || undefined,
-                thumbnailUrl: finalImageUrl || undefined, 
-            };
+          const accountRef = doc(firestore, 'accounts', accountId);
+          const accountSnap = await transaction.get(accountRef);
+          if (!accountSnap.exists()) throw new Error("Account not found");
+          const accountData = accountSnap.data() as Account;
+          
+          const newSku = (accountData.lastItemSku || 999) + 1;
+          const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+          
+          let donor: Donor | undefined = undefined;
+          if (itemData.donorId) {
+              const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+              const donorSnap = await transaction.get(donorRef);
+              if (donorSnap.exists()) {
+                  donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+              }
+          }
+          
+          const newItemPayload: Omit<Item, 'id'> = {
+              name: itemData.name,
+              description: itemData.description || "",
+              estimatedValue: itemData.estimatedValue,
+              lotId: itemData.lotId || undefined,
+              donorId: itemData.donorId || undefined,
+              sku: newSku,
+              category,
+              auctionId: auctionId,
+              accountId: accountId,
+              paid: false,
+              donor: donor || undefined,
+              categoryId: category.id,
+              imageUrl: finalImageUrl || undefined,
+              thumbnailUrl: finalImageUrl || undefined, 
+          };
 
-            const itemsColRef = collection(auctionRef, 'items');
-            const newItemRef = doc(itemsColRef); 
+          const itemsColRef = collection(auctionRef, 'items');
+          const newItemRef = doc(itemsColRef); 
 
-            transaction.set(newItemRef, newItemPayload);
-            transaction.update(auctionRef, { itemCount: increment(1) });
-            transaction.update(accountRef, { lastItemSku: newSku });
-        });
+          transaction.set(newItemRef, newItemPayload);
+          transaction.update(auctionRef, { itemCount: increment(1) });
+          transaction.update(accountRef, { lastItemSku: newSku });
+      });
 
-        toast({
-            title: "Item Added!",
-            description: `"${itemData.name}" has been successfully added.`
-        });
+      window.alert("Saved Successfully!");
 
-    } catch (dbErr: any) {
-        console.error("Firestore Error:", dbErr);
-        toast({
-            variant: "destructive",
-            title: "Database Error",
-            description: dbErr.message || "Could not save item details."
-        });
-        // Re-throw to be caught by the component and stop the spinner
-        throw dbErr;
+    } catch (error: any) {
+        window.alert("SAVE FAILED: " + error.message);
+        throw error;
     }
-  }, [firestore, accountId, storage, user, toast]);
+  }, [firestore, accountId, storage, user]);
 
 
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
@@ -195,70 +171,52 @@ export function useAuctions() {
        throw new Error('Cannot update item: missing required context or user not authenticated.');
     }
     
-    // 1. Handle Image Upload/Deletion
-    const finalImageUrl = await _handleImageUpload(storage, user.uid, auctionId, itemData.imageUrl, item.imageUrl);
-
-    if (itemData.imageUrl && finalImageUrl === null) {
-        toast({
-            variant: "destructive",
-            title: "Image Upload Failed",
-            description: "The image could not be uploaded, but other item details will still be saved.",
-        });
-    }
-    
-    // 2. Update Firestore
     try {
-        await runTransaction(firestore, async (transaction) => {
-            const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
-            const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-            
-            const auctionSnap = await transaction.get(auctionRef);
-            if (!auctionSnap.exists()) throw new Error("Auction not found");
-            const auction = auctionSnap.data() as Auction;
+      // 1. Handle Image Upload/Deletion
+      const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
+    
+      // 2. Update Firestore
+      await runTransaction(firestore, async (transaction) => {
+          const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+          const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+          
+          const auctionSnap = await transaction.get(auctionRef);
+          if (!auctionSnap.exists()) throw new Error("Auction not found");
+          const auction = auctionSnap.data() as Auction;
 
-            const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
-            
-            let donor: Donor | undefined = undefined;
-            if (itemData.donorId) {
-                const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
-                const donorSnap = await transaction.get(donorRef);
-                if (donorSnap.exists()) {
-                    donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
-                }
-            }
+          const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+          
+          let donor: Donor | undefined = undefined;
+          if (itemData.donorId) {
+              const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+              const donorSnap = await transaction.get(donorRef);
+              if (donorSnap.exists()) {
+                  donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+              }
+          }
 
-            const updatePayload: { [key: string]: any } = {
-                name: itemData.name,
-                description: itemData.description || "",
-                estimatedValue: itemData.estimatedValue,
-                category,
-                categoryId: category.id,
-                donor: donor === undefined ? deleteField() : (donor || null),
-                donorId: itemData.donorId || deleteField(),
-                lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
-                // Only include image fields if they have a valid value to avoid writing 'null'
-                ...(finalImageUrl ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
-            };
+          const updatePayload: { [key: string]: any } = {
+              name: itemData.name,
+              description: itemData.description || "",
+              estimatedValue: itemData.estimatedValue,
+              category,
+              categoryId: category.id,
+              donor: donor === undefined ? deleteField() : (donor || null),
+              donorId: itemData.donorId || deleteField(),
+              lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
+              ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
+          };
 
-            transaction.update(itemRef, updatePayload);
-        });
+          transaction.update(itemRef, updatePayload);
+      });
 
-        toast({
-            title: "Item Updated!",
-            description: `"${itemData.name}" has been successfully updated.`
-        });
+      window.alert("Saved Successfully!");
 
-    } catch (dbErr: any) {
-        console.error("Firestore Error:", dbErr);
-        toast({
-            variant: "destructive",
-            title: "Database Error",
-            description: dbErr.message || "Could not save item details."
-        });
-        // Re-throw to be caught by the component and stop the spinner
-        throw dbErr;
+    } catch (error: any) {
+        window.alert("SAVE FAILED: " + error.message);
+        throw error;
     }
-  }, [firestore, accountId, storage, user, toast]);
+  }, [firestore, accountId, storage, user]);
 
 
   const deleteItemFromAuction = useCallback(async (auctionId: string, itemId: string) => {
@@ -487,7 +445,3 @@ export const fetchRegisteredPatronsWithDetails = async (
 
   return detailedPatrons;
 };
-
-    
-
-    
