@@ -87,12 +87,12 @@ export default function LandingPage() {
                 </p>
               </div>
               <Image
-                src="https://picsum.photos/seed/items-screenshot/550/310"
+                src="https://firebasestorage.googleapis.com/v0/b/studio-9555481115-a8337.firebasestorage.app/o/homepage%2Fitemhandling.jpg?alt=media&token=921cce65-a1b5-4876-ba36-ba3b8be9837b"
                 width="550"
                 height="310"
                 alt="Feature Screenshot 2"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover object-center"
-                data-ai-hint="spreadsheet items"
+                data-ai-hint="item handling"
               />
             </div>
              <div className="grid gap-6 md:grid-cols-2 md:gap-12 items-center">
