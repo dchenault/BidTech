@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -31,7 +30,7 @@ export default function LandingPage() {
               </div>
             </div>
             <Image
-              src="https://imgur.com/a/toriryH"
+              src="https://firebasestorage.googleapis.com/v0/b/studio-9555481115-a8337.firebasestorage.app/o/homepage%2Fdashboard.jpg?alt=media&token=ca7fa18b-3eb9-489f-b125-c4167d1cbfdc"
               width="600"
               height="400"
               alt="Hero"
@@ -56,7 +55,7 @@ export default function LandingPage() {
           <div className="mx-auto grid items-start gap-8 sm:max-w-4xl sm:grid-cols-1 md:gap-12 lg:max-w-5xl lg:grid-cols-1">
             <div className="grid gap-6 md:grid-cols-2 md:gap-12 items-center">
               <Image
-                src="https://picsum.photos/seed/dashboard-screenshot/550/310"
+                src="https://picsum.photos/seed/dashboard-analytics/550/310"
                 width="550"
                 height="310"
                 alt="Feature Screenshot 1"
