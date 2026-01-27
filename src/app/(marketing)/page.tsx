@@ -97,12 +97,12 @@ export default function LandingPage() {
             </div>
              <div className="grid gap-6 md:grid-cols-2 md:gap-12 items-center">
               <Image
-                src="https://picsum.photos/seed/catalog-export/550/310"
+                src="https://firebasestorage.googleapis.com/v0/b/studio-9555481115-a8337.firebasestorage.app/o/homepage%2Fauctioncatalog.jpg?alt=media&token=a249eb17-6c08-492b-8da5-e7240b1647c0"
                 width="550"
                 height="310"
                 alt="Feature Screenshot 3"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover object-center"
-                data-ai-hint="printable catalog"
+                data-ai-hint="auction catalog"
               />
               <div className="flex flex-col justify-center space-y-4">
                 <div className="flex items-center gap-4">
