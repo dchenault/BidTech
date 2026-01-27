@@ -31,12 +31,12 @@ export default function LandingPage() {
               </div>
             </div>
             <Image
-              src="https://picsum.photos/seed/app-dashboard/600/400"
+              src="https://imgur.com/a/toriryH"
               width="600"
               height="400"
               alt="Hero"
               className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-              data-ai-hint="dashboard analytics"
+              data-ai-hint="dashboard"
             />
           </div>
         </div>
