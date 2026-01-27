@@ -10,6 +10,11 @@ interface AuctionCatalogProps {
 
 const renderItemRow = (item: Item) => (
     <tr key={item.id} className="item-row">
+        <td className="image-cell">
+          {item.thumbnailUrl ? (
+            <img src={item.thumbnailUrl} alt={item.name} className="thumbnail" />
+          ) : null}
+        </td>
         <td className="sku-cell">{item.sku}</td>
         <td className="name-cell">{item.name}</td>
         <td className="description-cell">{item.description}</td>
@@ -21,7 +26,7 @@ const renderItemRow = (item: Item) => (
 const renderCategoryGroup = (categoryName: string, items: Item[]) => (
     <tbody key={categoryName}>
         <tr>
-            <td colSpan={5} className="category-header">
+            <td colSpan={6} className="category-header">
                 <h3>Category: {categoryName}</h3>
             </td>
         </tr>
@@ -133,9 +138,19 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
                 margin-bottom: 0.25rem; /* 4px */
             }
             .item-row td {
-                padding: 0.125rem 0.25rem; /* 2px 4px */
+                padding: 0.25rem 0.25rem;
                 vertical-align: middle;
                 border-bottom: 1px solid #e5e7eb; /* gray-200 */
+            }
+            .image-cell {
+                width: 10%;
+                padding-right: 0.5rem;
+            }
+            .thumbnail {
+                width: 64px;
+                height: 64px;
+                object-fit: cover;
+                border-radius: 4px;
             }
             .sku-cell {
                 width: 10%;
@@ -143,11 +158,11 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
                 font-family: monospace;
             }
             .name-cell {
-                width: 20%;
+                width: 15%;
                 font-weight: 600;
             }
             .description-cell {
-                width: 35%;
+                width: 30%;
                 color: #4b5563; /* gray-600 */
             }
             .value-cell {
