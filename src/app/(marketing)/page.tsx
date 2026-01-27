@@ -55,12 +55,12 @@ export default function LandingPage() {
           <div className="mx-auto grid items-start gap-8 sm:max-w-4xl sm:grid-cols-1 md:gap-12 lg:max-w-5xl lg:grid-cols-1">
             <div className="grid gap-6 md:grid-cols-2 md:gap-12 items-center">
               <Image
-                src="https://picsum.photos/seed/dashboard-analytics/550/310"
+                src="https://firebasestorage.googleapis.com/v0/b/studio-9555481115-a8337.firebasestorage.app/o/homepage%2Fauctionmanagement.jpg?alt=media&token=fb73639d-b629-441f-8446-4ed8b9ddfb4a"
                 width="550"
                 height="310"
                 alt="Feature Screenshot 1"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover object-center"
-                data-ai-hint="dashboard analytics"
+                data-ai-hint="auction management"
               />
               <div className="flex flex-col justify-center space-y-4">
                 <div className="flex items-center gap-4">
