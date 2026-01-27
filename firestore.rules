@@ -18,10 +18,11 @@ service cloud.firestore {
     }
 
     function isAccountAdmin(accountId) {
-      // Use the user's profile document to check for admin role.
-      // This requires the user running the check to be able to read their own user profile.
+      // Use the user's profile document to check for admin role OR check if they are the admin on the account doc itself.
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isSignedIn() && userProfile.data.accounts[accountId] == 'admin';
+      let accountDoc = get(/databases/$(database)/documents/accounts/$(accountId));
+      return isSignedIn() && 
+             (userProfile.data.accounts[accountId] == 'admin' || accountDoc.data.adminUserId == request.auth.uid);
     }
 
     function isAccountMember(accountId) {
