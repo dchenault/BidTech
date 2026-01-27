@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Users, Database, GalleryVertical } from 'lucide-react';
+import { Users, GalleryVertical, Download } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LandingPage() {
@@ -97,22 +97,22 @@ export default function LandingPage() {
             </div>
              <div className="grid gap-6 md:grid-cols-2 md:gap-12 items-center">
               <Image
-                src="https://picsum.photos/seed/reports-screenshot/550/310"
+                src="https://picsum.photos/seed/catalog-export/550/310"
                 width="550"
                 height="310"
                 alt="Feature Screenshot 3"
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover object-center"
-                data-ai-hint="financial report chart"
+                data-ai-hint="printable catalog"
               />
               <div className="flex flex-col justify-center space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="bg-primary rounded-full p-3 flex-shrink-0">
-                    <Database className="h-6 w-6 text-primary-foreground" />
+                    <Download className="h-6 w-6 text-primary-foreground" />
                   </div>
-                  <h3 className="text-2xl font-bold">Powerful Reporting & Analytics</h3>
+                  <h3 className="text-2xl font-bold">Effortless Exports & Cataloging</h3>
                 </div>
                 <p className="text-muted-foreground">
-                  Gain valuable insights into your event's success. Export detailed reports on items, winning bids, and patron contributions with a single click.
+                  Generate beautiful, print-ready auction catalogs with drag-and-drop simplicity. When the event is over, export all your data—items, patrons, and winning bids—to CSV with a single click.
                 </p>
               </div>
             </div>
