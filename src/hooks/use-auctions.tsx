@@ -28,42 +28,34 @@ import {
 } from '@/firebase';
 import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
-import { useMemo, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
 import { FirebaseStorage } from 'firebase/storage';
 
 async function _handleImageUpload(
   storage: FirebaseStorage,
-  accountId: string, // Changed from userId to accountId to match multi-tenant rules
+  accountId: string,
   auctionId: string,
-  newImageData: string | undefined, // from the form
-  oldImageUrl: string | undefined // from the existing item
+  newImageData: string | undefined,
+  oldImageUrl: string | undefined
 ): Promise<string | undefined> { 
-  // Case 1: No change in image
-  if (newImageData === oldImageUrl) {
-    return oldImageUrl;
-  }
+  if (newImageData === oldImageUrl) return oldImageUrl;
 
-  // If there was an old image and we are either removing it or adding a new one, delete the old one.
   if (oldImageUrl && newImageData !== oldImageUrl) {
       try {
         await deleteFileByUrl(storage, oldImageUrl);
       } catch (e: any) {
-        // This is non-critical, so we'll alert but not block the process.
-        window.alert("FYI: Could not delete the old image, it may already be gone. " + e.message);
+        console.warn("FYI: Could not delete the old image, it may already be gone.");
       }
   }
 
-  // Case 2: New image is being uploaded (it's a data URI)
   if (newImageData && newImageData.startsWith('data:')) {
-    // Corrected path to match storage rules: items/{accountId}/{auctionId}
     const imagePath = `items/${accountId}/${auctionId}`;
     const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
     return uploadedUrl;
   }
 
-  // Case 3: Image is being removed (newImageData is empty string) or no image was ever there.
   return undefined;
 }
 
@@ -102,29 +94,69 @@ export function useAuctions() {
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage || !user) {
-        throw new Error('Cannot add item: missing required context or user not authenticated.');
+        throw new Error('Cannot add item: missing context.');
     }
     
     try {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
     
       await runTransaction(firestore, async (transaction) => {
-          // ... (existing transaction logic) ...
+          const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+          const auctionSnap = await transaction.get(auctionRef);
+          if (!auctionSnap.exists()) throw new Error("Auction not found");
+          const auction = auctionSnap.data() as Auction;
+
+          const accountRef = doc(firestore, 'accounts', accountId);
+          const accountSnap = await transaction.get(accountRef);
+          if (!accountSnap.exists()) throw new Error("Account not found");
+          const accountData = accountSnap.data() as Account;
+          
+          const newSku = (accountData.lastItemSku || 999) + 1;
+          const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+          
+          let donor: Donor | undefined = undefined;
+          if (itemData.donorId) {
+              const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+              const donorSnap = await transaction.get(donorRef);
+              if (donorSnap.exists()) {
+                  donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+              }
+          }
+          
+          const newItemPayload: Omit<Item, 'id'> = {
+              name: itemData.name,
+              description: itemData.description || "",
+              estimatedValue: itemData.estimatedValue,
+              lotId: itemData.lotId || undefined,
+              donorId: itemData.donorId || undefined,
+              sku: newSku,
+              category,
+              auctionId: auctionId,
+              accountId: accountId,
+              paid: false,
+              donor: donor || undefined,
+              categoryId: category.id,
+              imageUrl: finalImageUrl || undefined,
+              thumbnailUrl: finalImageUrl || undefined, 
+          };
+
+          const itemsColRef = collection(auctionRef, 'items');
+          const newItemRef = doc(itemsColRef); 
+
           transaction.set(newItemRef, newItemPayload);
           transaction.update(auctionRef, { itemCount: increment(1) });
           transaction.update(accountRef, { lastItemSku: newSku });
       });
 
-      // REPLACED: window.alert with toast
       toast({
         title: "Success",
-        description: `"${itemData.name}" added to auction.`,
+        description: `"${itemData.name}" added successfully.`,
       });
 
     } catch (error: any) {
         toast({
           variant: "destructive",
-          title: "Save Failed",
+          title: "Error",
           description: error.message,
         });
         throw error;
@@ -134,21 +166,49 @@ export function useAuctions() {
 
   const updateItemInAuction = useCallback(async (auctionId: string, itemId: string, item: Item, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage || !user) {
-       throw new Error('Cannot update item: missing required context or user not authenticated.');
+       throw new Error('Missing context.');
     }
     
     try {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
     
       await runTransaction(firestore, async (transaction) => {
-          // ... (existing transaction logic) ...
+          const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+          const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+          
+          const auctionSnap = await transaction.get(auctionRef);
+          if (!auctionSnap.exists()) throw new Error("Auction not found");
+          const auction = auctionSnap.data() as Auction;
+
+          const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+          
+          let donor: Donor | undefined = undefined;
+          if (itemData.donorId) {
+              const donorRef = doc(firestore, 'accounts', accountId, 'donors', itemData.donorId);
+              const donorSnap = await transaction.get(donorRef);
+              if (donorSnap.exists()) {
+                  donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
+              }
+          }
+
+          const updatePayload: { [key: string]: any } = {
+              name: itemData.name,
+              description: itemData.description || "",
+              estimatedValue: itemData.estimatedValue,
+              category,
+              categoryId: category.id,
+              donor: donor === undefined ? deleteField() : (donor || null),
+              donorId: itemData.donorId || deleteField(),
+              lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
+              ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
+          };
+
           transaction.update(itemRef, updatePayload);
       });
 
-      // REPLACED: window.alert with toast
       toast({
         title: "Item Updated",
-        description: "Changes have been saved to the database.",
+        description: `Changes to "${itemData.name}" were saved.`,
       });
 
     } catch (error: any) {
@@ -170,18 +230,13 @@ export function useAuctions() {
 
     await runTransaction(firestore, async (transaction) => {
       const itemDoc = await transaction.get(itemDocRef);
-      if (!itemDoc.exists()) {
-        throw new Error("Item not found");
-      }
+      if (!itemDoc.exists()) throw new Error("Item not found");
       const itemData = itemDoc.data() as Item;
 
-      if (itemData.winningBidderId) {
-        throw new Error("Cannot delete an item that has already been won.");
-      }
+      if (itemData.winningBidderId) throw new Error("Cannot delete won items.");
 
-      // Delete the image from storage if it exists
       if (itemData.imageUrl) {
-        await deleteFileByUrl(storage, itemData.imageUrl).catch(err => console.error("Non-critical error: failed to delete image from storage:", err));
+        await deleteFileByUrl(storage, itemData.imageUrl).catch(() => {});
       }
 
       transaction.delete(itemDocRef);
@@ -189,10 +244,9 @@ export function useAuctions() {
     });
   }, [firestore, accountId, storage]);
 
+  // ... rest of the file ...
   const addDonationToAuction = useCallback(async (auctionId: string, patronId: string, amount: number, isPaid: boolean = false) => {
-      if (!firestore || !accountId) {
-          throw new Error("Firestore or account not available");
-      }
+      if (!firestore || !accountId) throw new Error("Missing context");
 
       await runTransaction(firestore, async (transaction) => {
           const accountRef = doc(firestore, 'accounts', accountId);
@@ -236,9 +290,7 @@ export function useAuctions() {
     if (!firestore || !accountId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     const newCategory = { ...category, id: `cat-${Date.now()}` };
-    await updateDoc(auctionDocRef, {
-        categories: arrayUnion(newCategory)
-    });
+    await updateDoc(auctionDocRef, { categories: arrayUnion(newCategory) });
   }, [firestore, accountId]);
 
   const updateCategoryInAuction = useCallback(async (auctionId: string, updatedCategory: Category) => {
@@ -247,7 +299,6 @@ export function useAuctions() {
      if (!auction || !auction.categories) return;
 
      const oldCategory = auction.categories.find(c => c.id === updatedCategory.id);
-     
      if (oldCategory) {
         const batch = writeBatch(firestore);
         const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -260,10 +311,7 @@ export function useAuctions() {
   const addLotToAuction = useCallback(async (auctionId: string, lotData: LotFormValues) => {
     if (!firestore || !accountId) return;
     const lotsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
-    const newLot: Omit<Lot, 'id'> = {
-        ...lotData,
-        auctionId: auctionId,
-    };
+    const newLot: Omit<Lot, 'id'> = { ...lotData, auctionId: auctionId };
     await addDoc(lotsColRef, newLot);
   }, [firestore, accountId]);
 
@@ -311,80 +359,42 @@ export function useAuctions() {
 
     const unregisterPatronFromAuction = useCallback(async (auctionId: string, patronId: string, registrationDocId: string) => {
         if (!firestore || !accountId) throw new Error("Firestore not available");
-
         const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
         const q = query(itemsRef, where('winningBidderId', '==', patronId), limit(1));
-
         const wonItemsSnapshot = await getDocs(q);
-        if (!wonItemsSnapshot.empty) {
-            throw new Error("Cannot unregister a patron who has won items in this auction.");
-        }
-        
+        if (!wonItemsSnapshot.empty) throw new Error("Cannot unregister patron with won items.");
         const registrationRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons', registrationDocId);
         await deleteDoc(registrationRef);
     }, [firestore, accountId]);
     
   return { 
       auctions: auctionsData || [], 
-      isLoading,
-      addAuction, 
-      updateAuction, 
-      addItemToAuction,
-      updateItemInAuction,
-      deleteItemFromAuction,
-      addCategoryToAuction, 
-      updateCategoryInAuction,
-      addDonationToAuction,
-      getAuction,
-      getAuctionItems,
-      getItem,
-      getRegisteredPatrons,
-      addLotToAuction,
-      getAuctionLots,
-      moveItemToLot,
+      isLoading, addAuction, updateAuction, addItemToAuction, updateItemInAuction,
+      deleteItemFromAuction, addCategoryToAuction, updateCategoryInAuction,
+      addDonationToAuction, getAuction, getAuctionItems, getItem,
+      getRegisteredPatrons, addLotToAuction, getAuctionLots, moveItemToLot,
       unregisterPatronFromAuction,
  };
 }
 
-export const fetchAuctionItems = async (
-  firestore: Firestore,
-  accountId: string,
-  auctionId: string
-): Promise<Item[]> => {
+export const fetchAuctionItems = async (firestore: Firestore, accountId: string, auctionId: string): Promise<Item[]> => {
   const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
   const snapshot = await getDocs(itemsRef);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
 };
 
-export const fetchRegisteredPatronsWithDetails = async (
-  firestore: Firestore,
-  accountId: string,
-  auctionId: string
-): Promise<(Patron & { biddingNumber: number })[]> => {
+export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, accountId: string, auctionId: string): Promise<(Patron & { biddingNumber: number })[]> => {
   const registeredPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
   const regSnapshot = await getDocs(registeredPatronsRef);
   const registeredPatrons = regSnapshot.docs.map(doc => doc.data() as RegisteredPatron);
   const patronIds = registeredPatrons.map(rp => rp.patronId);
-
-  if (patronIds.length === 0) {
-    return [];
-  }
-
+  if (patronIds.length === 0) return [];
   const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
   const patronsSnapshot = await getDocs(query(patronsRef, where('id', 'in', patronIds)));
   const allPatrons = patronsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron));
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
-
-  const detailedPatrons = registeredPatrons.map(rp => {
-    const patronDetails = patronMap.get(rp.patronId);
-    if (!patronDetails) {
-      return null;
-    }
-    return {
-      ...patronDetails,
-      biddingNumber: rp.bidderNumber,
-    };
+  return registeredPatrons.map(rp => {
+    const p = patronMap.get(rp.patronId);
+    return p ? { ...p, biddingNumber: rp.bidderNumber } : null;
   }).filter((p): p is (Patron & { biddingNumber: number }) => p !== null);
-
-  return detailedPatrons;
 };
