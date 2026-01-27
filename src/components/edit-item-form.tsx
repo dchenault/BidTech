@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -100,14 +99,19 @@ export function EditItemForm({
     }
   }, [item, form]);
 
-  function onSubmit(values: ItemFormValues) {
-    const submissionValues = { ...values };
-    
-    if (submissionValues.lotId === 'none') {
-      submissionValues.lotId = undefined;
-    }
+  async function onSubmit(values: ItemFormValues) {
+    try {
+      const submissionValues = { ...values };
+      
+      if (submissionValues.lotId === 'none') {
+        submissionValues.lotId = undefined;
+      }
 
-    onSuccess(submissionValues);
+      // FIX: Await the parent's update logic to ensure state sync
+      await onSuccess(submissionValues);
+    } catch (error) {
+      console.error("Update failed in EditItemForm:", error);
+    }
   }
   
   const showLotsDropdown = (auctionType === 'Silent' || auctionType === 'Hybrid') && lots.length > 0;
@@ -129,7 +133,7 @@ export function EditItemForm({
   }
 
   return (
-     <>
+      <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField
@@ -252,7 +256,7 @@ export function EditItemForm({
                       disabled={isLoadingDonors}
                       className="w-full"
                     />
-                     <Button type="button" size="sm" variant="outline" onClick={() => setIsAddDonorOpen(true)}>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setIsAddDonorOpen(true)}>
                        <PlusCircle className="mr-2 h-4 w-4" /> New Donor
                     </Button>
                  </div>
@@ -314,5 +318,3 @@ export function EditItemForm({
     </>
   );
 }
-
-    

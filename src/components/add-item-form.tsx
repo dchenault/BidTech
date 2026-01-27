@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,16 +63,21 @@ export function AddItemForm({
       name: "",
       description: "",
       estimatedValue: 0,
-      categoryId: undefined,
+      categoryId: "", // FIX: Changed from undefined to empty string to satisfy Zod
       lotId: undefined,
       donorId: undefined,
       imageUrl: "",
     },
   });
 
-  function onSubmit(values: ItemFormValues) {
-    onSuccess(values);
-    form.reset();
+  async function onSubmit(values: ItemFormValues) {
+    try {
+      // Ensure we wait for the parent submission to complete
+      await onSuccess(values);
+      form.reset();
+    } catch (error) {
+      console.error("Submission failed in AddItemForm:", error);
+    }
   }
 
   const showLotsDropdown = (auctionType === 'Silent' || auctionType === 'Hybrid') && lots.length > 0;
@@ -280,5 +284,3 @@ export function AddItemForm({
     </>
   );
 }
-
-    

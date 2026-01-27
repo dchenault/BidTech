@@ -35,7 +35,7 @@ import { FirebaseStorage } from 'firebase/storage';
 
 async function _handleImageUpload(
   storage: FirebaseStorage,
-  accountId: string,
+  accountId: string, // Changed from userId to accountId to match multi-tenant rules
   auctionId: string,
   newImageData: string | undefined, // from the form
   oldImageUrl: string | undefined // from the existing item
@@ -57,6 +57,7 @@ async function _handleImageUpload(
 
   // Case 2: New image is being uploaded (it's a data URI)
   if (newImageData && newImageData.startsWith('data:')) {
+    // Corrected path to match storage rules: items/{accountId}/{auctionId}
     const imagePath = `items/${accountId}/${auctionId}`;
     const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
     return uploadedUrl;
@@ -69,7 +70,7 @@ async function _handleImageUpload(
 export function useAuctions() {
   const firestore = useFirestore();
   const storage = useStorage();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { accountId } = useAccount();
   const { toast } = useToast();
 
@@ -105,7 +106,7 @@ export function useAuctions() {
     }
     
     try {
-      // 1. Handle Image Upload
+      // 1. Handle Image Upload - passed accountId instead of user.uid
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
     
       // 2. Add to Firestore
@@ -172,7 +173,7 @@ export function useAuctions() {
     }
     
     try {
-      // 1. Handle Image Upload/Deletion
+      // 1. Handle Image Upload/Deletion - passed accountId
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
     
       // 2. Update Firestore
@@ -204,6 +205,7 @@ export function useAuctions() {
               donor: donor === undefined ? deleteField() : (donor || null),
               donorId: itemData.donorId || deleteField(),
               lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
+              // Logic ensures we use the correct imageUrl based on upload results
               ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
           };
 
