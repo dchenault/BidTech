@@ -1,30 +1,16 @@
-
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Helper: Checks if the user is signed in
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Helper: Validates account membership by checking Firestore's central /users collection
+    // Logic for BidTech Multi-tenancy
     function isAccountMember(accountId) {
-      // Use firestore.get() to read from Firestore.
-      // This checks if the requesting user's profile document contains the target accountId in its 'accounts' map.
-      return isSignedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.accounts[accountId] != null;
+      return request.auth != null && 
+             firestore.exists(/databases/(default)/documents/accounts/$(accountId)/users/$(request.auth.uid));
     }
 
-    // Match any file within the items/{accountId} directory
-    match /items/{accountId}/{allPaths=**} {
-      // Allow read/write access ONLY if the user is a member of the account specified in the path.
-      // This ensures strict multi-tenant isolation.
+    // This matches: const imagePath = `items/${accountId}/${auctionId}`;
+    match /items/{accountId}/{auctionId}/{allPaths=**} {
       allow read, write: if isAccountMember(accountId);
-    }
-    
-    // Fallback: Deny everything else for security.
-    match /{allPaths=**} {
-      allow read, write: if false;
     }
   }
 }
