@@ -54,7 +54,8 @@ import { EditPatronForm } from '@/components/edit-patron-form';
 import { useSearch } from '@/hooks/use-search';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useAccount, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useAccount } from '@/hooks/use-account';
 import { collectionGroup, query, where } from 'firebase/firestore';
 
 
