@@ -248,14 +248,12 @@ export default function PatronsPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/patrons/${patron.id}`}>View Details</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEditingPatron(patron)}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/patrons/${patron.id}`)}}>View Details</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingPatron(patron)}}>
                             Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDeleteClick(patron)} className="text-destructive">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick(patron) }} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete
                             </DropdownMenuItem>

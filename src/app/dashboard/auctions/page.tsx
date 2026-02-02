@@ -162,13 +162,11 @@ export default function AuctionsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                     <Link href={`/dashboard/auctions/${auction.id}`} className="w-full">View</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setEditingAuction(auction)}>
+                  <DropdownMenuItem onClick={(e) => {e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}`)}}>View</DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingAuction(auction)}}>
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleDuplicateAuction(auction)}>
+                  <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDuplicateAuction(auction)}}>
                     <Copy className="mr-2 h-4 w-4" />
                     Duplicate
                   </DropdownMenuItem>

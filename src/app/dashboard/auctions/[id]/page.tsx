@@ -473,14 +473,12 @@ export default function AuctionDetailsPage() {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/auctions/${auction.id}/items/${item.id}`}>View Details</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenEditDialog(item)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenWinningBidDialog(item)}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}}>View Details</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>
                                 Enter Winning Bid
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenDeleteDialog(item)} className="text-destructive">Delete</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                             </DropdownMenu>
                         </TableCell>
