@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,147 +16,191 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { EditItemDialog } from '@/components/edit-item-dialog';
+import type { ItemFormValues } from '@/lib/types';
 
 export default function ItemDetailsPage() {
   const params = useParams();
-  const { getAuction, getItem } = useAuctions();
+  const { getAuction, getItem, getAuctionLots, updateItemInAuction } =
+    useAuctions();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
   const itemId = typeof params.itemId === 'string' ? params.itemId : '';
 
   const auction = getAuction(auctionId);
   const item = getItem(auctionId, itemId);
+  const { lots } = getAuctionLots(auctionId);
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
-
 
   if (!auction || !item) {
     return <div>Item not found.</div>;
   }
 
+  const handleItemUpdate = async (updatedItemData: ItemFormValues) => {
+    if (!auction || !item) return;
+    await updateItemInAuction(auction.id, item.id, item, updatedItemData);
+    setIsEditDialogOpen(false);
+  };
+
   return (
-    <div className="grid gap-6">
-       <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-          <Link href={`/dashboard/auctions/${auctionId}`}>
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Back</span>
-          </Link>
-        </Button>
-        <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
-          {item.name}
-        </h1>
-        <Badge variant="outline" className="ml-auto sm:ml-0">
-          {item.category.name}
-        </Badge>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2 space-y-6">
-          <CardHeader>
-            <CardTitle>{item.name}</CardTitle>
-            <CardDescription>{item.description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-             <Card>
-              <CardHeader>
-                <CardTitle>Item Image</CardTitle>
-              </CardHeader>
-              <CardContent className="flex justify-center items-center">
-                <div className="relative aspect-video w-full max-w-lg bg-muted rounded-lg flex items-center justify-center">
-                  {item.imageUrl ? (
-                    <Image
-                      src={item.imageUrl}
-                      alt={item.name}
-                      fill
-                      className="object-contain rounded-lg"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <ImageIcon className="h-12 w-12" />
-                      <p>No image uploaded</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </CardContent>
-        </Card>
-        <div className="space-y-4">
-          <Card>
+    <>
+      <div className="grid gap-6">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" className="h-7 w-7" asChild>
+            <Link href={`/dashboard/auctions/${auctionId}`}>
+              <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only">Back</span>
+            </Link>
+          </Button>
+          <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
+            {item.name}
+          </h1>
+          <Badge variant="outline">{item.category.name}</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsEditDialogOpen(true)}
+            className="ml-auto"
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit Item
+          </Button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="lg:col-span-2 space-y-6">
             <CardHeader>
-              <CardTitle>Valuation & Bidding</CardTitle>
+              <CardTitle>{item.name}</CardTitle>
+              <CardDescription>{item.description}</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Estimated Value</span>
-                <span>{formatCurrency(item.estimatedValue)}</span>
-              </div>
-              <div className="flex items-center justify-between font-semibold">
-                <span>Winning Bid</span>
-                <span>{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</span>
-              </div>
+            <CardContent>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Item Image</CardTitle>
+                </CardHeader>
+                <CardContent className="flex justify-center items-center">
+                  <div className="relative aspect-video w-full max-w-lg bg-muted rounded-lg flex items-center justify-center">
+                    {item.imageUrl ? (
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        className="object-contain rounded-lg"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <ImageIcon className="h-12 w-12" />
+                        <p>No image uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
-          {item.donor && (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Donated By</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center gap-4">
-                        <Avatar className="hidden h-12 w-12 sm:flex">
-                           <AvatarFallback>
-                                <Gift />
-                           </AvatarFallback>
-                        </Avatar>
-                        <div className="grid gap-1">
-                            <p className="text-sm font-medium leading-none">
-                                {item.donor.name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{item.donor.email}</p>
-                        </div>
-                        <div className="ml-auto font-medium">
-                            <Button asChild size="sm" variant="outline">
-                                <Link href={`/dashboard/donors/${item.donor.id}`}>View Donor</Link>
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-          )}
-          {item.winner && (
+          <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Winner</CardTitle>
+                <CardTitle>Valuation & Bidding</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <Avatar className="hidden h-12 w-12 sm:flex">
-                     <AvatarImage src={userAvatar?.imageUrl} alt={item.winner.firstName} />
-                     <AvatarFallback>
-                        {item.winner.firstName.charAt(0)}
-                        {item.winner.lastName.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1">
-                    <p className="text-sm font-medium leading-none">
-                      {item.winner.firstName} {item.winner.lastName}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{item.winner.email}</p>
-                  </div>
-                   <div className="ml-auto font-medium">
-                     <Button asChild size="sm" variant="outline">
-                        <Link href={`/dashboard/patrons/${item.winner.id}`}>View Patron</Link>
-                     </Button>
-                   </div>
+              <CardContent className="grid gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    Estimated Value
+                  </span>
+                  <span>{formatCurrency(item.estimatedValue)}</span>
+                </div>
+                <div className="flex items-center justify-between font-semibold">
+                  <span>Winning Bid</span>
+                  <span>
+                    {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
+                  </span>
                 </div>
               </CardContent>
             </Card>
-          )}
+            {item.donor && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Donated By</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="hidden h-12 w-12 sm:flex">
+                      <AvatarFallback>
+                        <Gift />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid gap-1">
+                      <p className="text-sm font-medium leading-none">
+                        {item.donor.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.donor.email}
+                      </p>
+                    </div>
+                    <div className="ml-auto font-medium">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/donors/${item.donor.id}`}>
+                          View Donor
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {item.winner && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Winner</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="hidden h-12 w-12 sm:flex">
+                      <AvatarImage
+                        src={userAvatar?.imageUrl}
+                        alt={item.winner.firstName}
+                      />
+                      <AvatarFallback>
+                        {item.winner.firstName.charAt(0)}
+                        {item.winner.lastName.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid gap-1">
+                      <p className="text-sm font-medium leading-none">
+                        {item.winner.firstName} {item.winner.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.winner.email}
+                      </p>
+                    </div>
+                    <div className="ml-auto font-medium">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/patrons/${item.winner.id}`}>
+                          View Patron
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      <EditItemDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        item={item}
+        onSubmit={handleItemUpdate}
+        categories={auction.categories || []}
+        lots={lots || []}
+        auctionType={auction.type}
+      />
+    </>
   );
 }
