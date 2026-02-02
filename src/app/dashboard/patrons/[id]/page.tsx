@@ -204,39 +204,15 @@ export default function PatronDetailsPage() {
     return <div>Loading patron...</div>;
   }
   
+  // Keep this one (the one with the logs)
+const unpaidItems = useMemo(() => {
+  const filtered = wonItems.filter(item => !item.paid);
+  console.log("DEBUG: Unpaid filter result count:", filtered.length);
+  return filtered;
+}, [wonItems]);
+
   const totalSpent = wonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
-  const itemsWonCount = wonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;
-
-  const wonItems: WonItem[] = useMemo(() => {
-    // SPY LOG 1: Check the raw data from Firestore
-    console.log("DEBUG: Raw wonItemsData from Firestore:", wonItemsData);
-    console.log("DEBUG: Current Auctions list size:", auctions.length);
-  
-    if (!wonItemsData || wonItemsData.length === 0) {
-      console.log("DEBUG: wonItems returning empty because wonItemsData is null or length 0");
-      return [];
-    }
-    
-    const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
-  
-    const processed = wonItemsData.map(item => {
-      const auctionName = auctionMap.get(item.auctionId) || `Auction (${item.auctionId.substring(0,5)}...)`;
-      return { ...item, auctionName };
-    });
-  
-    console.log("DEBUG: Final processed wonItems list:", processed);
-    return processed;
-  }, [wonItemsData, auctions]);
-  
-  //SPY
-  const unpaidItems = useMemo(() => {
-    const filtered = wonItems.filter(item => !item.paid);
-    // SPY LOG 2: Check why things might be getting filtered out
-    console.log("DEBUG: Unpaid filter result count:", filtered.length);
-    return filtered;
-  }, [wonItems]);
-
-  return (
+  const itemsWonCount = wonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;  return (
     <>
       <div className="grid gap-6">
         <div className="grid gap-6 lg:grid-cols-3">
