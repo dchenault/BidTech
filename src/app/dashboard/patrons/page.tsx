@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -52,37 +52,49 @@ import { usePatrons } from '@/hooks/use-patrons';
 import type { Patron, PatronFormValues, Item } from '@/lib/types';
 import { EditPatronForm } from '@/components/edit-patron-form';
 import { useSearch } from '@/hooks/use-search';
-import { useAuctions } from '@/hooks/use-auctions';
+import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore } from '@/firebase';
+import { useAccount } from '@/hooks/use-account';
 
 
 export default function PatronsPage() {
   const router = useRouter();
-  const { patrons, updatePatron, addPatron, deletePatron, isLoading } = usePatrons();
-  const { auctions } = useAuctions();
+  const { patrons, updatePatron, addPatron, deletePatron, isLoading: isLoadingPatrons } = usePatrons();
+  const { auctions, isLoading: isLoadingAuctions } = useAuctions();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const { accountId } = useAccount();
 
   const [editingPatron, setEditingPatron] = useState<Patron | null>(null);
   const [patronToDelete, setPatronToDelete] = useState<Patron | null>(null);
   const [isAddPatronDialogOpen, setIsAddPatronDialogOpen] = useState(false);
   const [addFormKey, setAddFormKey] = useState(Date.now());
 
-  // This is a simplified example. In a real app, you might fetch all items
-  // at a higher level component (e.g., in a context) to avoid re-fetching.
-  const allItems = useMemo(() => {
-    // In a real implementation, this would be populated by fetching data
-    return [] as Item[];
-  }, []);
+  const [allItems, setAllItems] = useState<Item[]>([]);
+  const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
+
+  useEffect(() => {
+    if (firestore && accountId && auctions.length > 0) {
+      setIsLoadingAllItems(true);
+      Promise.all(
+        auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
+      ).then(itemArrays => {
+        setAllItems(itemArrays.flat());
+        setIsLoadingAllItems(false);
+      }).catch(() => {
+        setIsLoadingAllItems(false);
+      });
+    } else if (!isLoadingAuctions) {
+      setIsLoadingAllItems(false);
+    }
+  }, [firestore, accountId, auctions, isLoadingAuctions]);
 
   const patronsWithStats = useMemo(() => {
     if (patrons.length === 0) {
-      return patrons.map(p => ({ ...p, itemsWon: 0, totalSpent: 0 }));
-    }
-    if (allItems.length === 0) {
-      // If items haven't loaded, return patrons without stats yet
-      return patrons.map(p => ({ ...p, itemsWon: 0, totalSpent: 0 }));
+      return [];
     }
 
     const stats = allItems.reduce((acc, item) => {
@@ -90,7 +102,10 @@ export default function PatronsPage() {
         if (!acc[item.winningBidderId]) {
           acc[item.winningBidderId] = { totalSpent: 0, itemsWon: 0 };
         }
-        acc[item.winningBidderId].itemsWon += 1;
+        // Don't count cash donations as "items won"
+        if (!item.sku.toString().startsWith("DON-")) {
+          acc[item.winningBidderId].itemsWon += 1;
+        }
         acc[item.winningBidderId].totalSpent += item.winningBid || 0;
       }
       return acc;
@@ -158,6 +173,8 @@ export default function PatronsPage() {
     }
   };
   
+  const isLoading = isLoadingPatrons || isLoadingAllItems;
+
   return (
     <>
       <Card>

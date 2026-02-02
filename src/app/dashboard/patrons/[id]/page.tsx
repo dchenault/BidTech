@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard } from 'lucide-react';
 import type { Item, PatronFormValues, Auction, PaymentMethod } from '@/lib/types';
-import { useAuctions } from '@/hooks/use-auctions';
+import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
 import { EditPatronDialog } from '@/components/edit-patron-dialog';
@@ -32,7 +32,7 @@ import { exportPatronReceiptToHTML } from '@/lib/export';
 import { PrintReceiptDialog } from '@/components/print-receipt-dialog';
 import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useAccount } from '@/firebase';
 import { doc, writeBatch } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -47,8 +47,9 @@ export default function PatronDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const firestore = useFirestore();
+  const { accountId } = useAccount();
   const { patrons, updatePatron } = usePatrons();
-  const { auctions, isLoading: isLoadingAuctions, addDonationToAuction, getAuctionItems } = useAuctions();
+  const { auctions, isLoading: isLoadingAuctions, addDonationToAuction } = useAuctions();
   const patronId = typeof params.id === 'string' ? params.id : '';
   const { toast } = useToast();
   
@@ -66,18 +67,28 @@ export default function PatronDetailsPage() {
     setNotes(patron?.notes || '');
   }, [patron]);
 
-  // This is a simplified example. In a real app, you might fetch all items
-  // for all relevant auctions at a higher level component (e.g., in a context)
-  // to avoid re-fetching. Here we are simulating fetching for the relevant auctions.
-  const allItems = useMemo(() => {
-    // In a real implementation, this would be populated by fetching data
-    // based on the auctions this patron participated in.
-    return [] as Item[];
-  }, []);
+  const [allItems, setAllItems] = useState<Item[]>([]);
+  const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
+
+  useEffect(() => {
+    if (firestore && accountId && auctions.length > 0) {
+      setIsLoadingAllItems(true);
+      Promise.all(
+        auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
+      ).then(itemArrays => {
+        setAllItems(itemArrays.flat());
+        setIsLoadingAllItems(false);
+      }).catch(() => {
+        setIsLoadingAllItems(false);
+      });
+    } else if (!isLoadingAuctions) {
+      setIsLoadingAllItems(false);
+    }
+  }, [firestore, accountId, auctions, isLoadingAuctions]);
 
 
   const wonItems: WonItem[] = useMemo(() => {
-    if (!patronId || allItems.length === 0) return [];
+    if (!patronId || isLoadingAllItems) return [];
     
     const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
 
@@ -93,7 +104,7 @@ export default function PatronDetailsPage() {
         };
       })
       .filter((item): item is WonItem => item !== null);
-  }, [allItems, patronId, auctions]);
+  }, [allItems, patronId, auctions, isLoadingAllItems]);
 
   const unpaidItems = useMemo(() => wonItems.filter(item => !item.paid), [wonItems]);
 
