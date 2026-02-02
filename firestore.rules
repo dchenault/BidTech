@@ -18,11 +18,10 @@ service cloud.firestore {
     }
 
     function isAccountAdmin(accountId) {
-      // Use the user's profile document to check for admin role OR check if they are the admin on the account doc itself.
+      // Use the user's profile document to check for admin role.
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      let accountDoc = get(/databases/$(database)/documents/accounts/$(accountId));
       return isSignedIn() && 
-             (userProfile.data.accounts[accountId] == 'admin' || accountDoc.data.adminUserId == request.auth.uid);
+             (userProfile.data.accounts[accountId] == 'admin');
     }
 
     function isAccountMember(accountId) {
@@ -43,6 +42,25 @@ service cloud.firestore {
         removedKeys.size() == 1 &&
         isAccountAdmin(removedKeys.toList()[0]);
     }
+
+    function isInvitedUser(invitation) {
+      // The client already saves the invitation email as lowercase.
+      return isSignedIn() &&
+             request.auth.token.email != null &&
+             invitation.email != null &&
+             request.auth.token.email.lower() == invitation.email;
+    }
+
+    // ========= COLLECTION GROUP RULES =========
+    
+    // This rule allows members of an account to read any item within that account
+    // using a collection group query. This is essential for features like calculating
+    // a patron's total spending across all auctions. Write access is still
+    // handled by the more specific, stricter rules nested under auctions.
+    match /{path=**}/items/{itemId} {
+      allow read: if isAccountMember(resource.data.accountId);
+    }
+
 
     // ========= ROOT COLLECTIONS =========
     
@@ -69,14 +87,13 @@ service cloud.firestore {
       allow delete: if isAccountAdmin(resource.data.accountId);
       
       // An admin can read their own invites. The invited user can read their own invite once logged in.
-      allow get: if isAccountAdmin(resource.data.accountId) || 
-                   (isSignedIn() && request.auth.token.email.lower() == resource.data.email.lower());
+      allow get: if isAccountAdmin(resource.data.accountId) || isInvitedUser(resource.data);
       
       // An admin can list the invites for their account via a query.
       allow list: if isSignedIn() && request.query.accountId != null && isAccountAdmin(request.query.accountId);
                    
       // The invited user can update their own invite to accept it.
-      allow update: if isSignedIn() && request.auth.token.email.lower() == resource.data.email.lower();
+      allow update: if isInvitedUser(resource.data);
     }
     
     // `accounts` holds all tenant data. Access is controlled by the user's profile.

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -52,17 +52,15 @@ import { usePatrons } from '@/hooks/use-patrons';
 import type { Patron, PatronFormValues, Item } from '@/lib/types';
 import { EditPatronForm } from '@/components/edit-patron-form';
 import { useSearch } from '@/hooks/use-search';
-import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore } from '@/firebase';
-import { useAccount } from '@/hooks/use-account';
+import { useFirestore, useAccount, useCollection, useMemoFirebase } from '@/firebase';
+import { collectionGroup, query, where } from 'firebase/firestore';
 
 
 export default function PatronsPage() {
   const router = useRouter();
   const { patrons, updatePatron, addPatron, deletePatron, isLoading: isLoadingPatrons } = usePatrons();
-  const { auctions, isLoading: isLoadingAuctions } = useAuctions();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -73,27 +71,20 @@ export default function PatronsPage() {
   const [isAddPatronDialogOpen, setIsAddPatronDialogOpen] = useState(false);
   const [addFormKey, setAddFormKey] = useState(Date.now());
 
-  const [allItems, setAllItems] = useState<Item[]>([]);
-  const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
-
-  useEffect(() => {
-    if (firestore && accountId && auctions.length > 0) {
-      setIsLoadingAllItems(true);
-      Promise.all(
-        auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
-      ).then(itemArrays => {
-        setAllItems(itemArrays.flat());
-        setIsLoadingAllItems(false);
-      }).catch(() => {
-        setIsLoadingAllItems(false);
-      });
-    } else if (!isLoadingAuctions) {
-      setIsLoadingAllItems(false);
-    }
-  }, [firestore, accountId, auctions, isLoadingAuctions]);
+  // Real-time query for all items in the current account.
+  const allItemsQuery = useMemoFirebase(
+    () => (firestore && accountId
+        ? query(
+            collectionGroup(firestore, 'items'),
+            where('accountId', '==', accountId)
+          )
+        : null),
+    [firestore, accountId]
+  );
+  const { data: allItems, isLoading: isLoadingAllItems } = useCollection<Item>(allItemsQuery);
 
   const patronsWithStats = useMemo(() => {
-    if (patrons.length === 0) {
+    if (!patrons || !allItems) {
       return [];
     }
 
@@ -158,7 +149,7 @@ export default function PatronsPage() {
     if (!patronToDelete) return;
 
     try {
-      await deletePatron(patronToDelete.id, allItems);
+      await deletePatron(patronToDelete.id, allItems || []);
       toast({
         title: "Patron Deleted",
         description: `${patronToDelete.firstName} ${patronToDelete.lastName} has been successfully deleted.`,

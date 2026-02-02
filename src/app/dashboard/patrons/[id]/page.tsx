@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard } from 'lucide-react';
 import type { Item, PatronFormValues, Auction, PaymentMethod } from '@/lib/types';
-import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
+import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
 import { EditPatronDialog } from '@/components/edit-patron-dialog';
@@ -32,8 +32,8 @@ import { exportPatronReceiptToHTML } from '@/lib/export';
 import { PrintReceiptDialog } from '@/components/print-receipt-dialog';
 import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useAccount } from '@/firebase';
-import { doc, writeBatch } from 'firebase/firestore';
+import { useFirestore, useAccount, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, writeBatch, collectionGroup, query, where } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -48,7 +48,7 @@ export default function PatronDetailsPage() {
   const router = useRouter();
   const firestore = useFirestore();
   const { accountId } = useAccount();
-  const { patrons, updatePatron } = usePatrons();
+  const { patrons, updatePatron, isLoading: isLoadingPatrons } = usePatrons();
   const { auctions, isLoading: isLoadingAuctions, addDonationToAuction } = useAuctions();
   const patronId = typeof params.id === 'string' ? params.id : '';
   const { toast } = useToast();
@@ -67,33 +67,25 @@ export default function PatronDetailsPage() {
     setNotes(patron?.notes || '');
   }, [patron]);
 
-  const [allItems, setAllItems] = useState<Item[]>([]);
-  const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
-
-  useEffect(() => {
-    if (firestore && accountId && auctions.length > 0) {
-      setIsLoadingAllItems(true);
-      Promise.all(
-        auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
-      ).then(itemArrays => {
-        setAllItems(itemArrays.flat());
-        setIsLoadingAllItems(false);
-      }).catch(() => {
-        setIsLoadingAllItems(false);
-      });
-    } else if (!isLoadingAuctions) {
-      setIsLoadingAllItems(false);
-    }
-  }, [firestore, accountId, auctions, isLoadingAuctions]);
-
+  // New real-time query for all items won by this specific patron across all auctions.
+  const wonItemsQuery = useMemoFirebase(
+    () => (firestore && accountId && patronId
+        ? query(
+            collectionGroup(firestore, 'items'),
+            where('accountId', '==', accountId),
+            where('winningBidderId', '==', patronId)
+          )
+        : null),
+    [firestore, accountId, patronId]
+  );
+  const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
   const wonItems: WonItem[] = useMemo(() => {
-    if (!patronId || isLoadingAllItems) return [];
+    if (!wonItemsData || isLoadingAuctions) return [];
     
     const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
 
-    return allItems
-      .filter(item => item.winningBidderId === patronId && item.accountId)
+    return wonItemsData
       .map(item => {
         const auctionName = auctionMap.get(item.auctionId);
         if (!auctionName) return null;
@@ -104,7 +96,7 @@ export default function PatronDetailsPage() {
         };
       })
       .filter((item): item is WonItem => item !== null);
-  }, [allItems, patronId, auctions, isLoadingAllItems]);
+  }, [wonItemsData, auctions, isLoadingAuctions]);
 
   const unpaidItems = useMemo(() => wonItems.filter(item => !item.paid), [wonItems]);
 
@@ -135,12 +127,11 @@ export default function PatronDetailsPage() {
       return;
     }
 
-    // @ts-ignore
     exportPatronReceiptToHTML({
-      patron: { ...patron, biddingNumber: itemsForReceipt[0]?.winner?.biddingNumber } as any,
+      patron,
       items: itemsForReceipt,
       auction: selectedAuction
-    } as any);
+    });
   };
 
   const handleAddDonation = async (amount: number, auctionId: string) => {
@@ -171,10 +162,11 @@ export default function PatronDetailsPage() {
   };
 
   const handleMarkAsPaid = async (paymentMethod: PaymentMethod) => {
-    if (!firestore || itemsToPay.length === 0) return;
+    if (!firestore || itemsToPay.length === 0 || !accountId) return;
 
     const batch = writeBatch(firestore);
     itemsToPay.forEach(item => {
+      if (!item.accountId) return; // Safeguard
       const itemRef = doc(firestore, 'accounts', item.accountId, 'auctions', item.auctionId, 'items', item.id);
       batch.update(itemRef, { paid: true, paymentMethod: paymentMethod });
     });
@@ -207,8 +199,8 @@ export default function PatronDetailsPage() {
   };
 
 
-  if (!patron) {
-    return <div>Patron not found.</div>;
+  if (isLoadingPatrons || !patron) {
+    return <div>Loading patron...</div>;
   }
   
   const totalSpent = wonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
@@ -337,7 +329,9 @@ export default function PatronDetailsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {wonItems.length > 0 ? (
+            {isLoadingWonItems ? (
+              <div className="text-center text-muted-foreground py-8">Loading contributions...</div>
+            ) : wonItems.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
