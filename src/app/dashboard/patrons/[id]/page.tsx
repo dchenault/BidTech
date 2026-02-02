@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -74,32 +73,43 @@ export default function PatronDetailsPage() {
         ? query(
             collectionGroup(firestore, 'items'),
             where('accountId', '==', accountId),
-            where('winnerId', '==', patronId)
+            where('winningBidderId', '==', patronId)
           )
         : null),
     [firestore, accountId, patronId]
   );
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
+  // --- SPY LOGGED MEMO ---
   const wonItems: WonItem[] = useMemo(() => {
-    // If we don't even have the raw items yet, show nothing.
-    if (!wonItemsData || wonItemsData.length === 0) return [];
+    console.log("DEBUG: Raw wonItemsData from Firestore:", wonItemsData);
+    console.log("DEBUG: Current Auctions list size:", auctions?.length);
+
+    if (!wonItemsData || wonItemsData.length === 0) {
+      console.log("DEBUG: wonItems returning empty because wonItemsData is null or length 0");
+      return [];
+    }
   
-    // Create the map, but don't let a "loading" auctions state break the return.
     const auctionMap = new Map(auctions?.map(a => [a.id, a.name]) || []);
   
-    return wonItemsData.map(item => {
-      // Fallback to a generic name so the item doesn't disappear or look broken
-      const auctionName = auctionMap.get(item.auctionId) || "Loading Auction Name...";
-      
+    const processed = wonItemsData.map(item => {
+      const auctionName = auctionMap.get(item.auctionId) || `Auction (${item.auctionId.substring(0,5)}...)`;
       return {
         ...item,
         auctionName,
       };
     });
+
+    console.log("DEBUG: Final processed wonItems list:", processed);
+    return processed;
   }, [wonItemsData, auctions]);
 
-  const unpaidItems = useMemo(() => wonItems.filter(item => !item.paid), [wonItems]);
+  // --- SPY LOGGED MEMO ---
+  const unpaidItems = useMemo(() => {
+    const filtered = wonItems.filter(item => !item.paid);
+    console.log("DEBUG: Unpaid filter result count:", filtered.length);
+    return filtered;
+  }, [wonItems]);
 
   const auctionsWithWonItems = useMemo(() => {
     const auctionIds = new Set(wonItems.map(item => item.auctionId));
@@ -167,7 +177,7 @@ export default function PatronDetailsPage() {
 
     const batch = writeBatch(firestore);
     itemsToPay.forEach(item => {
-      if (!item.accountId) return; // Safeguard
+      if (!item.accountId) return; 
       const itemRef = doc(firestore, 'accounts', item.accountId, 'auctions', item.auctionId, 'items', item.id);
       batch.update(itemRef, { paid: true, paymentMethod: paymentMethod });
     });
@@ -204,15 +214,10 @@ export default function PatronDetailsPage() {
     return <div>Loading patron...</div>;
   }
   
-  // Keep this one (the one with the logs)
-const unpaidItems = useMemo(() => {
-  const filtered = wonItems.filter(item => !item.paid);
-  console.log("DEBUG: Unpaid filter result count:", filtered.length);
-  return filtered;
-}, [wonItems]);
-
   const totalSpent = wonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
-  const itemsWonCount = wonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;  return (
+  const itemsWonCount = wonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;
+
+  return (
     <>
       <div className="grid gap-6">
         <div className="grid gap-6 lg:grid-cols-3">
@@ -421,7 +426,3 @@ const unpaidItems = useMemo(() => {
     </>
   );
 }
-
-    
-
-    
