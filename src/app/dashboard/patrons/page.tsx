@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { usePatrons } from '@/hooks/use-patrons';
 import type { Patron, PatronFormValues, Item } from '@/lib/types';
 import { EditPatronForm } from '@/components/edit-patron-form';
@@ -57,6 +58,7 @@ import { useToast } from '@/hooks/use-toast';
 
 
 export default function PatronsPage() {
+  const router = useRouter();
   const { patrons, updatePatron, addPatron, deletePatron, isLoading } = usePatrons();
   const { auctions } = useAuctions();
   const { searchQuery, setSearchQuery } = useSearch();
@@ -218,11 +220,13 @@ export default function PatronsPage() {
                 </TableHeader>
                 <TableBody>
                 {filteredPatrons.map((patron) => (
-                    <TableRow key={patron.id}>
+                    <TableRow 
+                        key={patron.id}
+                        onClick={() => router.push(`/dashboard/patrons/${patron.id}`)}
+                        className="cursor-pointer"
+                    >
                     <TableCell className="font-medium">
-                        <Link href={`/dashboard/patrons/${patron.id}`} className="hover:underline">
                         {patron.firstName} {patron.lastName}
-                        </Link>
                     </TableCell>
                     <TableCell>{patron.email}</TableCell>
                     <TableCell className="hidden md:table-cell">{patron.phone}</TableCell>
@@ -233,7 +237,12 @@ export default function PatronsPage() {
                     <TableCell>
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <Button 
+                                aria-haspopup="true" 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={(e) => e.stopPropagation()}
+                            >
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Toggle menu</span>
                             </Button>

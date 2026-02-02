@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Copy, Search } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,7 @@ import { Input } from '@/components/ui/input';
 
 
 export default function AuctionsPage() {
+  const router = useRouter();
   const { auctions, addAuction, updateAuction, isLoading } = useAuctions();
   const { searchQuery, setSearchQuery } = useSearch();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -117,11 +119,13 @@ export default function AuctionsPage() {
       </TableHeader>
       <TableBody>
         {auctionsToShow.map((auction) => (
-          <TableRow key={auction.id}>
+          <TableRow 
+            key={auction.id}
+            onClick={() => router.push(`/dashboard/auctions/${auction.id}`)}
+            className="cursor-pointer"
+          >
             <TableCell className="font-medium">
-               <Link href={`/dashboard/auctions/${auction.id}`} className="hover:underline">
-                {auction.name}
-              </Link>
+               {auction.name}
             </TableCell>
             <TableCell>
               <Badge variant="outline">{auction.type}</Badge>
@@ -147,7 +151,12 @@ export default function AuctionsPage() {
             <TableCell>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-haspopup="true" size="icon" variant="ghost">
+                  <Button 
+                    aria-haspopup="true" 
+                    size="icon" 
+                    variant="ghost"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                     <span className="sr-only">Toggle menu</span>
                   </Button>
@@ -265,5 +274,3 @@ export default function AuctionsPage() {
     </>
   );
 }
-
-    

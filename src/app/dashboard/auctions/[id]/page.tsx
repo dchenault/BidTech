@@ -26,8 +26,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
-import { useParams } from 'next/navigation';
-import { formatCurrency } from '@/lib/utils';
+import { useParams, useRouter } from 'next/navigation';
+import { formatCurrency, cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +68,7 @@ import Image from 'next/image';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
@@ -422,7 +423,11 @@ export default function AuctionDetailsPage() {
                     </TableHeader>
                     <TableBody>
                     {itemsToRender.map((item) => (
-                        <TableRow key={item.id}>
+                        <TableRow 
+                            key={item.id}
+                            onClick={() => router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}
+                            className="cursor-pointer"
+                        >
                           <TableCell className="hidden sm:table-cell">
                             <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
                               {item.thumbnailUrl ? (
@@ -440,9 +445,7 @@ export default function AuctionDetailsPage() {
                           </TableCell>
                         <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
                         <TableCell className="font-medium">
-                            <Link href={`/dashboard/auctions/${auction.id}/items/${item.id}`} className="hover:underline">
-                                {item.name}
-                            </Link>
+                            {item.name}
                         </TableCell>
                         <TableCell>
                             <Badge variant="outline">{item.category.name}</Badge>
@@ -459,7 +462,12 @@ export default function AuctionDetailsPage() {
                         <TableCell>
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                <Button 
+                                    aria-haspopup="true" 
+                                    size="icon" 
+                                    variant="ghost"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
                                 <MoreHorizontal className="h-4 w-4" />
                                 <span className="sr-only">Toggle menu</span>
                                 </Button>
@@ -509,7 +517,11 @@ export default function AuctionDetailsPage() {
                       </TableHeader>
                       <TableBody>
                           {searchedDonations.map((donation) => (
-                              <TableRow key={donation.id}>
+                              <TableRow 
+                                key={donation.id}
+                                onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
+                                className={cn(donation.winner?.id && "cursor-pointer")}
+                              >
                                   <TableCell>
                                       <div className="flex items-center gap-3">
                                           <Avatar className="hidden h-9 w-9 sm:flex">
@@ -518,9 +530,7 @@ export default function AuctionDetailsPage() {
                                           </Avatar>
                                           <div className="grid gap-0.5">
                                               <p className="font-medium">
-                                                  <Link href={`/dashboard/patrons/${donation.winner?.id}`} className="hover:underline">
-                                                      {donation.winner?.firstName} {donation.winner?.lastName}
-                                                  </Link>
+                                                {donation.winner?.firstName} {donation.winner?.lastName}
                                               </p>
                                               <p className="text-xs text-muted-foreground">{donation.winner?.email}</p>
                                           </div>
@@ -732,12 +742,14 @@ export default function AuctionDetailsPage() {
                         </TableHeader>
                         <TableBody>
                         {filteredRegisteredPatrons.map((patron) => (
-                            <TableRow key={patron.id}>
+                            <TableRow 
+                                key={patron.id}
+                                onClick={() => router.push(`/dashboard/patrons/${patron.id}`)}
+                                className="cursor-pointer"
+                            >
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
                             <TableCell className="font-medium">
-                                <Link href={`/dashboard/patrons/${patron.id}`} className="hover:underline">
                                 {patron.firstName} {patron.lastName}
-                                </Link>
                             </TableCell>
                             <TableCell>{patron.email}</TableCell>
                             <TableCell className="hidden md:table-cell">{patron.phone}</TableCell>
@@ -745,7 +757,7 @@ export default function AuctionDetailsPage() {
                                 <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    onClick={() => handleUnregisterPatron(patron)}
+                                    onClick={(e) => { e.stopPropagation(); handleUnregisterPatron(patron); }}
                                 >
                                     <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Remove Patron</span>
@@ -915,5 +927,3 @@ export default function AuctionDetailsPage() {
     </>
   );
 }
-
-    

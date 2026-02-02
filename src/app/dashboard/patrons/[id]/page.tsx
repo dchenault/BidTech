@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard } from 'lucide-react';
 import type { Item, PatronFormValues, Auction, PaymentMethod } from '@/lib/types';
 import { useAuctions } from '@/hooks/use-auctions';
@@ -45,6 +45,7 @@ interface WonItem extends Item {
 
 export default function PatronDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const firestore = useFirestore();
   const { patrons, updatePatron } = usePatrons();
   const { auctions, isLoading: isLoadingAuctions, addDonationToAuction, getAuctionItems } = useAuctions();
@@ -339,7 +340,11 @@ export default function PatronDetailsPage() {
                   {wonItems.map((item) => {
                     const isDonation = item.sku.toString().startsWith('DON-');
                     return (
-                        <TableRow key={item.id}>
+                        <TableRow 
+                            key={item.id}
+                            onClick={() => !isDonation && router.push(`/dashboard/auctions/${item.auctionId}/items/${item.id}`)}
+                            className={cn(!isDonation && "cursor-pointer")}
+                        >
                             <TableCell className={`font-medium ${isDonation ? 'text-green-600 dark:text-green-400' : ''}`}>
                                 {isDonation ? `Donation` : item.name}
                             </TableCell>
@@ -354,7 +359,7 @@ export default function PatronDetailsPage() {
                                     <Button
                                         size="sm"
                                         className="bg-green-600 hover:bg-green-700"
-                                        onClick={() => openPaymentDialog([item])}
+                                        onClick={(e) => { e.stopPropagation(); openPaymentDialog([item]); }}
                                     >
                                         Mark Paid
                                     </Button>
