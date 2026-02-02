@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -90,6 +90,7 @@ export default function AuctionDetailsPage() {
   const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
   
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
@@ -117,6 +118,44 @@ export default function AuctionDetailsPage() {
     );
   }, [items, searchQuery]);
 
+  const sortedAndSearchedItems = useMemo(() => {
+    let sortableItems = [...searchedItems];
+    if (sortConfig) {
+      sortableItems.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortConfig.key) {
+          case 'winner':
+            aValue = a.winner ? `${a.winner.firstName} ${a.winner.lastName}`.toLowerCase() : '';
+            bValue = b.winner ? `${b.winner.firstName} ${b.winner.lastName}`.toLowerCase() : '';
+            break;
+          case 'category':
+            aValue = a.category?.name.toLowerCase() || '';
+            bValue = b.category?.name.toLowerCase() || '';
+            break;
+          default:
+            aValue = a[sortConfig.key as keyof Item];
+            bValue = b[sortConfig.key as keyof Item];
+            if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+            if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+        }
+
+        aValue = aValue ?? (typeof aValue === 'number' ? 0 : '');
+        bValue = bValue ?? (typeof bValue === 'number' ? 0 : '');
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [searchedItems, sortConfig]);
+
   const searchedDonations = useMemo(() => {
       if (!items) return [];
       const donations = items.filter(item => item.sku.toString().startsWith('DON-'));
@@ -131,9 +170,9 @@ export default function AuctionDetailsPage() {
   }, [items, searchQuery]);
 
   const { liveItems, silentItemsByLot } = useMemo(() => {
-    if (!searchedItems) return { liveItems: [], silentItemsByLot: new Map() };
-    const liveItems = searchedItems.filter(item => !item.lotId);
-    const silentItemsByLot = searchedItems
+    if (!sortedAndSearchedItems) return { liveItems: [], silentItemsByLot: new Map() };
+    const liveItems = sortedAndSearchedItems.filter(item => !item.lotId);
+    const silentItemsByLot = sortedAndSearchedItems
         .filter(item => item.lotId)
         .reduce((acc, item) => {
             if (!item.lotId) return acc;
@@ -145,7 +184,7 @@ export default function AuctionDetailsPage() {
         }, new Map<string, Item[]>());
 
     return { liveItems, silentItemsByLot };
-  }, [searchedItems]);
+  }, [sortedAndSearchedItems]);
 
 
   const registeredPatronsWithDetails: (Patron & { registeredPatronDocId: string; biddingNumber: number; })[] = useMemo(() => {
@@ -180,6 +219,14 @@ export default function AuctionDetailsPage() {
   if (!auction || !accountId) {
     return <div>Loading auction...</div>;
   }
+
+  const requestSort = (key: string) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+        direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const handleToggleAuctionStatus = () => {
     if (!auction) return;
@@ -337,13 +384,37 @@ export default function AuctionDetailsPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead className="hidden sm:table-cell">Image</TableHead>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="hidden md:table-cell">Est. Value</TableHead>
-                        <TableHead className="hidden md:table-cell">Winning Bid</TableHead>
-                        <TableHead className="hidden md:table-cell">Winner</TableHead>
+                        <TableHead className="hidden sm:table-cell w-[80px]">Image</TableHead>
+                        <TableHead>
+                            <Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4 h-8">
+                                SKU {sortConfig?.key === 'sku' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
+                        <TableHead>
+                             <Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4 h-8">
+                                Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
+                        <TableHead>
+                            <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">
+                                Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
+                        <TableHead className="hidden md:table-cell">
+                            <Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4 h-8">
+                                Est. Value {sortConfig?.key === 'estimatedValue' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
+                        <TableHead className="hidden md:table-cell">
+                             <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
+                                Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
+                        <TableHead className="hidden md:table-cell">
+                           <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">
+                                Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                            </Button>
+                        </TableHead>
                         <TableHead>
                            Actions
                         </TableHead>
@@ -475,7 +546,7 @@ export default function AuctionDetailsPage() {
         {isLoadingLots ? (
             <div className="text-center text-muted-foreground py-8">Loading lots...</div>
         ) : lots.length === 0 ? (
-            renderItemsTable(searchedItems, 'All Items', 'Manage all items for this silent auction.')
+            renderItemsTable(sortedAndSearchedItems, 'All Items', 'Manage all items for this silent auction.')
         ) : (
             lots.map(lot => (
                 <div key={lot.id}>
@@ -541,7 +612,7 @@ export default function AuctionDetailsPage() {
         return renderHybridAuctionView();
       case 'Live':
       default:
-        return renderItemsTable(searchedItems, 'Auction Items', 'Manage the items for this auction.');
+        return renderItemsTable(sortedAndSearchedItems, 'Auction Items', 'Manage the items for this auction.');
     }
   }
 
