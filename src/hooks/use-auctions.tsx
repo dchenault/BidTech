@@ -119,7 +119,16 @@ export function useAuctions() {
           if (!accountSnap.exists()) throw new Error("Account not found");
           const accountData = accountSnap.data() as Account;
           
-          const newSku = (accountData.lastItemSku || 999) + 1;
+          let newSku: string | number;
+          let shouldIncrementSku = false;
+
+          if (itemData.sku && itemData.sku.trim() !== '') {
+            newSku = itemData.sku;
+          } else {
+            newSku = (accountData.lastItemSku || 999) + 1;
+            shouldIncrementSku = true;
+          }
+
           const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
           
           let donor: Donor | undefined = undefined;
@@ -152,7 +161,9 @@ export function useAuctions() {
 
           transaction.set(newItemRef, newItemPayload);
           transaction.update(auctionRef, { itemCount: increment(1) });
-          transaction.update(accountRef, { lastItemSku: newSku });
+          if (shouldIncrementSku) {
+            transaction.update(accountRef, { lastItemSku: newSku });
+          }
       });
 
       toast({
@@ -402,6 +413,6 @@ export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, ac
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
   return registeredPatrons.map(rp => {
     const p = patronMap.get(rp.patronId);
-    return p ? { ...p, biddingNumber: rp.bidderNumber } : null;
+    return p ? { ...p, biddingNumber: rp.biddingNumber } : null;
   }).filter((p): p is (Patron & { biddingNumber: number }) => p !== null);
 };

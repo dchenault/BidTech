@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -60,10 +61,11 @@ export function AddItemForm({
   const form = useForm<ItemFormValues>({
     resolver: zodResolver(itemFormSchema),
     defaultValues: {
+      sku: "",
       name: "",
       description: "",
       estimatedValue: 0,
-      categoryId: "", // FIX: Changed from undefined to empty string to satisfy Zod
+      categoryId: "", 
       lotId: undefined,
       donorId: undefined,
       imageUrl: "",
@@ -119,19 +121,37 @@ export function AddItemForm({
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Item Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g. Vintage Leather Jacket" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+             <FormField
+              control={form.control}
+              name="sku"
+              render={({ field }) => (
+                <FormItem className="md:col-span-1">
+                  <FormLabel>SKU (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Auto-generated" {...field} />
+                  </FormControl>
+                   <FormDescription>
+                    Leave blank to auto-assign.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Item Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Vintage Leather Jacket" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           
           <FormField
             control={form.control}

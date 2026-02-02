@@ -178,6 +178,7 @@ export const patronFormSchema = z.object({
 export type PatronFormValues = z.infer<typeof patronFormSchema>;
 
 export const itemFormSchema = z.object({
+  sku: z.string().optional(),
   name: z.string().min(2, "Item name is required."),
   description: z.string().optional(),
   estimatedValue: z.number().min(0, "Estimated value must be positive."),
