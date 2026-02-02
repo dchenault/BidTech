@@ -99,15 +99,15 @@ export default function PatronsPage() {
     }
 
     const stats = allItems.reduce((acc, item) => {
-      if (item.winningBidderId) {
-        if (!acc[item.winningBidderId]) {
-          acc[item.winningBidderId] = { totalSpent: 0, itemsWon: 0 };
+      if (item.winnerId) {
+        if (!acc[item.winnerId]) {
+          acc[item.winnerId] = { totalSpent: 0, itemsWon: 0 };
         }
         // Don't count cash donations as "items won"
         if (!item.sku.toString().startsWith("DON-")) {
-          acc[item.winningBidderId].itemsWon += 1;
+          acc[item.winnerId].itemsWon += 1;
         }
-        acc[item.winningBidderId].totalSpent += item.winningBid || 0;
+        acc[item.winnerId].totalSpent += item.winningBid || 0;
       }
       return acc;
     }, {} as Record<string, { totalSpent: number; itemsWon: number }>);
