@@ -413,6 +413,6 @@ export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, ac
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
   return registeredPatrons.map(rp => {
     const p = patronMap.get(rp.patronId);
-    return p ? { ...p, biddingNumber: rp.biddingNumber } : null;
+    return p ? { ...p, biddingNumber: rp.bidderNumber } : null;
   }).filter((p): p is (Patron & { biddingNumber: number }) => p !== null);
 };
