@@ -82,22 +82,21 @@ export default function PatronDetailsPage() {
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
   const wonItems: WonItem[] = useMemo(() => {
-    // Only depend on the raw item data. If it's not there, return empty.
-    if (!wonItemsData) return [];
-    
-    // This map might be incomplete while `auctions` loads, but that's okay.
-    const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
-
+    // If we don't even have the raw items yet, show nothing.
+    if (!wonItemsData || wonItemsData.length === 0) return [];
+  
+    // Create the map, but don't let a "loading" auctions state break the return.
+    const auctionMap = new Map(auctions?.map(a => [a.id, a.name]) || []);
+  
     return wonItemsData.map(item => {
-        // If the auction name isn't found in the map yet, use a placeholder.
-        // This prevents the item from being filtered out.
-        const auctionName = auctionMap.get(item.auctionId) || `Auction (${item.auctionId.substring(0,5)}...)`;
-        
-        return {
-          ...item,
-          auctionName,
-        };
-      });
+      // Fallback to a generic name so the item doesn't disappear or look broken
+      const auctionName = auctionMap.get(item.auctionId) || "Loading Auction Name...";
+      
+      return {
+        ...item,
+        auctionName,
+      };
+    });
   }, [wonItemsData, auctions]);
 
   const unpaidItems = useMemo(() => wonItems.filter(item => !item.paid), [wonItems]);
@@ -418,5 +417,7 @@ export default function PatronDetailsPage() {
     </>
   );
 }
+
+    
 
     
