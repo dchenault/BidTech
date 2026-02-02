@@ -18,6 +18,7 @@ import {
 } from '@/firebase/non-blocking-updates';
 import { useAccount } from './use-account';
 
+const EMPTY_DONORS: Donor[] = [];
 
 export function useDonors() {
   const firestore = useFirestore();
@@ -63,7 +64,7 @@ export function useDonors() {
   };
   
   return {
-    donors: donors || [],
+    donors: donors || EMPTY_DONORS,
     isLoading,
     addDonor,
     updateDonor,

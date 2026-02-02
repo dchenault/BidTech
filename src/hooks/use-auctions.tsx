@@ -29,10 +29,12 @@ import {
 } from '@/firebase';
 import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
 import { FirebaseStorage } from 'firebase/storage';
+
+const EMPTY_AUCTIONS: Auction[] = [];
 
 async function _handleImageUpload(
   storage: FirebaseStorage,
@@ -162,7 +164,7 @@ export function useAuctions() {
           transaction.set(newItemRef, newItemPayload);
           transaction.update(auctionRef, { itemCount: increment(1) });
           if (shouldIncrementSku) {
-            transaction.update(accountRef, { lastItemSku: newSku });
+            transaction.update(accountRef, { lastItemSku: newSku as number });
           }
       });
 
@@ -218,7 +220,7 @@ export function useAuctions() {
               donor: donor === undefined ? deleteField() : (donor || null),
               donorId: itemData.donorId || deleteField(),
               lotId: (itemData.lotId && itemData.lotId !== 'none') ? itemData.lotId : deleteField(),
-              ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : { imageUrl: deleteField(), thumbnailUrl: deleteField() }),
+              ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl } : (itemData.imageUrl === "" ? { imageUrl: deleteField(), thumbnailUrl: deleteField() } : {})),
           };
 
           transaction.update(itemRef, updatePayload);
@@ -386,7 +388,7 @@ export function useAuctions() {
     }, [firestore, accountId]);
     
   return { 
-      auctions: auctionsData || [], 
+      auctions: auctionsData || EMPTY_AUCTIONS, 
       isLoading, addAuction, updateAuction, addItemToAuction, updateItemInAuction,
       deleteItemFromAuction, addCategoryToAuction, updateCategoryInAuction,
       addDonationToAuction, getAuction, getAuctionItems, getItem,
@@ -408,8 +410,15 @@ export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, ac
   const patronIds = registeredPatrons.map(rp => rp.patronId);
   if (patronIds.length === 0) return [];
   const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
-  const patronsSnapshot = await getDocs(query(patronsRef, where('id', 'in', patronIds)));
-  const allPatrons = patronsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron));
+  // Firestore 'in' queries are limited to 30 items. We need to handle more.
+  const patronChunks = [];
+  for (let i = 0; i < patronIds.length; i += 30) {
+      patronChunks.push(patronIds.slice(i, i + 30));
+  }
+  const patronPromises = patronChunks.map(chunk => getDocs(query(patronsRef, where('id', 'in', chunk))));
+  const patronSnapshots = await Promise.all(patronPromises);
+  const allPatrons = patronSnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron)));
+
   const patronMap = new Map(allPatrons.map(p => [p.id, p]));
   return registeredPatrons.map(rp => {
     const p = patronMap.get(rp.patronId);

@@ -18,6 +18,7 @@ import {
 } from '@/firebase/non-blocking-updates';
 import { useAccount } from './use-account';
 
+const EMPTY_PATRONS: Patron[] = [];
 
 export function usePatrons() {
   const firestore = useFirestore();
@@ -67,7 +68,7 @@ export function usePatrons() {
   };
   
   return {
-    patrons: patrons || [],
+    patrons: patrons || EMPTY_PATRONS,
     isLoading,
     addPatron,
     updatePatron,
