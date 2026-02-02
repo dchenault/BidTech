@@ -37,7 +37,7 @@ export type Item = {
   category: Category;
   winningBid?: number;
   winner?: Patron;
-  winningBidderId?: string; 
+  winnerId?: string; 
   auctionId: string;
   accountId: string;
   categoryId: string;

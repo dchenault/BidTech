@@ -253,7 +253,7 @@ export function useAuctions() {
       if (!itemDoc.exists()) throw new Error("Item not found");
       const itemData = itemDoc.data() as Item;
 
-      if (itemData.winningBidderId) throw new Error("Cannot delete won items.");
+      if (itemData.winnerId) throw new Error("Cannot delete won items.");
 
       if (itemData.imageUrl) {
         await deleteFileByUrl(storage, itemData.imageUrl).catch(() => {});
@@ -287,7 +287,7 @@ export function useAuctions() {
               sku: newSku,
               estimatedValue: amount,
               winningBid: amount,
-              winningBidderId: patronId,
+              winnerId: patronId,
               winner: patronData, 
               auctionId: auctionId,
               accountId: accountId,
@@ -380,7 +380,7 @@ export function useAuctions() {
     const unregisterPatronFromAuction = useCallback(async (auctionId: string, patronId: string, registrationDocId: string) => {
         if (!firestore || !accountId) throw new Error("Firestore not available");
         const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
-        const q = query(itemsRef, where('winningBidderId', '==', patronId), limit(1));
+        const q = query(itemsRef, where('winnerId', '==', patronId), limit(1));
         const wonItemsSnapshot = await getDocs(q);
         if (!wonItemsSnapshot.empty) throw new Error("Cannot unregister patron with won items.");
         const registrationRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons', registrationDocId);

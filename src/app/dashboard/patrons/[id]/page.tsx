@@ -74,7 +74,7 @@ export default function PatronDetailsPage() {
         ? query(
             collectionGroup(firestore, 'items'),
             where('accountId', '==', accountId),
-            where('winningBidderId', '==', patronId)
+            where('winnerId', '==', patronId)
           )
         : null),
     [firestore, accountId, patronId]

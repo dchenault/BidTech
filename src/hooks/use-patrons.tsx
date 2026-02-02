@@ -58,7 +58,7 @@ export function usePatrons() {
       throw new Error("Firestore not available");
     }
 
-    const hasContributions = allItems.some(item => item.winningBidderId === patronId);
+    const hasContributions = allItems.some(item => item.winnerId === patronId);
     if (hasContributions) {
       throw new Error("Cannot delete a patron who has won items or made donations.");
     }

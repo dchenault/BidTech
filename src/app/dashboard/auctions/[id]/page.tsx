@@ -252,7 +252,7 @@ export default function AuctionDetailsPage() {
   };
 
   const handleOpenDeleteDialog = (item: Item) => {
-    if (item.winningBidderId || item.winningBid) {
+    if (item.winnerId || item.winningBid) {
       toast({
         variant: "destructive",
         title: "Cannot Delete Item",
@@ -293,7 +293,7 @@ export default function AuctionDetailsPage() {
     try {
       await updateDoc(itemRef, { 
         winningBid: winningBid, 
-        winningBidderId: winner.id, 
+        winnerId: winner.id, 
         winner: winner 
       });
       setIsWinningBidDialogOpen(false);
