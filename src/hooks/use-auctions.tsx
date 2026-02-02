@@ -1,3 +1,4 @@
+
 'use client';
 import {
   collection,
@@ -50,10 +51,17 @@ async function _handleImageUpload(
       }
   }
 
+  // Case 2: New image is being uploaded (it's a data URI)
   if (newImageData && newImageData.startsWith('data:')) {
-    const imagePath = `items/${accountId}/${auctionId}`;
-    const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
-    return uploadedUrl;
+    try {
+        const imagePath = `items/${accountId}/${auctionId}`; 
+        const uploadedUrl = await uploadDataUriAndGetURL(storage, newImageData, imagePath);
+        return uploadedUrl;
+    } catch (error) {
+        console.error("Error during image upload:", error);
+        alert("Image upload failed! Please check the console for details.");
+        return undefined;
+    }
   }
 
   return undefined;
@@ -127,17 +135,16 @@ export function useAuctions() {
               name: itemData.name,
               description: itemData.description || "",
               estimatedValue: itemData.estimatedValue,
-              lotId: itemData.lotId || undefined,
-              donorId: itemData.donorId || undefined,
               sku: newSku,
               category,
               auctionId: auctionId,
               accountId: accountId,
               paid: false,
-              donor: donor || undefined,
               categoryId: category.id,
-              imageUrl: finalImageUrl || undefined,
-              thumbnailUrl: finalImageUrl || undefined, 
+              ...(itemData.lotId && { lotId: itemData.lotId }),
+              ...(itemData.donorId && { donorId: itemData.donorId }),
+              ...(donor && { donor: donor }),
+              ...(finalImageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl }),
           };
 
           const itemsColRef = collection(auctionRef, 'items');
