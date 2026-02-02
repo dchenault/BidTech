@@ -85,8 +85,17 @@ export default function PatronsPage() {
   const { data: allItems, isLoading: isLoadingAllItems } = useCollection<Item>(allItemsQuery);
 
   const patronsWithStats = useMemo(() => {
-    if (!patrons || !allItems) {
+    if (!patrons) {
       return [];
+    }
+
+    // If items are still loading, return patrons with 0 stats to avoid a blank screen.
+    if (!allItems) {
+        return patrons.map(patron => ({
+            ...patron,
+            itemsWon: 0,
+            totalSpent: 0,
+        }));
     }
 
     const stats = allItems.reduce((acc, item) => {
@@ -211,7 +220,7 @@ export default function PatronsPage() {
             </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading && filteredPatrons.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">Loading patrons...</div>
           ) : (
             <Table>
