@@ -69,13 +69,22 @@ export default function PatronDetailsPage() {
 
   // New real-time query for all items won by this specific patron across all auctions.
   const wonItemsQuery = useMemoFirebase(
-    () => (firestore && accountId && patronId
-        ? query(
-            collectionGroup(firestore, 'items'),
-            where('accountId', '==', accountId),
-            where('winningBidderId', '==', patronId)
-          )
-        : null),
+    () => {
+      // Force everything to string and trim to avoid hidden character issues
+      const cleanAccountId = accountId?.toString().trim();
+      const cleanPatronId = patronId?.toString().trim();
+
+      if (firestore && cleanAccountId && cleanPatronId) {
+        console.log("DEBUG: Running Query with:", { cleanAccountId, cleanPatronId });
+        return query(
+          collectionGroup(firestore, 'items'),
+          where('accountId', '==', cleanAccountId),
+          where('winnerId', '==', cleanPatronId)
+        );
+      }
+      console.log("DEBUG: Query not running. Missing params:", { firestore: !!firestore, accountId: !!cleanAccountId, patronId: !!cleanPatronId });
+      return null;
+    },
     [firestore, accountId, patronId]
   );
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
