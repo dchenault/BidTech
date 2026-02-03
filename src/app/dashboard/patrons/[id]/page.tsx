@@ -67,26 +67,26 @@ export default function PatronDetailsPage() {
     setNotes(patron?.notes || '');
   }, [patron]);
 
+  const stableAccountId = useMemo(() => accountId?.toString().trim(), [accountId]);
+  const stablePatronId = useMemo(() => patronId?.toString().trim(), [patronId]);
+
   // New real-time query for all items won by this specific patron across all auctions.
   const wonItemsQuery = useMemoFirebase(
     () => {
-      // Force everything to string and trim to avoid hidden character issues
-      const cleanAccountId = accountId?.toString().trim();
-      const cleanPatronId = patronId?.toString().trim();
-
-      if (firestore && cleanAccountId && cleanPatronId) {
-        console.log("DEBUG: Running Query with:", { cleanAccountId, cleanPatronId });
+      if (firestore && stableAccountId && stablePatronId) {
+        console.log("DEBUG: Running Query with:", { stableAccountId, stablePatronId });
         return query(
           collectionGroup(firestore, 'items'),
-          where('accountId', '==', cleanAccountId),
-          where('winnerId', '==', cleanPatronId)
+          where('accountId', '==', stableAccountId),
+          where('winnerId', '==', stablePatronId)
         );
       }
-      console.log("DEBUG: Query not running. Missing params:", { firestore: !!firestore, accountId: !!cleanAccountId, patronId: !!cleanPatronId });
+      console.log("DEBUG: Query not running. Missing params:", { firestore: !!firestore, accountId: !!stableAccountId, patronId: !!stablePatronId });
       return null;
     },
-    [firestore, accountId, patronId]
+    [firestore, stableAccountId, stablePatronId]
   );
+
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
   // --- SPY LOGGED MEMO ---
