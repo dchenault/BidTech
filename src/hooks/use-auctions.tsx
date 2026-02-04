@@ -331,8 +331,20 @@ export function useAuctions() {
   const addLotToAuction = useCallback(async (auctionId: string, lotData: LotFormValues) => {
     if (!firestore || !accountId) return;
     const lotsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
-    const newLot: Omit<Lot, 'id'> = { ...lotData, auctionId: auctionId };
+    const newLot: Omit<Lot, 'id'> = { ...lotData, auctionId: auctionId, accountId: accountId };
     await addDoc(lotsColRef, newLot);
+  }, [firestore, accountId]);
+  
+  const updateLotInAuction = useCallback(async (auctionId: string, lotId: string, values: LotFormValues) => {
+    if (!firestore || !accountId) return;
+    const lotDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots', lotId);
+    await updateDoc(lotDocRef, values);
+  }, [firestore, accountId]);
+  
+  const deleteLotFromAuction = useCallback(async (auctionId: string, lotId: string) => {
+    if (!firestore || !accountId) return;
+    const lotDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots', lotId);
+    await deleteDoc(lotDocRef);
   }, [firestore, accountId]);
 
   const moveItemToLot = useCallback(async (auctionId: string, itemId: string, lotId: string) => {
@@ -393,6 +405,7 @@ export function useAuctions() {
       deleteItemFromAuction, addCategoryToAuction, updateCategoryInAuction,
       addDonationToAuction, getAuction, getAuctionItems, getItem,
       getRegisteredPatrons, addLotToAuction, getAuctionLots, moveItemToLot,
+      updateLotInAuction, deleteLotFromAuction,
       unregisterPatronFromAuction,
  };
 }

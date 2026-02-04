@@ -65,6 +65,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
 import Image from 'next/image';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { EditLotDialog } from '@/components/edit-lot-dialog';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -75,7 +77,7 @@ export default function AuctionDetailsPage() {
   const { accountId } = useAccount();
   const { toast } = useToast();
 
-  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
+  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -89,6 +91,8 @@ export default function AuctionDetailsPage() {
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
   const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
+  const [lotToEdit, setLotToEdit] = useState<Lot | null>(null);
+  const [lotToDelete, setLotToDelete] = useState<Lot | null>(null);
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
@@ -336,6 +340,21 @@ export default function AuctionDetailsPage() {
     addLotToAuction(auction.id, values);
     setIsAddLotDialogOpen(false);
   }
+  
+  const handleUpdateLot = (values: LotFormValues) => {
+    if (!lotToEdit) return;
+    updateLotInAuction(auctionId, lotToEdit.id, values);
+    toast({ title: 'Lot Updated', description: `Lot "${values.name}" has been updated.` });
+    setLotToEdit(null);
+  };
+
+  const handleConfirmDeleteLot = () => {
+    if (!lotToDelete) return;
+    deleteLotFromAuction(auctionId, lotToDelete.id);
+    toast({ title: 'Lot Deleted', description: `Lot "${lotToDelete.name}" has been deleted.` });
+    setLotToDelete(null);
+  };
+
 
   const handleAssignItemToLot = (itemId: string, lotId: string) => {
     if (!auction) return;
@@ -371,128 +390,122 @@ export default function AuctionDetailsPage() {
             });
         }
     };
-
-    const renderItemsTable = (itemsToRender: Item[], title: string, description: string) => (
-         <Card>
-            <CardHeader>
-                <CardTitle>{title}</CardTitle>
-                <CardDescription>{description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoadingItems ? (
-                    <div className="text-center text-muted-foreground py-8">Loading items...</div>
-                ) : itemsToRender.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead className="hidden sm:table-cell w-[80px]">Image</TableHead>
-                        <TableHead>
-                            <Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4 h-8">
-                                SKU {sortConfig?.key === 'sku' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead>
-                             <Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4 h-8">
-                                Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead>
-                            <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">
-                                Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead className="hidden md:table-cell">
-                            <Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4 h-8">
-                                Est. Value {sortConfig?.key === 'estimatedValue' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead className="hidden md:table-cell">
-                             <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
-                                Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead className="hidden md:table-cell">
-                           <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">
-                                Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                            </Button>
-                        </TableHead>
-                        <TableHead>
-                           Actions
-                        </TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {itemsToRender.map((item) => (
-                        <TableRow 
-                            key={item.id}
-                            onClick={() => router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}
-                            className="cursor-pointer"
+    
+    const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
+      <>
+        {isLoadingItems ? (
+          <div className="text-center text-muted-foreground py-8">Loading items...</div>
+        ) : itemsToRender.length > 0 ? (
+        <Table>
+            <TableHeader>
+            <TableRow>
+                <TableHead className="hidden sm:table-cell w-[80px]">Image</TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4 h-8">
+                        SKU {sortConfig?.key === 'sku' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead>
+                      <Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4 h-8">
+                        Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">
+                        Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead className="hidden md:table-cell">
+                    <Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4 h-8">
+                        Est. Value {sortConfig?.key === 'estimatedValue' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead className="hidden md:table-cell">
+                      <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
+                        Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead className="hidden md:table-cell">
+                    <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">
+                        Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead>
+                    Actions
+                </TableHead>
+            </TableRow>
+            </TableHeader>
+            <TableBody>
+            {itemsToRender.map((item) => (
+                <TableRow 
+                    key={item.id}
+                    onClick={() => router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}
+                    className="cursor-pointer"
+                >
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                      {item.thumbnailUrl ? (
+                        <Image
+                          alt={item.name}
+                          className="aspect-square rounded-md object-cover"
+                          height="64"
+                          src={item.thumbnailUrl}
+                          width="64"
+                        />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableCell>
+                <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
+                <TableCell className="font-medium">
+                    {item.name}
+                </TableCell>
+                <TableCell>
+                    <Badge variant="outline">{item.category.name}</Badge>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                    {formatCurrency(item.estimatedValue)}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                    {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                    {item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}
+                </TableCell>
+                <TableCell>
+                    <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button 
+                            aria-haspopup="true" 
+                            size="icon" 
+                            variant="ghost"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                          <TableCell className="hidden sm:table-cell">
-                            <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
-                              {item.thumbnailUrl ? (
-                                <Image
-                                  alt={item.name}
-                                  className="aspect-square rounded-md object-cover"
-                                  height="64"
-                                  src={item.thumbnailUrl}
-                                  width="64"
-                                />
-                              ) : (
-                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                              )}
-                            </div>
-                          </TableCell>
-                        <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
-                        <TableCell className="font-medium">
-                            {item.name}
-                        </TableCell>
-                        <TableCell>
-                            <Badge variant="outline">{item.category.name}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                            {formatCurrency(item.estimatedValue)}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                            {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                            {item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                            <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button 
-                                    aria-haspopup="true" 
-                                    size="icon" 
-                                    variant="ghost"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}}>View Details</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>
-                                Enter Winning Bid
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
-                            </DropdownMenu>
-                        </TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
-                ) : (
-                <div className="text-center text-muted-foreground py-8">
-                    No items found{searchQuery && ` for "${searchQuery}"`}.
-                </div>
-                )}
-            </CardContent>
-        </Card>
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Toggle menu</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}}>View Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>
+                        Enter Winning Bid
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                    </DropdownMenu>
+                </TableCell>
+                </TableRow>
+            ))}
+            </TableBody>
+        </Table>
+        ) : (
+        <div className="text-center text-muted-foreground py-8">
+            No items found{searchQuery && ` for "${searchQuery}"`}.
+        </div>
+        )}
+      </>
     );
 
     const renderDonationsTable = () => (
@@ -549,67 +562,187 @@ export default function AuctionDetailsPage() {
       </Card>
   );
 
+  const renderLiveAuctionView = () => (
+    <Card>
+        <CardHeader>
+            <CardTitle>Auction Items</CardTitle>
+            <CardDescription>Manage the items for this auction.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <ItemsTable itemsToRender={sortedAndSearchedItems} />
+        </CardContent>
+    </Card>
+  );
+
   const renderSilentAuctionView = () => (
     <div className="space-y-6">
-        {isLoadingLots ? (
-            <div className="text-center text-muted-foreground py-8">Loading lots...</div>
-        ) : lots.length === 0 ? (
-            renderItemsTable(sortedAndSearchedItems, 'All Items', 'Manage all items for this silent auction.')
-        ) : (
-            lots.map(lot => (
-                <div key={lot.id}>
-                    {renderItemsTable(silentItemsByLot.get(lot.id) || [], lot.name, `Items in lot: ${lot.name}`)}
-                </div>
-            ))
-        )}
-        {liveItems.length > 0 && (
-             <div className="pt-8">
-                {renderItemsTable(liveItems, 'Unassigned Items', 'These items have not been assigned to a lot yet.')}
-            </div>
-        )}
+      {isLoadingLots ? (
+        <Card>
+          <CardContent className="text-center text-muted-foreground py-8">Loading lots...</CardContent>
+        </Card>
+      ) : lots.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>All Items</CardTitle>
+            <CardDescription>Manage all items for this silent auction.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ItemsTable itemsToRender={sortedAndSearchedItems} />
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {lots.map(lot => {
+            const lotItems = silentItemsByLot.get(lot.id) || [];
+            const hasItems = lotItems.length > 0;
+            return (
+              <Card key={lot.id}>
+                <CardHeader className="flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>{lot.name}</CardTitle>
+                    <CardDescription>
+                      {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Edit Lot</span>
+                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete Lot</span>
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {hasItems && (
+                          <TooltipContent>
+                            <p>Cannot delete a lot with items. Unassign items first.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {hasItems ? (
+                    <ItemsTable itemsToRender={lotItems} />
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">This lot has no items.</div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+          {liveItems.length > 0 && (
+            <Card className="mt-8">
+              <CardHeader>
+                <CardTitle>Unassigned Items</CardTitle>
+                <CardDescription>These items have not been assigned to a lot yet.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ItemsTable itemsToRender={liveItems} />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   );
 
   const renderHybridAuctionView = () => (
-     <Tabs defaultValue="live">
-        <div className="flex items-center">
-            <TabsList>
-                <TabsTrigger value="live">Live Items</TabsTrigger>
-                <TabsTrigger value="silent">Silent Items</TabsTrigger>
-            </TabsList>
-        </div>
-        <div className="relative mt-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-                type="search"
-                placeholder="Search items by SKU, name, or description..."
-                className="w-full rounded-lg bg-background pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-            />
-        </div>
-        <TabsContent value="live" className="mt-4">
-            {renderItemsTable(liveItems, 'Live Auction Items', 'Items to be auctioned live.')}
-        </TabsContent>
-        <TabsContent value="silent" className="mt-4">
-             {isLoadingLots ? (
-                <div className="text-center text-muted-foreground py-8">Loading lots...</div>
-            ) : lots.length > 0 ? (
-                <div className="space-y-6">
-                    {lots.map(lot => (
-                         <div key={lot.id}>
-                            {renderItemsTable(silentItemsByLot.get(lot.id) || [], lot.name, `Items in lot: ${lot.name}`)}
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                 <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                    <p>No silent lots have been created yet.</p>
-                    <Button variant="link" onClick={() => setIsAddLotDialogOpen(true)}>Create the first lot</Button>
-                </div>
-            )}
-        </TabsContent>
-     </Tabs>
+    <Tabs defaultValue="live">
+      <div className="flex items-center">
+        <TabsList>
+          <TabsTrigger value="live">Live Items</TabsTrigger>
+          <TabsTrigger value="silent">Silent Items</TabsTrigger>
+        </TabsList>
+      </div>
+      <div className="relative mt-4">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Search items by SKU, name, or description..."
+          className="w-full rounded-lg bg-background pl-8"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+      <TabsContent value="live" className="mt-4">
+        <Card>
+            <CardHeader>
+                <CardTitle>Live Auction Items</CardTitle>
+                <CardDescription>Items to be auctioned live.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ItemsTable itemsToRender={liveItems} />
+            </CardContent>
+        </Card>
+      </TabsContent>
+      <TabsContent value="silent" className="mt-4 space-y-6">
+        {isLoadingLots ? (
+          <Card><CardContent className="text-center text-muted-foreground py-8">Loading lots...</CardContent></Card>
+        ) : lots.length > 0 ? (
+          <>
+            {lots.map(lot => {
+              const lotItems = silentItemsByLot.get(lot.id) || [];
+              const hasItems = lotItems.length > 0;
+              return (
+                <Card key={lot.id}>
+                  <CardHeader className="flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>{lot.name}</CardTitle>
+                      <CardDescription>
+                        {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
+                         <Pencil className="h-4 w-4" />
+                         <span className="sr-only">Edit Lot</span>
+                       </Button>
+                       <TooltipProvider>
+                         <Tooltip>
+                           <TooltipTrigger asChild>
+                             <span tabIndex={0}>
+                               <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
+                                 <Trash2 className="h-4 w-4" />
+                                 <span className="sr-only">Delete Lot</span>
+                               </Button>
+                             </span>
+                           </TooltipTrigger>
+                           {hasItems && (
+                             <TooltipContent>
+                               <p>Cannot delete lot with items. Unassign items first.</p>
+                             </TooltipContent>
+                           )}
+                         </Tooltip>
+                       </TooltipProvider>
+                     </div>
+                  </CardHeader>
+                  <CardContent>
+                    {hasItems ? (
+                      <ItemsTable itemsToRender={lotItems} />
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">This lot has no items.</div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </>
+        ) : (
+          <div className="text-center text-muted-foreground py-8 border rounded-lg">
+            <p>No silent lots have been created yet.</p>
+            <Button variant="link" onClick={() => setIsAddLotDialogOpen(true)}>Create the first lot</Button>
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 
   const renderAuctionContent = () => {
@@ -620,7 +753,7 @@ export default function AuctionDetailsPage() {
         return renderHybridAuctionView();
       case 'Live':
       default:
-        return renderItemsTable(sortedAndSearchedItems, 'Auction Items', 'Manage the items for this auction.');
+        return renderLiveAuctionView();
     }
   }
 
@@ -885,6 +1018,14 @@ export default function AuctionDetailsPage() {
         onClose={() => setIsAddLotDialogOpen(false)}
         onSubmit={handleAddLot}
       />
+      
+      <EditLotDialog
+        isOpen={!!lotToEdit}
+        onClose={() => setLotToEdit(null)}
+        onSubmit={handleUpdateLot}
+        lot={lotToEdit}
+      />
+
 
       <RegisterPatronDialog
         isOpen={isRegisterPatronDialogOpen}
@@ -909,6 +1050,23 @@ export default function AuctionDetailsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      <AlertDialog open={!!lotToDelete} onOpenChange={(isOpen) => !isOpen && setLotToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Lot: {lotToDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this lot.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteLot} className="bg-destructive hover:bg-destructive/90">
+              Delete Lot
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -54,6 +54,7 @@ export type Lot = {
   id: string;
   name: string;
   auctionId: string;
+  accountId: string;
 };
 
 export type Donor = {
