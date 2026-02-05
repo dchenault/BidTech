@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -258,6 +258,17 @@ export default function AuctionDetailsPage() {
         console.error('Failed to copy: ', err);
     });
   }
+
+    const handleCopyUrl = () => {
+    if (!auction.isPublic || !auction.slug) return;
+    const url = `${window.location.origin}/catalog/${auction.accountId}/${auction.slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+        toast({ title: 'Public Link Copied!', description: 'The link to the public catalog has been copied to your clipboard.'});
+    }).catch(err => {
+        toast({ variant: 'destructive', title: 'Failed to Copy Link'});
+        console.error('Failed to copy: ', err);
+    });
+  };
 
   const handleOpenWinningBidDialog = (item: Item) => {
     setSelectedItem(item);
@@ -927,49 +938,74 @@ export default function AuctionDetailsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="settings">
-                <Card>
-                <CardHeader>
-                    <CardTitle>Auction Settings</CardTitle>
-                    <CardDescription>Configuration for this specific auction.</CardDescription>
-                </CardHeader>
-                <CardContent>
+                <div className="grid gap-6">
                     <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-xl">Item Categories</CardTitle>
-                            <CardDescription>Manage the categories for items in this auction.</CardDescription>
-                        </div>
-                        <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Category
-                        </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                        <TableHeader>
-                            <TableRow>
-                            <TableHead>Category Name</TableHead>
-                            <TableHead className="w-[100px] text-right">Edit</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {auction.categories?.map(category => (
-                            <TableRow key={category.id}>
-                                <TableCell className="font-medium">{category.name}</TableCell>
-                                <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
-                                    <Pencil className="h-4 w-4" />
-                                </Button>
-                                </TableCell>
-                            </TableRow>
-                            ))}
-                        </TableBody>
-                        </Table>
-                    </CardContent>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xl">Item Categories</CardTitle>
+                                <CardDescription>Manage the categories for items in this auction.</CardDescription>
+                            </div>
+                            <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Category
+                            </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Category Name</TableHead>
+                                <TableHead className="w-[100px] text-right">Edit</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {auction.categories?.map(category => (
+                                <TableRow key={category.id}>
+                                    <TableCell className="font-medium">{category.name}</TableCell>
+                                    <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    </TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                            </Table>
+                        </CardContent>
                     </Card>
-                </CardContent>
-                </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl">Public Online Catalog</CardTitle>
+                            <CardDescription>Manage and share the public URL for your auction catalog.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {auction.isPublic && auction.slug ? (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-muted-foreground">
+                                        Your public catalog is live. Share this link with potential bidders.
+                                    </p>
+                                    <div className="flex w-full items-center space-x-2">
+                                        <Input
+                                            id="public-url"
+                                            value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
+                                            readOnly
+                                        />
+                                        <Button type="button" onClick={handleCopyUrl}>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copy Link
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-sm text-muted-foreground">
+                                    This auction's catalog is private. To generate a shareable public link,
+                                    edit the auction and enable the "Make Catalog Public" option.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </TabsContent>
             </Tabs>
         </div>
