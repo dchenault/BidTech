@@ -125,7 +125,7 @@ export default function PatronsPage() {
     if (!searchQuery) return sourcePatrons;
     return sourcePatrons.filter(patron =>
       `${patron.firstName} ${patron.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patron.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (patron.email || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [patronsWithStats, searchQuery]);
 

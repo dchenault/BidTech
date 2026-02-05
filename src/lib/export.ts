@@ -26,7 +26,7 @@ export function exportPatronsToCSV(patrons: Patron[]) {
       p.id,
       `"${p.firstName}"`,
       `"${p.lastName}"`,
-      p.email,
+      p.email || '',
       p.phone || '',
       `"${p.address?.street || ''}"`,
       `"${p.address?.city || ''}"`,
@@ -76,7 +76,7 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
       p.biddingNumber || 'N/A',
       `"${p.firstName}"`,
       `"${p.lastName}"`,
-      p.email,
+      p.email || '',
       p.phone || '',
       `"${p.address?.street || ''}"`,
       `"${p.address?.city || ''}"`,
@@ -133,7 +133,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
       item.winningBid || 0,
       item.winner?.biddingNumber || 'N/A',
       `"${item.winner!.firstName} ${item.winner!.lastName}"`,
-      item.winner!.email
+      item.winner?.email || ''
     ].join(',');
   });
 
@@ -167,7 +167,7 @@ export function exportFullReportToCSV(auctions: { id: string; name: string; item
         bidAmount,
         item.winner?.biddingNumber || 'N/A',
         `"${item.winner!.firstName} ${item.winner!.lastName}"`,
-        item.winner!.email
+        item.winner?.email || ''
       ].join(','));
     });
 
@@ -378,7 +378,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
           <p><b>${patron.firstName} ${patron.lastName}</b> (Bidder #: ${patron.biddingNumber || 'N/A'})</p>
           <p>${patron.address?.street || ''}</p>
           <p>${patron.address?.city || ''}, ${patron.address?.state || ''} ${patron.address?.zip || ''}</p>
-          <p>${patron.email}</p>
+          <p>${patron.email || ''}</p>
         </section>
         <main>
           <h2>Contributions</h2>

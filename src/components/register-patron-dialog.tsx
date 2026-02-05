@@ -58,7 +58,7 @@ export function RegisterPatronDialog({
     if (!searchQuery) return [];
     return availablePatrons.filter(p => 
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (p.email || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [availablePatrons, searchQuery]);
 

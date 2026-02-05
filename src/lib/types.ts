@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export type User = {
@@ -101,7 +102,7 @@ export type Patron = {
   accountId: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email?: string;
   phone?: string;
   address?: {
     street?: string;
@@ -169,14 +170,14 @@ export type SignupValues = z.infer<typeof signupSchema>;
 export const patronFormSchema = z.object({
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
-  email: z.string().email("Invalid email address."),
+  email: z.string().email("Invalid email address.").optional().or(z.literal('')),
   phone: z.string().optional(),
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
     zip: z.string().optional(),
-  }),
+  }).optional(),
 });
 
 export type PatronFormValues = z.infer<typeof patronFormSchema>;
