@@ -3,7 +3,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { useEffect, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -18,19 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { Patron, PatronFormValues } from "@/lib/types";
-
-const formSchema = z.object({
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
-  email: z.string().email("Invalid email address."),
-  phone: z.string().optional(),
-  address: z.object({
-    street: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zip: z.string().optional(),
-  }),
-});
+import { patronFormSchema } from "@/lib/types";
 
 
 export function EditPatronForm({
@@ -47,7 +34,7 @@ export function EditPatronForm({
   const defaultValues = useMemo(() => patron ? {
     firstName: patron.firstName,
     lastName: patron.lastName,
-    email: patron.email,
+    email: patron.email || '',
     phone: patron.phone || '',
     address: {
       street: patron.address?.street || '',
@@ -64,7 +51,7 @@ export function EditPatronForm({
   }, [patron]);
 
   const form = useForm<PatronFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(patronFormSchema),
     defaultValues,
   });
 
