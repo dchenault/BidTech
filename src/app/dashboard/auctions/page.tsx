@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -69,11 +68,7 @@ export default function AuctionsPage() {
   }, [auctions, searchQuery]);
 
   const handleAuctionCreated = (newAuctionData: FormValues) => {
-    const newAuction = {
-      ...newAuctionData,
-      startDate: newAuctionData.startDate.toISOString(),
-    };
-    addAuction(newAuction);
+    addAuction(newAuctionData);
     setIsCreateDialogOpen(false);
   };
   
@@ -82,7 +77,7 @@ export default function AuctionsPage() {
 
     const updatedAuctionPayload: Partial<Auction> = {
       ...updatedAuctionData,
-      startDate: updatedAuctionData.startDate.toISOString(),
+      startDate: updatedAuctionData.startDate,
       status: new Date(updatedAuctionData.startDate) > new Date() ? 'upcoming' : 'active',
     };
     updateAuction(editingAuction.id, updatedAuctionPayload);
@@ -90,10 +85,12 @@ export default function AuctionsPage() {
   };
 
   const handleDuplicateAuction = (auctionToDuplicate: Auction) => {
-    const { id, name, ...restOfAuction } = auctionToDuplicate;
-    const newAuctionData = {
-        ...restOfAuction,
-        name: `${name} --copy`,
+    const newAuctionData: FormValues = {
+        name: `${auctionToDuplicate.name} --copy`,
+        description: auctionToDuplicate.description || '',
+        type: auctionToDuplicate.type,
+        startDate: new Date(auctionToDuplicate.startDate),
+        isPublic: auctionToDuplicate.isPublic || false,
     };
     addAuction(newAuctionData);
     toast({

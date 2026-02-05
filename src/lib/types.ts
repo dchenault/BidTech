@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export type User = {
@@ -80,7 +79,7 @@ export type Auction = {
   type: 'Live' | 'Silent' | 'Hybrid';
   status: 'upcoming' | 'active' | 'completed';
   itemCount: number;
-  startDate: string;
+  startDate: Date | string;
   items: Item[]; // This will be handled by a subcollection
   categories: Category[];
   lots: Lot[];
