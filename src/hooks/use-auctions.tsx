@@ -103,7 +103,7 @@ export function useAuctions() {
     await addDoc(auctionsRef, newAuction);
   }, [auctionsRef, accountId]);
 
-  const updateAuction = useCallback(async (id: string, updatedAuctionData: Partial<FormValues>) => {
+  const updateAuction = useCallback(async (id: string, updatedAuctionData: Partial<Auction>) => {
     if (!firestore || !accountId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', id);
     
@@ -111,7 +111,8 @@ export function useAuctions() {
     if (updatedAuctionData.name) {
       payload.slug = generateSlug(updatedAuctionData.name);
     }
-     if (updatedAuctionData.startDate) {
+     if (updatedAuctionData.startDate && typeof updatedAuctionData.startDate !== 'string') {
+      // @ts-ignore
       payload.startDate = updatedAuctionData.startDate.toISOString();
     }
 
