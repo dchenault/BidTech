@@ -5,6 +5,7 @@ import {
   doc,
   addDoc,
   deleteDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -17,6 +18,7 @@ import {
   updateDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { useAccount } from './use-account';
+import { patronFormSchema } from '@/lib/types';
 
 const EMPTY_PATRONS: Patron[] = [];
 
@@ -66,6 +68,59 @@ export function usePatrons() {
     const patronDocRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
     await deleteDoc(patronDocRef);
   };
+
+  const importPatronsFromCSV = async (data: any[]): Promise<{ success: boolean; message: string }> => {
+    if (!firestore || !accountId || !patronsRef) {
+      return { success: false, message: 'Database connection not available.' };
+    }
+
+    const batch = writeBatch(firestore);
+    let validRecords = 0;
+    const errors: string[] = [];
+
+    data.forEach((record, index) => {
+      const parsedRecord = {
+        ...record,
+        address: {
+          street: record.street || '',
+          city: record.city || '',
+          state: record.state || '',
+          zip: record.zip || '',
+        },
+      };
+
+      const result = patronFormSchema.safeParse(parsedRecord);
+
+      if (result.success) {
+        const newPatronDoc = doc(patronsRef);
+        const newPatronData: Omit<Patron, 'id'> = {
+          ...result.data,
+          accountId: accountId,
+          totalSpent: 0,
+          itemsWon: 0,
+        };
+        batch.set(newPatronDoc, newPatronData);
+        validRecords++;
+      } else {
+        const errorMessages = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        errors.push(`Row ${index + 2}: ${errorMessages}`);
+      }
+    });
+
+    if (validRecords > 500) {
+      return { success: false, message: 'Cannot import more than 500 records at a time.' };
+    }
+
+    if (validRecords > 0) {
+      await batch.commit();
+    }
+    
+    if (errors.length > 0) {
+       return { success: false, message: `Import failed for ${errors.length} rows. Please check your data. Errors: ${errors.slice(0, 5).join('; ')}` };
+    }
+
+    return { success: true, message: `Successfully imported ${validRecords} patrons.` };
+  };
   
   return {
     patrons: patrons || EMPTY_PATRONS,
@@ -73,5 +128,6 @@ export function usePatrons() {
     addPatron,
     updatePatron,
     deletePatron,
+    importPatronsFromCSV,
   };
 }

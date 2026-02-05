@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Trash2 } from 'lucide-react';
+import { Download, Loader2, Trash2, Upload } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -56,18 +56,21 @@ import { useInvitations } from '@/hooks/use-invitations';
 import type { Invitation } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { useAccount } from '@/hooks/use-account';
+import { ImportCsvDialog } from '@/components/import-csv-dialog';
 
 export default function SettingsPage() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isImportPatronsDialogOpen, setIsImportPatronsDialogOpen] = useState(false);
+  const [isImportDonorsDialogOpen, setIsImportDonorsDialogOpen] = useState(false);
   const [exportType, setExportType] = useState<'items' | 'bids' | 'patrons' | 'donations' | null>(null);
   const [isProcessingExport, setIsProcessingExport] = useState(false);
   const [invitationToRevoke, setInvitationToRevoke] = useState<Invitation | null>(null);
   const [invitationLink, setInvitationLink] = useState<string | null>(null);
   
   const { auctions, isLoading: isLoadingAuctions } = useAuctions();
-  const { patrons, isLoading: isLoadingPatrons } = usePatrons();
-  const { donors, isLoading: isLoadingDonors } = useDonors();
+  const { patrons, isLoading: isLoadingPatrons, importPatronsFromCSV } = usePatrons();
+  const { donors, isLoading: isLoadingDonors, importDonorsFromCSV } = useDonors();
   const { invitations, isLoading: isLoadingInvitations, sendInvitation, revokeInvitation } = useInvitations();
   const firestore = useFirestore();
   const { accountId } = useAccount();
@@ -193,6 +196,26 @@ export default function SettingsPage() {
   return (
     <>
     <div className="grid gap-6">
+       <Card>
+        <CardHeader>
+          <CardTitle>Import Data</CardTitle>
+          <CardDescription>
+            Bulk import patrons or donors from a CSV file.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <Button variant="outline" onClick={() => setIsImportPatronsDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Patrons
+            </Button>
+            <Button variant="outline" onClick={() => setIsImportDonorsDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Donors
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Export Data</CardTitle>
@@ -312,6 +335,24 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+
+    <ImportCsvDialog
+        isOpen={isImportPatronsDialogOpen}
+        onClose={() => setIsImportPatronsDialogOpen(false)}
+        onImport={importPatronsFromCSV}
+        expectedHeaders={['firstName', 'lastName', 'email']}
+        title="Import Patrons from CSV"
+        description="Upload a CSV file with patron data. The column headers must include: firstName, lastName, and email. Optional columns: phone, street, city, state, and zip."
+    />
+    
+    <ImportCsvDialog
+        isOpen={isImportDonorsDialogOpen}
+        onClose={() => setIsImportDonorsDialogOpen(false)}
+        onImport={importDonorsFromCSV}
+        expectedHeaders={['name', 'type']}
+        title="Import Donors from CSV"
+        description="Upload a CSV file with donor data. The column headers must include: name, and type ('Individual' or 'Business'). Optional columns: email, phone, street, city, state, zip, and contactPerson."
+    />
 
      <ExportAuctionDialog
         isOpen={isExportDialogOpen}

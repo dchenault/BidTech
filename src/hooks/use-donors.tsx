@@ -5,6 +5,7 @@ import {
   doc,
   addDoc,
   deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -17,6 +18,7 @@ import {
   updateDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { useAccount } from './use-account';
+import { donorFormSchema } from '@/lib/types';
 
 const EMPTY_DONORS: Donor[] = [];
 
@@ -63,11 +65,63 @@ export function useDonors() {
     await deleteDoc(donorDocRef);
   };
   
+  const importDonorsFromCSV = async (data: any[]): Promise<{ success: boolean; message: string }> => {
+    if (!firestore || !accountId || !donorsRef) {
+      return { success: false, message: 'Database connection not available.' };
+    }
+
+    const batch = writeBatch(firestore);
+    let validRecords = 0;
+    const errors: string[] = [];
+
+    data.forEach((record, index) => {
+       const parsedRecord = {
+        ...record,
+        address: {
+          street: record.street || '',
+          city: record.city || '',
+          state: record.state || '',
+          zip: record.zip || '',
+        },
+      };
+      
+      const result = donorFormSchema.safeParse(parsedRecord);
+
+      if (result.success) {
+        const newDonorDoc = doc(donorsRef);
+        const newDonorData: Omit<Donor, 'id'> = {
+          ...result.data,
+          accountId: accountId,
+        };
+        batch.set(newDonorDoc, newDonorData);
+        validRecords++;
+      } else {
+        const errorMessages = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        errors.push(`Row ${index + 2}: ${errorMessages}`);
+      }
+    });
+
+    if (validRecords > 500) {
+      return { success: false, message: 'Cannot import more than 500 records at a time.' };
+    }
+
+    if (validRecords > 0) {
+      await batch.commit();
+    }
+    
+    if (errors.length > 0) {
+       return { success: false, message: `Import failed for ${errors.length} rows. Please check your data. Errors: ${errors.slice(0, 5).join('; ')}` };
+    }
+
+    return { success: true, message: `Successfully imported ${validRecords} donors.` };
+  };
+
   return {
     donors: donors || EMPTY_DONORS,
     isLoading,
     addDonor,
     updateDonor,
     deleteDonor,
+    importDonorsFromCSV,
   };
 }
