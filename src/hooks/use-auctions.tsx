@@ -27,12 +27,13 @@ import {
   useUser,
   type WithId,
 } from '@/firebase';
-import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor } from '@/lib/types';
+import type { Auction, Item, Category, ItemFormValues, RegisteredPatron, Account, Lot, LotFormValues, Patron, Donor, FormValues } from '@/lib/types';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
 import { useCallback, useMemo } from 'react';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
 import { FirebaseStorage } from 'firebase/storage';
+import { generateSlug } from '@/lib/utils';
 
 const EMPTY_AUCTIONS: Auction[] = [];
 
@@ -82,10 +83,16 @@ export function useAuctions() {
   );
   const { data: auctionsData, isLoading } = useCollection<Auction>(auctionsRef);
 
-  const addAuction = useCallback(async (auctionData: Omit<Auction, 'id' | 'itemCount' | 'items' | 'categories' | 'status' | 'accountId' | 'lots'> & { startDate: string }) => {
+  const addAuction = useCallback(async (auctionData: FormValues) => {
     if (!auctionsRef || !accountId) return;
+    const slug = generateSlug(auctionData.name);
     const newAuction: Omit<Auction, 'id'> = {
-        ...auctionData,
+        name: auctionData.name,
+        description: auctionData.description,
+        type: auctionData.type,
+        startDate: auctionData.startDate.toISOString(),
+        isPublic: auctionData.isPublic || false,
+        slug: slug,
         accountId: accountId,
         itemCount: 0,
         items: [],
@@ -96,10 +103,19 @@ export function useAuctions() {
     await addDoc(auctionsRef, newAuction);
   }, [auctionsRef, accountId]);
 
-  const updateAuction = useCallback(async (id: string, updatedAuction: Partial<Auction>) => {
+  const updateAuction = useCallback(async (id: string, updatedAuctionData: Partial<FormValues>) => {
     if (!firestore || !accountId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', id);
-    await updateDoc(auctionDocRef, updatedAuction);
+    
+    const payload: Partial<Auction> = { ...updatedAuctionData };
+    if (updatedAuctionData.name) {
+      payload.slug = generateSlug(updatedAuctionData.name);
+    }
+     if (updatedAuctionData.startDate) {
+      payload.startDate = updatedAuctionData.startDate.toISOString();
+    }
+
+    await updateDoc(auctionDocRef, payload);
   }, [firestore, accountId]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {

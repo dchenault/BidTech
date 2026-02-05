@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -244,6 +244,20 @@ export default function AuctionDetailsPage() {
       exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
     }
   };
+
+  const handleShareCatalog = () => {
+    if (!auction.isPublic || !auction.slug) {
+        toast({ variant: 'destructive', title: 'Catalog is not public.'});
+        return;
+    }
+    const url = `${window.location.origin}/catalog/${auction.accountId}/${auction.slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+        toast({ title: 'Public Link Copied!', description: 'The link to the public catalog has been copied to your clipboard.'});
+    }).catch(err => {
+        toast({ variant: 'destructive', title: 'Failed to Copy Link'});
+        console.error('Failed to copy: ', err);
+    });
+  }
 
   const handleOpenWinningBidDialog = (item: Item) => {
     setSelectedItem(item);
@@ -779,6 +793,12 @@ export default function AuctionDetailsPage() {
                         )}
                         {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
                     </Button>
+                     {auction.isPublic && (
+                        <Button size="sm" variant="outline" onClick={handleShareCatalog}>
+                            <Share2 className="mr-2 h-4 w-4" />
+                            Share Catalog
+                        </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}>
                         <Download className="mr-2 h-4 w-4" />
                         Export Catalog

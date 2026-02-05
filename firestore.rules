@@ -129,8 +129,12 @@ service cloud.firestore {
           return isSignedIn() && resource.data.managers[request.auth.uid] == true;
         }
 
-        // Any account member can read or create an auction.
-        allow read, create: if isAccountMember(accountId);
+        // Any account member can create an auction.
+        allow create: if isAccountMember(accountId);
+
+        // Account members can read. Anyone can read if it's public.
+        allow get: if isAccountMember(accountId) || resource.data.isPublic == true;
+        allow list: if isAccountMember(accountId);
         
         // Only admins or auction managers can delete an auction.
         allow delete: if isAccountAdmin(accountId) || isAuctionManager();
@@ -151,8 +155,15 @@ service cloud.firestore {
 
         // Rules for auction subcollections inherit from the auction's permissions.
         match /{subcollection}/{docId} {
-            // Only account admins or auction managers can read/write items, lots, etc.
-            allow read, write: if isAccountAdmin(accountId) || isAuctionManager();
+            function getParentAuction() {
+                return get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
+            }
+            
+            // Only account admins or auction managers can write items, lots, etc.
+            allow write: if isAccountAdmin(accountId) || isAuctionManager();
+            
+            // Admins, managers, or the public (for public auctions) can read.
+            allow read: if isAccountAdmin(accountId) || isAuctionManager() || getParentAuction().data.isPublic == true;
         }
       }
     }

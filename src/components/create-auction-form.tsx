@@ -28,17 +28,9 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/hooks/use-toast";
 import type { Auction, FormValues } from "@/lib/types";
-
-const formSchema = z.object({
-  name: z.string().min(2, {
-    message: "Auction name must be at least 2 characters.",
-  }),
-  description: z.string().optional(),
-  type: z.enum(["Live", "Silent", "Hybrid"]),
-  startDate: z.date({
-    required_error: "A start date is required.",
-  }),
-});
+import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
+import { auctionFormSchema } from "@/lib/types";
 
 
 export function CreateAuctionForm({
@@ -57,15 +49,17 @@ export function CreateAuctionForm({
     description: auction.description,
     type: auction.type,
     startDate: new Date(auction.startDate),
+    isPublic: auction.isPublic || false,
   } : {
     name: "",
     description: "",
     type: "Silent",
     startDate: undefined,
+    isPublic: false,
   };
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(auctionFormSchema),
     // @ts-ignore
     defaultValues: defaultValues,
   });
@@ -77,6 +71,7 @@ export function CreateAuctionForm({
         description: auction.description,
         type: auction.type,
         startDate: new Date(auction.startDate),
+        isPublic: auction.isPublic || false,
       });
     } else {
       form.reset({
@@ -85,6 +80,7 @@ export function CreateAuctionForm({
         type: "Silent",
         // @ts-ignore
         startDate: undefined,
+        isPublic: false,
       });
     }
   }, [auction, form]);
@@ -175,6 +171,29 @@ export function CreateAuctionForm({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="isPublic"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">
+                  Make Catalog Public
+                </FormLabel>
+                <FormDescription>
+                  Allow anyone with the link to view the auction catalog.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
         <Button type="submit">{submitButtonText}</Button>
       </form>

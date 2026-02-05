@@ -86,6 +86,8 @@ export type Auction = {
   lots: Lot[];
   accountId: string;
   managers?: Record<string, string>; // Map of UID to role
+  slug?: string;
+  isPublic?: boolean;
 };
 
 export type Account = {
@@ -143,6 +145,7 @@ export const auctionFormSchema = z.object({
   startDate: z.date({
     required_error: "A start date is required.",
   }),
+  isPublic: z.boolean().default(false).optional(),
 });
 
 export type FormValues = z.infer<typeof auctionFormSchema>;
