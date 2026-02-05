@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -70,18 +71,17 @@ export default function PatronDetailsPage() {
   const stableAccountId = useMemo(() => accountId?.toString().trim(), [accountId]);
   const stablePatronId = useMemo(() => patronId?.toString().trim(), [patronId]);
 
-  // New real-time query for all items won by this specific patron across all auctions.
   const wonItemsQuery = useMemoFirebase(
     () => {
       if (firestore && stableAccountId && stablePatronId) {
-        console.log("DEBUG: Running Query with:", { stableAccountId, stablePatronId });
+        console.log("DEBUG: Running Query with stable IDs:", { stableAccountId, stablePatronId });
         return query(
           collectionGroup(firestore, 'items'),
           where('accountId', '==', stableAccountId),
           where('winnerId', '==', stablePatronId)
         );
       }
-      console.log("DEBUG: Query not running. Missing params:", { firestore: !!firestore, accountId: !!stableAccountId, patronId: !!stablePatronId });
+      console.log("DEBUG: Query skipped - Missing parameters");
       return null;
     },
     [firestore, stableAccountId, stablePatronId]
@@ -89,7 +89,6 @@ export default function PatronDetailsPage() {
 
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
-  // --- SPY LOGGED MEMO ---
   const wonItems: WonItem[] = useMemo(() => {
     console.log("DEBUG: Raw wonItemsData from Firestore:", wonItemsData);
     console.log("DEBUG: Current Auctions list size:", auctions?.length);
@@ -102,7 +101,7 @@ export default function PatronDetailsPage() {
     const auctionMap = new Map(auctions?.map(a => [a.id, a.name]) || []);
   
     const processed = wonItemsData.map(item => {
-      const auctionName = auctionMap.get(item.auctionId) || `Auction (${item.auctionId.substring(0,5)}...)`;
+      const auctionName = auctionMap.get(item.auctionId) || "Loading Auction Name...";
       return {
         ...item,
         auctionName,
@@ -113,7 +112,6 @@ export default function PatronDetailsPage() {
     return processed;
   }, [wonItemsData, auctions]);
 
-  // --- SPY LOGGED MEMO ---
   const unpaidItems = useMemo(() => {
     const filtered = wonItems.filter(item => !item.paid);
     console.log("DEBUG: Unpaid filter result count:", filtered.length);
