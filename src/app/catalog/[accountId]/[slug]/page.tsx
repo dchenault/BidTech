@@ -260,7 +260,7 @@ export default function PublicCatalogPage() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex-1 flex justify-center items-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
@@ -268,9 +268,11 @@ export default function PublicCatalogPage() {
 
   if (error) {
     return (
-      <div className="text-center text-destructive py-10">
-        <h2 className="text-2xl font-bold">Error</h2>
-        <p>{error}</p>
+      <div className="flex-1 flex justify-center items-center">
+        <div className="text-center text-destructive py-10">
+            <h2 className="text-2xl font-bold">Error</h2>
+            <p>{error}</p>
+        </div>
       </div>
     );
   }
@@ -280,30 +282,37 @@ export default function PublicCatalogPage() {
   const isHybrid = auction?.type === 'Hybrid' && hasLiveItems && hasSilentItems;
 
   return (
-    <div className="space-y-6">
-        <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">{auction?.name}</h1>
-            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">{auction?.description}</p>
-            <p className="text-sm text-muted-foreground">Auction Date: {new Date(auction?.startDate || '').toLocaleDateString()}</p>
+    <>
+    <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b">
+        <div className="container mx-auto px-4 md:px-6 py-6 space-y-4">
+            <div className="text-center space-y-2">
+                <h1 className="text-4xl font-bold tracking-tight">{auction?.name}</h1>
+                <p className="text-lg text-muted-foreground max-w-3xl mx-auto">{auction?.description}</p>
+                <p className="text-sm text-muted-foreground">Auction Date: {new Date(auction?.startDate || '').toLocaleDateString()}</p>
+            </div>
+            
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Search all items..."
+                    className="w-full rounded-lg bg-muted pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
         </div>
-        
-        <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-                type="search"
-                placeholder="Search all items..."
-                className="w-full rounded-lg bg-background pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-            />
-        </div>
-
+    </div>
+    
+    <div className="container mx-auto px-4 md:px-6 py-8 flex-1">
         {isHybrid ? (
             <Tabs defaultValue="live">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="live">Live Items</TabsTrigger>
-                    <TabsTrigger value="silent">Silent Items</TabsTrigger>
-                </TabsList>
+                <div className="flex justify-center mb-4">
+                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                        <TabsTrigger value="live">Live Items</TabsTrigger>
+                        <TabsTrigger value="silent">Silent Items</TabsTrigger>
+                    </TabsList>
+                </div>
                 <TabsContent value="live" className="mt-4">
                     {renderLiveItems()}
                 </TabsContent>
@@ -325,5 +334,6 @@ export default function PublicCatalogPage() {
             </div>
         )}
     </div>
+    </>
   );
 }
