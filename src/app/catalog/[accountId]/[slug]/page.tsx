@@ -5,8 +5,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import type { Auction, Item } from '@/lib/types';
+import { collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
+import type { Auction, Item, Lot } from '@/lib/types';
 import {
   Table,
   TableBody,
@@ -27,6 +27,60 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 import { Loader2, Search, ArrowUp, ArrowDown, ImageIcon } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+
+const ItemsTable = ({ items, requestSort, renderSortArrow }: { items: Item[], requestSort: (key: string) => void, renderSortArrow: (key: string) => React.ReactNode }) => {
+    if (items.length === 0) {
+        return (
+            <div className="h-24 text-center content-center text-muted-foreground">
+                No items in this section.
+            </div>
+        );
+    }
+
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead className="w-[100px]">Image</TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4">SKU {renderSortArrow('sku')}</Button></TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4">Name {renderSortArrow('name')}</Button></TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4">Category {renderSortArrow('category')}</Button></TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4">Est. Value {renderSortArrow('estimatedValue')}</Button></TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => requestSort('donor')} className="-ml-4">Donated By {renderSortArrow('donor')}</Button></TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {items.map(item => (
+                    <TableRow key={item.id}>
+                        <TableCell>
+                            <div className="relative h-20 w-20 bg-muted rounded-md flex items-center justify-center">
+                              {item.thumbnailUrl ? (
+                                <Image
+                                  alt={item.name}
+                                  className="aspect-square rounded-md object-cover"
+                                  fill
+                                  src={item.thumbnailUrl}
+                                />
+                              ) : (
+                                <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                              )}
+                            </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{item.description}</TableCell>
+                        <TableCell><Badge variant="outline">{item.category.name}</Badge></TableCell>
+                        <TableCell>{formatCurrency(item.estimatedValue)}</TableCell>
+                        <TableCell>{item.donor?.name || 'N/A'}</TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+};
 
 export default function PublicCatalogPage() {
   const params = useParams();
@@ -37,6 +91,7 @@ export default function PublicCatalogPage() {
 
   const [auction, setAuction] = useState<Auction | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [lots, setLots] = useState<Lot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,9 +120,18 @@ export default function PublicCatalogPage() {
         setAuction(fetchedAuction);
 
         const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionDoc.id, 'items');
-        const itemsSnapshot = await getDocs(itemsRef);
+        const lotsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionDoc.id, 'lots');
+
+        const [itemsSnapshot, lotsSnapshot] = await Promise.all([
+            getDocs(itemsRef),
+            getDocs(lotsRef)
+        ]);
+
         const fetchedItems = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)).filter(item => !item.sku.toString().startsWith('DON-')); // Filter out donations
         setItems(fetchedItems);
+        
+        const fetchedLots = lotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lot));
+        setLots(fetchedLots);
 
       } catch (e: any) {
         setError(e.message || 'Failed to load auction data.');
@@ -136,12 +200,63 @@ export default function PublicCatalogPage() {
     return sortableItems;
   }, [items, searchQuery, sortConfig]);
 
+  const { liveItems, silentItemsByLot } = useMemo(() => {
+    const live: Item[] = [];
+    const silent = new Map<string, Item[]>();
+
+    sortedAndSearchedItems.forEach(item => {
+      if (item.lotId) {
+        if (!silent.has(item.lotId)) {
+          silent.set(item.lotId, []);
+        }
+        silent.get(item.lotId)!.push(item);
+      } else {
+        live.push(item);
+      }
+    });
+
+    return { liveItems: live, silentItemsByLot: silent };
+  }, [sortedAndSearchedItems]);
+
   const renderSortArrow = (key: string) => {
     if (sortConfig?.key === key) {
         return sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
     }
     return null;
   }
+  
+  const renderLiveItems = () => (
+      <Card>
+        <CardHeader>
+            <CardTitle>Live Auction Items</CardTitle>
+            <CardDescription>Items available in the live portion of the auction.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <ItemsTable items={liveItems} requestSort={requestSort} renderSortArrow={renderSortArrow} />
+        </CardContent>
+      </Card>
+  );
+  
+  const renderSilentItems = () => (
+    <div className="space-y-6">
+        {lots.map(lot => {
+            const lotItems = silentItemsByLot.get(lot.id) || [];
+            if (lotItems.length === 0 && searchQuery) return null; // Hide empty lots when searching
+
+            return (
+                <Card key={lot.id}>
+                    <CardHeader>
+                        <CardTitle>{lot.name}</CardTitle>
+                        <CardDescription>{lotItems.length} item(s) in this lot.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ItemsTable items={lotItems} requestSort={requestSort} renderSortArrow={renderSortArrow} />
+                    </CardContent>
+                </Card>
+            );
+        })}
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -160,6 +275,10 @@ export default function PublicCatalogPage() {
     );
   }
 
+  const hasLiveItems = liveItems.length > 0;
+  const hasSilentItems = silentItemsByLot.size > 0;
+  const isHybrid = auction?.type === 'Hybrid' && hasLiveItems && hasSilentItems;
+
   return (
     <div className="space-y-6">
         <div className="text-center space-y-2">
@@ -167,73 +286,44 @@ export default function PublicCatalogPage() {
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">{auction?.description}</p>
             <p className="text-sm text-muted-foreground">Auction Date: {new Date(auction?.startDate || '').toLocaleDateString()}</p>
         </div>
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row items-center gap-4">
-                    <div className="flex-grow">
-                        <CardTitle>Auction Items</CardTitle>
-                        <CardDescription>Browse the items available in this auction.</CardDescription>
-                    </div>
-                    <div className="relative w-full md:w-auto">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search items..."
-                            className="w-full rounded-lg bg-background pl-8 md:w-[300px]"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[100px]">Image</TableHead>
-                            <TableHead><Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4">SKU {renderSortArrow('sku')}</Button></TableHead>
-                            <TableHead><Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4">Name {renderSortArrow('name')}</Button></TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead><Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4">Category {renderSortArrow('category')}</Button></TableHead>
-                            <TableHead><Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4">Est. Value {renderSortArrow('estimatedValue')}</Button></TableHead>
-                             <TableHead><Button variant="ghost" onClick={() => requestSort('donor')} className="-ml-4">Donated By {renderSortArrow('donor')}</Button></TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {sortedAndSearchedItems.length > 0 ? sortedAndSearchedItems.map(item => (
-                            <TableRow key={item.id}>
-                                <TableCell>
-                                    <div className="relative h-20 w-20 bg-muted rounded-md flex items-center justify-center">
-                                      {item.thumbnailUrl ? (
-                                        <Image
-                                          alt={item.name}
-                                          className="aspect-square rounded-md object-cover"
-                                          fill
-                                          src={item.thumbnailUrl}
-                                        />
-                                      ) : (
-                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                      )}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
-                                <TableCell className="font-medium">{item.name}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{item.description}</TableCell>
-                                <TableCell><Badge variant="outline">{item.category.name}</Badge></TableCell>
-                                <TableCell>{formatCurrency(item.estimatedValue)}</TableCell>
-                                 <TableCell>{item.donor?.name || 'N/A'}</TableCell>
-                            </TableRow>
-                        )) : (
-                            <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center">
-                                    No items found.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+        
+        <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+                type="search"
+                placeholder="Search all items..."
+                className="w-full rounded-lg bg-background pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+            />
+        </div>
+
+        {isHybrid ? (
+            <Tabs defaultValue="live">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="live">Live Items</TabsTrigger>
+                    <TabsTrigger value="silent">Silent Items</TabsTrigger>
+                </TabsList>
+                <TabsContent value="live" className="mt-4">
+                    {renderLiveItems()}
+                </TabsContent>
+                <TabsContent value="silent" className="mt-4">
+                    {renderSilentItems()}
+                </TabsContent>
+            </Tabs>
+        ) : (
+            <div className="space-y-6">
+                {hasLiveItems && renderLiveItems()}
+                {hasSilentItems && renderSilentItems()}
+            </div>
+        )}
+
+        {sortedAndSearchedItems.length === 0 && (
+             <div className="text-center text-muted-foreground py-10">
+                <h3 className="text-lg font-semibold">No Items Found</h3>
+                <p>There are no items matching your search criteria in this auction.</p>
+            </div>
+        )}
     </div>
   );
 }
