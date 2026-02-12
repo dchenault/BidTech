@@ -127,6 +127,17 @@ export function useAuctions() {
     try {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
     
+      // Check for SKU uniqueness BEFORE the transaction if a SKU is provided.
+      if (itemData.sku && itemData.sku.trim() !== '') {
+          const newSku = itemData.sku.trim();
+          const itemsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
+          const skuQuery = query(itemsColRef, where('sku', '==', newSku));
+          const skuSnapshot = await getDocs(skuQuery);
+          if (!skuSnapshot.empty) {
+              throw new Error(`SKU "${newSku}" is already in use in this auction.`);
+          }
+      }
+
       await runTransaction(firestore, async (transaction) => {
           const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
           const auctionSnap = await transaction.get(auctionRef);
@@ -141,14 +152,10 @@ export function useAuctions() {
           let newSku: string | number;
           let shouldIncrementSku = false;
 
+          // Now, we determine the SKU inside the transaction. If it was provided, we use it.
+          // If not, we generate it atomically.
           if (itemData.sku && itemData.sku.trim() !== '') {
             newSku = itemData.sku.trim();
-            const itemsColRef = collection(auctionRef, 'items');
-            const skuQuery = query(itemsColRef, where('sku', '==', newSku));
-            const skuSnapshot = await transaction.get(skuQuery);
-            if (!skuSnapshot.empty) {
-                throw new Error(`SKU "${newSku}" is already in use in this auction.`);
-            }
           } else {
             newSku = (accountData.lastItemSku || 999) + 1;
             shouldIncrementSku = true;
@@ -214,6 +221,17 @@ export function useAuctions() {
     
     try {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
+      
+      const newSku = itemData.sku?.toString().trim();
+      // Check for SKU uniqueness BEFORE the transaction if the SKU has changed.
+      if (newSku && newSku !== item.sku.toString()) {
+          const itemsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
+          const skuQuery = query(itemsColRef, where('sku', '==', newSku));
+          const skuSnapshot = await getDocs(skuQuery);
+          if (!skuSnapshot.empty) {
+              throw new Error(`SKU "${newSku}" is already in use in this auction.`);
+          }
+      }
     
       await runTransaction(firestore, async (transaction) => {
           const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
@@ -225,18 +243,7 @@ export function useAuctions() {
           
           const itemSnap = await transaction.get(itemRef);
           if (!itemSnap.exists()) throw new Error("Item to update not found.");
-          const existingItemData = itemSnap.data();
-
-          const newSku = itemData.sku?.toString().trim();
-          if (newSku && newSku !== existingItemData.sku?.toString()) {
-              const itemsColRef = collection(auctionRef, 'items');
-              const skuQuery = query(itemsColRef, where('sku', '==', newSku));
-              const skuSnapshot = await transaction.get(skuQuery);
-              if (!skuSnapshot.empty) {
-                  throw new Error(`SKU "${newSku}" is already in use in this auction.`);
-              }
-          }
-
+          
           const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
           
           let donor: Donor | undefined = undefined;
@@ -249,7 +256,7 @@ export function useAuctions() {
           }
 
           const updatePayload: { [key: string]: any } = {
-              sku: newSku || existingItemData.sku,
+              sku: newSku || item.sku,
               name: itemData.name,
               description: itemData.description || "",
               estimatedValue: itemData.estimatedValue,
