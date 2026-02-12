@@ -142,7 +142,13 @@ export function useAuctions() {
           let shouldIncrementSku = false;
 
           if (itemData.sku && itemData.sku.trim() !== '') {
-            newSku = itemData.sku;
+            newSku = itemData.sku.trim();
+            const itemsColRef = collection(auctionRef, 'items');
+            const skuQuery = query(itemsColRef, where('sku', '==', newSku));
+            const skuSnapshot = await transaction.get(skuQuery);
+            if (!skuSnapshot.empty) {
+                throw new Error(`SKU "${newSku}" is already in use in this auction.`);
+            }
           } else {
             newSku = (accountData.lastItemSku || 999) + 1;
             shouldIncrementSku = true;
@@ -216,6 +222,20 @@ export function useAuctions() {
           const auctionSnap = await transaction.get(auctionRef);
           if (!auctionSnap.exists()) throw new Error("Auction not found");
           const auction = auctionSnap.data() as Auction;
+          
+          const itemSnap = await transaction.get(itemRef);
+          if (!itemSnap.exists()) throw new Error("Item to update not found.");
+          const existingItemData = itemSnap.data();
+
+          const newSku = itemData.sku?.toString().trim();
+          if (newSku && newSku !== existingItemData.sku?.toString()) {
+              const itemsColRef = collection(auctionRef, 'items');
+              const skuQuery = query(itemsColRef, where('sku', '==', newSku));
+              const skuSnapshot = await transaction.get(skuQuery);
+              if (!skuSnapshot.empty) {
+                  throw new Error(`SKU "${newSku}" is already in use in this auction.`);
+              }
+          }
 
           const category = auction.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
           
@@ -229,6 +249,7 @@ export function useAuctions() {
           }
 
           const updatePayload: { [key: string]: any } = {
+              sku: newSku || existingItemData.sku,
               name: itemData.name,
               description: itemData.description || "",
               estimatedValue: itemData.estimatedValue,

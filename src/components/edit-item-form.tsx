@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -165,10 +166,10 @@ export function EditItemForm({
                 <FormItem className="md:col-span-1">
                   <FormLabel>SKU</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled />
+                    <Input placeholder="e.g. 1001" {...field} />
                   </FormControl>
                   <FormDescription>
-                    SKU cannot be changed.
+                    Must be unique within this auction.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

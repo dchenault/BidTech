@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -132,7 +133,7 @@ export function AddItemForm({
                     <Input placeholder="Auto-generated" {...field} />
                   </FormControl>
                    <FormDescription>
-                    Leave blank to auto-assign.
+                    Must be unique. Leave blank to auto-assign.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
