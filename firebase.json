@@ -1,18 +1,18 @@
 {
   "hosting": {
-    "site": "bidtechv1",
+    "site": "bidtech",
     "public": "public",
     "rewrites": [
       {
         "source": "**",
         "appHosting": {
-          "backendId": "bidtechv1"
+          "backendId": "bidtech"
         }
       }
     ]
   },
   "apphosting": {
-    "backendId": "bidtechv1",
+    "backendId": "bidtech",
     "region": "us-east5",
     "rootDir": "/",
     "ignore": [
