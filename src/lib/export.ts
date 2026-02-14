@@ -94,17 +94,19 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 // 4. Export Auction Items
 export function exportItemsToCSV(items: Item[], auctionName: string) {
   const csvHeader = [
-    'Item ID', 'Auction ID', 'Name', 'Description', 'Category', 'Estimated Value'
+    'SKU', 'Item ID', 'Auction ID', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Name'
   ].join(',');
 
   const csvRows = items.map(item => 
     [
+      item.sku,
       item.id,
       item.auctionId,
       `"${item.name}"`,
       `"${item.description.replace(/"/g, '""')}"`,
       `"${item.category.name}"`,
       item.estimatedValue,
+      `"${item.donor?.name || ''}"`
     ].join(',')
   );
 
