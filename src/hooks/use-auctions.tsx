@@ -17,7 +17,8 @@ import {
   deleteField,
   type Firestore,
   addDoc,
-  updateDoc
+  updateDoc,
+  documentId,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -90,7 +91,7 @@ export function useAuctions() {
         name: auctionData.name,
         description: auctionData.description,
         type: auctionData.type,
-        startDate: auctionData.startDate.toISOString(),
+        startDate: auctionData.startDate,
         isPublic: auctionData.isPublic || false,
         slug: slug,
         accountId: accountId,
@@ -473,7 +474,7 @@ export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, ac
   for (let i = 0; i < patronIds.length; i += 30) {
       patronChunks.push(patronIds.slice(i, i + 30));
   }
-  const patronPromises = patronChunks.map(chunk => getDocs(query(patronsRef, where('id', 'in', chunk))));
+  const patronPromises = patronChunks.map(chunk => getDocs(query(patronsRef, where(documentId(), 'in', chunk))));
   const patronSnapshots = await Promise.all(patronPromises);
   const allPatrons = patronSnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patron)));
 
