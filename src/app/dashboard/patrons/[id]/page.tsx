@@ -28,7 +28,6 @@ import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
 import { EditPatronDialog } from '@/components/edit-patron-dialog';
 import { exportPatronReceiptToHTML } from '@/lib/export';
-import { PrintReceiptDialog } from '@/components/print-receipt-dialog';
 import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
@@ -68,7 +67,6 @@ export default function PatronDetailsPage() {
   });
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [itemsToPay, setItemsToPay] = useState<Item[]>([]);
@@ -143,14 +141,29 @@ export default function PatronDetailsPage() {
   }, [firestore, accountId, patronId, isLoadingAuctions, auctions]);
 
   const { patron, wonItems, isInitialLoad, error } = pageData;
+  
+  const contributionsByAuction = useMemo(() => {
+    if (!wonItems || !auctions) return new Map();
 
-  const unpaidItems = useMemo(() => {
-    return wonItems.filter(item => !item.paid);
-  }, [wonItems]);
+    const auctionMap = new Map(auctions.map(a => [a.id, a]));
 
-  const auctionsWithWonItems = useMemo(() => {
-    const auctionIds = new Set(wonItems.map(item => item.auctionId));
-    return auctions.filter(auction => auctionIds.has(auction.id));
+    const sortedItems = [...wonItems].sort((a, b) => {
+        const auctionA = auctionMap.get(a.auctionId);
+        const auctionB = auctionMap.get(b.auctionId);
+        if (auctionA && auctionB) {
+            return new Date(auctionB.startDate).getTime() - new Date(auctionA.startDate).getTime();
+        }
+        return 0;
+    });
+
+    return sortedItems.reduce((acc, item) => {
+      const auctionName = auctionMap.get(item.auctionId)?.name || 'Unknown Auction';
+      if (!acc.has(item.auctionId)) {
+        acc.set(item.auctionId, { auctionName, items: [] });
+      }
+      acc.get(item.auctionId)!.items.push(item);
+      return acc;
+    }, new Map<string, { auctionName: string, items: WonItem[] }>());
   }, [wonItems, auctions]);
   
   const handlePatronUpdated = (updatedPatronData: PatronFormValues) => {
@@ -392,7 +405,7 @@ export default function PatronDetailsPage() {
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
                 <CardTitle>Contributions</CardTitle>
-                <CardDescription>A list of all items won and donations made by this patron.</CardDescription>
+                <CardDescription>All items won and donations made by this patron, grouped by auction.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
                  <Button 
@@ -403,73 +416,76 @@ export default function PatronDetailsPage() {
                   <HeartHandshake className="mr-2 h-4 w-4" />
                   Add Donation
                 </Button>
-                <Button 
-                    size="sm" 
-                    onClick={() => openPaymentDialog(unpaidItems)}
-                    disabled={unpaidItems.length === 0}
-                    className="bg-green-600 hover:bg-green-700"
-                >
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Pay All
-                </Button>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setIsPrintDialogOpen(true)}
-                    disabled={wonItems.length === 0}
-                >
-                <Printer className="mr-2 h-4 w-4" />
-                Print Receipt
-                </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            {wonItems.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Auction</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {wonItems.map((item) => {
-                    const isDonation = item.sku.toString().startsWith('DON-');
-                    return (
-                        <TableRow 
-                            key={item.id}
-                            onClick={() => !isDonation && router.push(`/dashboard/auctions/${item.auctionId}/items/${item.id}`)}
-                            className={cn(!isDonation && "cursor-pointer")}
-                        >
-                            <TableCell className={`font-medium ${isDonation ? 'text-green-600 dark:text-green-400' : ''}`}>
-                                {isDonation ? `Donation` : item.name}
-                            </TableCell>
-                            <TableCell>{item.auctionName}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.winningBid || 0)}</TableCell>
-                            <TableCell className="text-center w-[180px]">
-                                {item.paid ? (
-                                    <Badge variant="secondary">
-                                        Paid ({item.paymentMethod})
-                                    </Badge>
-                                ) : (
-                                    <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700"
-                                        onClick={(e) => { e.stopPropagation(); openPaymentDialog([item]); }}
-                                    >
-                                        Mark Paid
-                                    </Button>
-                                )}
-                            </TableCell>
-                        </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+          <CardContent className="space-y-6 pt-6">
+            {contributionsByAuction.size > 0 ? (
+                Array.from(contributionsByAuction.entries()).map(([auctionId, { auctionName, items: auctionItems }]) => {
+                const unpaidForAuction = auctionItems.filter(i => !i.paid);
+                const paidForAuction = auctionItems.filter(i => i.paid);
+                return (
+                    <Card key={auctionId} className="shadow-md">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="text-xl">{auctionName}</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <Button size="sm" onClick={() => openPaymentDialog(unpaidForAuction)} disabled={unpaidForAuction.length === 0} className="bg-green-600 hover:bg-green-700">
+                                    <CreditCard className="mr-2 h-4 w-4" />
+                                    Pay Unpaid ({unpaidForAuction.length})
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handlePrintReceipt(auctionId)} disabled={paidForAuction.length === 0}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Print Receipt
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Item Name</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {auctionItems.map((item) => {
+                                    const isDonation = item.sku.toString().startsWith('DON-');
+                                    return (
+                                        <TableRow 
+                                            key={item.id}
+                                            onClick={() => !isDonation && router.push(`/dashboard/auctions/${item.auctionId}/items/${item.id}`)}
+                                            className={cn(!isDonation && "cursor-pointer")}
+                                        >
+                                            <TableCell className={`font-medium ${isDonation ? 'text-green-600 dark:text-green-400' : ''}`}>
+                                                {isDonation ? `Donation` : item.name}
+                                            </TableCell>
+                                            <TableCell className="text-right">{formatCurrency(item.winningBid || 0)}</TableCell>
+                                            <TableCell className="text-center w-[180px]">
+                                                {item.paid ? (
+                                                    <Badge variant="secondary">
+                                                        Paid ({item.paymentMethod})
+                                                    </Badge>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-green-600 hover:bg-green-700"
+                                                        onClick={(e) => { e.stopPropagation(); openPaymentDialog([item]); }}
+                                                    >
+                                                        Mark Paid
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                  })}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                );
+            })
             ) : (
-              <div className="text-center text-muted-foreground py-8">
+              <div className="text-center text-muted-foreground py-8 border rounded-lg">
                 This patron has not won any items or made donations yet.
               </div>
             )}
@@ -482,14 +498,6 @@ export default function PatronDetailsPage() {
         onClose={() => setIsEditDialogOpen(false)}
         patron={patron}
         onSuccess={handlePatronUpdated}
-      />
-
-       <PrintReceiptDialog
-        isOpen={isPrintDialogOpen}
-        onClose={() => setIsPrintDialogOpen(false)}
-        auctions={auctionsWithWonItems}
-        onSubmit={handlePrintReceipt}
-        isLoading={isLoadingAuctions}
       />
 
       <AddDonationDialog
