@@ -74,7 +74,7 @@ export default function AuctionDetailsPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
-  const { accountId, isGuest } = useAccount();
+  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
@@ -821,7 +821,7 @@ export default function AuctionDetailsPage() {
                             <CardTitle>Donations</CardTitle>
                             <CardDescription>Cash donations made during this auction.</CardDescription>
                         </div>
-                        <Button size="sm" onClick={() => setIsAddDonationDialogOpen(true)} disabled={isGuest}>
+                        <Button size="sm" onClick={() => setIsAddDonationDialogOpen(true)}>
                             <HeartHandshake className="mr-2 h-4 w-4" />
                             Add Donation
                         </Button>
