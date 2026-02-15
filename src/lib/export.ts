@@ -233,8 +233,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         .thumbnail { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; }
         .sku-cell { width: 10%; font-weight: 700; font-family: monospace; }
         .name-cell { width: 15%; font-weight: 600; }
-        .description-cell { width: 30%; color: #4b5563; }
-        .value-cell { width: 10%; white-space: nowrap; }
+        .description-cell { width: 40%; color: #4b5563; }
         .notes-cell { width: 25%; border-left: 1px solid #e5e7eb; }
         .page-break { page-break-before: always; }
         @media print { body { font-size: 9pt; } }
@@ -248,7 +247,6 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
             <td class="sku-cell">${item.sku}</td>
             <td class="name-cell">${item.name}</td>
             <td class="description-cell">${item.description}</td>
-            <td class="value-cell">Estimated Value: ${formatCurrency(item.estimatedValue)}</td>
             <td class="notes-cell"></td>
         </tr>
     `;
@@ -256,7 +254,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
     const renderCategoryGroup = (categoryName: string, items: Item[]) => `
         <tbody>
             <tr class="category-header">
-                <td colspan="6"><h3>Category: ${categoryName}</h3></td>
+                <td colspan="5"><h3>Category: ${categoryName}</h3></td>
             </tr>
             ${items.map(renderItemRow).join('')}
         </tbody>

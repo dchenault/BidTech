@@ -48,7 +48,6 @@ const ItemsTable = ({ items, requestSort, renderSortArrow }: { items: Item[], re
                     <TableHead><Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4">Name {renderSortArrow('name')}</Button></TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead><Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4">Category {renderSortArrow('category')}</Button></TableHead>
-                    <TableHead><Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4">Est. Value {renderSortArrow('estimatedValue')}</Button></TableHead>
                     <TableHead><Button variant="ghost" onClick={() => requestSort('donor')} className="-ml-4">Donated By {renderSortArrow('donor')}</Button></TableHead>
                 </TableRow>
             </TableHeader>
@@ -73,7 +72,6 @@ const ItemsTable = ({ items, requestSort, renderSortArrow }: { items: Item[], re
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{item.description}</TableCell>
                         <TableCell><Badge variant="outline">{item.category.name}</Badge></TableCell>
-                        <TableCell>{formatCurrency(item.estimatedValue)}</TableCell>
                         <TableCell>{item.donor?.name || 'N/A'}</TableCell>
                     </TableRow>
                 ))}
