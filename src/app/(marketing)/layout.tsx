@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Gavel } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/firebase';
+import { useState, useEffect } from 'react';
 
 export default function MarketingLayout({
   children,
@@ -11,6 +12,11 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
+  const [year, setYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setYear(new Date().getFullYear());
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -58,7 +64,7 @@ export default function MarketingLayout({
       <main className="flex-1">{children}</main>
        <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} BidTech Inc. All rights reserved. | v1.1.0
+          &copy; {year || '...'} BidTech Inc. All rights reserved. | v1.1.0
         </p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4">
