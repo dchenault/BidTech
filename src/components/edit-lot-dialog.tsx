@@ -8,13 +8,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import type { Lot, LotFormValues } from "@/lib/types";
+import type { Lot } from "@/lib/types";
 import { EditLotForm } from "./edit-lot-form";
 
 interface EditLotDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (values: LotFormValues) => void;
+  onSubmit: (values: { name: string; closingDate?: Date }) => void;
   lot: Lot | null;
 }
 
@@ -27,7 +27,7 @@ export function EditLotDialog({
 
   if (!lot) return null;
 
-  const handleSuccess = (values: LotFormValues) => {
+  const handleSuccess = (values: { name: string; closingDate?: Date }) => {
     onSubmit(values);
     onClose();
   }

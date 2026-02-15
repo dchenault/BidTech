@@ -1,3 +1,4 @@
+
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -118,7 +119,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   const winningBids = items.filter(item => item.winningBid && item.winner);
 
   const csvHeader = [
-    'Item ID', 'Auction ID', 'Item Name', 'Winning Bid', 'Bidder ID', 'Winner Name', 'Winner Email'
+    'Item Name', 'Winning Bid', 'Bidder ID', 'Winner Name', 'Winner Email'
   ].join(',');
   
   let totalRevenue = 0;
@@ -126,8 +127,6 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   const csvRows = winningBids.map(item => {
     totalRevenue += item.winningBid || 0;
     return [
-      item.id,
-      item.auctionId,
       `"${item.name}"`,
       item.winningBid || 0,
       item.winner?.biddingNumber || 'N/A',
@@ -136,7 +135,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
     ].join(',');
   });
 
-  const footer = `\n\nTotal,,${totalRevenue}`;
+  const footer = `\n\nTotal,${totalRevenue}`;
   const csvContent = [csvHeader, ...csvRows, footer].join('\n');
   const fileName = `winning_bids_${auctionName.replace(/\s+/g, '_').toLowerCase()}.csv`;
   downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
@@ -185,14 +184,14 @@ export function exportFullReportToCSV(auctions: { id: string; name: string; item
 
 // 7. Export Auction Catalog to HTML
 export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], lots: Lot[] }) {
-    const lotsById = new Map((auction.lots || []).map(l => [l.id, l.name]));
+    const lotsById = new Map((auction.lots || []).map(l => [l.id, l]));
 
     const { liveItemsByCategory, silentItemsByLotThenCategory } = (auction.items || [])
         .filter(item => !item.sku.toString().startsWith('DON-'))
         .reduce((acc, item) => {
             const categoryName = item.category?.name || 'Uncategorized';
             if (item.lotId) {
-                const lotName = lotsById.get(item.lotId) || 'Unassigned Silent Items';
+                const lotName = lotsById.get(item.lotId)?.name || 'Unassigned Silent Items';
                 if (!acc.silentItemsByLotThenCategory[lotName]) {
                     acc.silentItemsByLotThenCategory[lotName] = {};
                 }
@@ -221,6 +220,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         h1 { font-size: 2em; margin: 0; }
         .section-header { font-size: 1.5rem; font-weight: 700; border-bottom: 2px solid black; padding-bottom: 0.25rem; margin-top: 1.5rem; margin-bottom: 1rem; }
         .lot-group > h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; margin-top: 1.5rem; }
+        .lot-closing-date { font-size: 0.9em; color: #555; margin-bottom: 0.5rem; font-style: italic; }
         .category-header > h3 { font-size: 1.125rem; font-weight: 700; font-style: italic; padding: 0.125rem 0; }
         .catalog-table { width: 100%; border-collapse: collapse; margin-bottom: 0.25rem; page-break-inside: avoid; }
         .item-row td { padding: 0.25rem 0.25rem; vertical-align: middle; border-bottom: 1px solid #e5e7eb; }
@@ -271,16 +271,20 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
     let silentItemsHtml = '';
     if (Object.keys(silentItemsByLotThenCategory).length > 0) {
         silentItemsHtml += '<h2 class="section-header page-break">Silent Auction Items</h2>';
-        silentItemsHtml += Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => `
+        silentItemsHtml += Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => {
+          const lot = Array.from(lotsById.values()).find(l => l.name === lotName);
+          const closingDateHtml = lot?.closingDate ? `<p class="lot-closing-date">Closes: ${new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '';
+          return `
             <div class="lot-group">
                 <h3>Lot: ${lotName}</h3>
+                ${closingDateHtml}
                 <table class="catalog-table">
                     ${Object.entries(categories).map(([categoryName, items]) =>
                         renderCategoryGroup(categoryName, items)
                     ).join('')}
                 </table>
             </div>
-        `).join('');
+        `}).join('');
     }
 
   const fullHtml = `

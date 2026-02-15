@@ -55,6 +55,7 @@ export type Lot = {
   name: string;
   auctionId: string;
   accountId: string;
+  closingDate?: Date | string;
 };
 
 export type Donor = {
@@ -203,6 +204,11 @@ export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 
 export const lotFormSchema = z.object({
   name: z.string().min(2, "Lot name must be at least 2 characters."),
+  closingDate: z.date().optional(),
+  closingTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:mm)").optional().or(z.literal('')),
+}).refine(data => (data.closingDate && !data.closingTime) || (!data.closingDate && data.closingTime) ? false : true, {
+  message: "Both date and time must be provided, or neither.",
+  path: ["closingTime"],
 });
 
 export type LotFormValues = z.infer<typeof lotFormSchema>;

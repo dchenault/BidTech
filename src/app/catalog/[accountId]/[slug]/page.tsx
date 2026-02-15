@@ -245,6 +245,11 @@ export default function PublicCatalogPage() {
                 <Card key={lot.id}>
                     <CardHeader>
                         <CardTitle>{lot.name}</CardTitle>
+                        {lot.closingDate && (
+                            <CardDescription>
+                                Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                            </CardDescription>
+                        )}
                         <CardDescription>{lotItems.length} item(s) in this lot.</CardDescription>
                     </CardHeader>
                     <CardContent>

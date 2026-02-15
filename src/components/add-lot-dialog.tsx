@@ -14,7 +14,7 @@ import { AddLotForm } from "./add-lot-form";
 interface AddLotDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (values: LotFormValues) => void;
+  onSubmit: (values: { name: string, closingDate?: Date }) => void;
 }
 
 export function AddLotDialog({
@@ -23,7 +23,7 @@ export function AddLotDialog({
   onSubmit,
 }: AddLotDialogProps) {
 
-  const handleSuccess = (values: LotFormValues) => {
+  const handleSuccess = (values: { name: string, closingDate?: Date }) => {
     onSubmit(values);
     onClose();
   };
@@ -46,5 +46,3 @@ export function AddLotDialog({
     </Dialog>
   );
 }
-
-    

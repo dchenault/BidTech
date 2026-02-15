@@ -411,17 +411,31 @@ export function useAuctions() {
     });
   }, [firestore, accountId, auctionsData, toast]);
 
-  const addLotToAuction = useCallback(async (auctionId: string, lotData: LotFormValues) => {
+  const addLotToAuction = useCallback(async (auctionId: string, lotData: { name: string, closingDate?: Date }) => {
     if (!firestore || !accountId) return;
     const lotsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
-    const newLot: Omit<Lot, 'id'> = { ...lotData, auctionId: auctionId, accountId: accountId };
-    await addDoc(lotsColRef, newLot);
+    const newLotData: Omit<Lot, 'id'> = {
+      name: lotData.name,
+      auctionId: auctionId,
+      accountId: accountId,
+    };
+    if (lotData.closingDate) {
+      // @ts-ignore
+      newLotData.closingDate = lotData.closingDate.toISOString();
+    }
+    await addDoc(lotsColRef, newLotData);
   }, [firestore, accountId]);
   
-  const updateLotInAuction = useCallback(async (auctionId: string, lotId: string, values: LotFormValues) => {
+  const updateLotInAuction = useCallback(async (auctionId: string, lotId: string, values: { name: string, closingDate?: Date }) => {
     if (!firestore || !accountId) return;
     const lotDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots', lotId);
-    await updateDoc(lotDocRef, values);
+    const payload: { [key: string]: any } = { name: values.name };
+    if (values.closingDate) {
+      payload.closingDate = values.closingDate.toISOString();
+    } else {
+      payload.closingDate = deleteField();
+    }
+    await updateDoc(lotDocRef, payload);
   }, [firestore, accountId]);
   
   const deleteLotFromAuction = useCallback(async (auctionId: string, lotId: string) => {

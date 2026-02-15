@@ -207,7 +207,7 @@ export default function AuctionDetailsPage() {
           ...patronDetails,
           accountId: patronDetails.accountId,
           registeredPatronDocId: rp.id,
-          biddingNumber: rp.bidderNumber,
+          biddingNumber: rp.biddingNumber,
         };
       })
       .filter((p): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
@@ -385,13 +385,13 @@ export default function AuctionDetailsPage() {
     setSelectedCategory(null);
   }
 
-  const handleAddLot = (values: LotFormValues) => {
+  const handleAddLot = (values: { name: string, closingDate?: Date }) => {
     if (!auction) return;
     addLotToAuction(auction.id, values);
     setIsAddLotDialogOpen(false);
   }
   
-  const handleUpdateLot = (values: LotFormValues) => {
+  const handleUpdateLot = (values: { name: string, closingDate?: Date }) => {
     if (!lotToEdit) return;
     updateLotInAuction(auctionId, lotToEdit.id, values);
     toast({ title: 'Lot Updated', description: `Lot "${values.name}" has been updated.` });
@@ -596,6 +596,11 @@ export default function AuctionDetailsPage() {
                 <CardHeader className="flex-row items-center justify-between">
                   <div>
                     <CardTitle>{lot.name}</CardTitle>
+                    {lot.closingDate && (
+                      <CardDescription>
+                          Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </CardDescription>
+                    )}
                     <CardDescription>
                       {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
                     </CardDescription>
@@ -692,6 +697,11 @@ export default function AuctionDetailsPage() {
                   <CardHeader className="flex-row items-center justify-between">
                     <div>
                       <CardTitle>{lot.name}</CardTitle>
+                      {lot.closingDate && (
+                        <CardDescription>
+                            Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                        </CardDescription>
+                      )}
                       <CardDescription>
                         {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
                       </CardDescription>
