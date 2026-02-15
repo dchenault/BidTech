@@ -111,6 +111,8 @@ export default function PatronDetailsPage() {
           where('accountId', '==', accountId),
           where('winnerId', '==', patronId)
         );
+        console.log(`Querying for items with accountId: ${accountId} and winnerId: ${patronId}`);
+        
         const itemsSnapshot = await getDocs(itemsQuery);
         
         const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
@@ -138,7 +140,7 @@ export default function PatronDetailsPage() {
     };
 
     fetchData();
-  }, [firestore, accountId, patronId, isLoadingAuctions, auctions, router, toast]);
+  }, [firestore, accountId, patronId, isLoadingAuctions, auctions]);
 
   const { patron, wonItems, isInitialLoad, error } = pageData;
 

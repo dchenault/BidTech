@@ -79,6 +79,12 @@ service cloud.firestore {
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
     }
+
+  match /auctions/{auctionId}/items/{itemId} {
+  // Allow read if the user is the owner of the auction
+  allow read: if request.auth != null && 
+               get(/databases/$(database)/documents/auctions/$(auctionId)).data.ownerId == request.auth.uid;
+}
     
     // The `invitations` collection stores invites for users to manage auctions.
     match /invitations/{inviteId} {
