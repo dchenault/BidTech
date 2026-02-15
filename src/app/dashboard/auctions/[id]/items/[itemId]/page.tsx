@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -16,17 +16,28 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon, Pencil } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { EditItemDialog } from '@/components/edit-item-dialog';
-import type { ItemFormValues } from '@/lib/types';
+import type { ItemFormValues, Patron, RegisteredPatron } from '@/lib/types';
+import { usePatrons } from '@/hooks/use-patrons';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useAccount } from '@/hooks/use-account';
+import { collection, doc, updateDoc } from 'firebase/firestore';
+import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ItemDetailsPage() {
   const params = useParams();
-  const { getAuction, getItem, getAuctionLots, updateItemInAuction } =
-    useAuctions();
+  const { getAuction, getItem, getAuctionLots, updateItemInAuction } = useAuctions();
+  const { patrons, isLoading: isLoadingPatrons } = usePatrons();
+  const firestore = useFirestore();
+  const { accountId } = useAccount();
+  const { toast } = useToast();
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
   const itemId = typeof params.itemId === 'string' ? params.itemId : '';
@@ -35,6 +46,30 @@ export default function ItemDetailsPage() {
   const item = getItem(auctionId, itemId);
   const { lots } = getAuctionLots(auctionId);
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
+
+  const registeredPatronsRef = useMemoFirebase(
+    () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
+    [firestore, accountId, auctionId]
+  );
+  const { data: registeredPatronsData } = useCollection<RegisteredPatron>(registeredPatronsRef);
+
+  const registeredPatronsWithDetails = useMemo(() => {
+    if (!registeredPatronsData || isLoadingPatrons) return [];
+  
+    return registeredPatronsData
+      .map(rp => {
+        const patronDetails = patrons.find(p => p.id === rp.patronId);
+        if (!patronDetails) return null;
+  
+        return {
+          ...patronDetails,
+          accountId: patronDetails.accountId,
+          biddingNumber: rp.bidderNumber,
+        };
+      })
+      .filter((p): p is Patron & { biddingNumber: number; } => p !== null);
+  }, [registeredPatronsData, patrons, isLoadingPatrons]);
+
 
   if (!auction || !item) {
     return <div>Item not found.</div>;
@@ -45,6 +80,32 @@ export default function ItemDetailsPage() {
     await updateItemInAuction(auction.id, item.id, item, updatedItemData);
     setIsEditDialogOpen(false);
   };
+  
+  const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
+    if (!auction || !item || !firestore || !accountId) return;
+    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', item.id);
+    
+    try {
+      await updateDoc(itemRef, { 
+        winningBid: winningBid, 
+        winnerId: winner.id, 
+        winner: winner 
+      });
+      toast({
+        title: "Winning Bid Entered",
+        description: `The winning bid for "${item.name}" has been recorded.`
+      });
+      setIsWinningBidDialogOpen(false);
+    } catch (error) {
+      console.error("Error submitting winning bid:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not save the winning bid. Please try again.'
+      });
+    }
+  };
+
 
   return (
     <>
@@ -60,15 +121,24 @@ export default function ItemDetailsPage() {
             {item.name}
           </h1>
           <Badge variant="outline">{item.category.name}</Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setIsEditDialogOpen(true)}
-            className="ml-auto"
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit Item
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsWinningBidDialogOpen(true)}
+            >
+              <Gavel className="mr-2 h-4 w-4" />
+              Enter Winning Bid
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Item
+            </Button>
+          </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card className="lg:col-span-2 space-y-6">
@@ -191,6 +261,14 @@ export default function ItemDetailsPage() {
           </div>
         </div>
       </div>
+
+      <EnterWinningBidDialog
+        isOpen={isWinningBidDialogOpen}
+        onClose={() => setIsWinningBidDialogOpen(false)}
+        item={item}
+        patrons={registeredPatronsWithDetails}
+        onSubmit={handleWinningBidSubmit}
+      />
 
       <EditItemDialog
         isOpen={isEditDialogOpen}
