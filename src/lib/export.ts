@@ -3,7 +3,7 @@ import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
 
-// Utility function to trigger a file download
+// Utility function to trigger a file download for CSVs
 function downloadFile(content: string, fileName: string, contentType: string) {
   const blob = new Blob([content], { type: contentType });
   const url = URL.createObjectURL(blob);
@@ -13,6 +13,18 @@ function downloadFile(content: string, fileName: string, contentType: string) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// Utility function to open HTML content in a new tab for printing
+function openHtmlInNewTab(htmlContent: string) {
+  const newWindow = window.open('', '_blank');
+  if (newWindow) {
+    newWindow.document.write(htmlContent);
+    newWindow.document.close();
+  } else {
+    // A simple alert is enough as a fallback for popup blockers.
+    alert('Could not open a new tab. Please check your browser\'s popup blocker settings.');
+  }
 }
 
 // 1. Export All Patrons (Master List)
@@ -334,8 +346,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
     </html>
   `;
   
-  const fileName = `catalog_${auction.name.replace(/\s+/g, '_').toLowerCase()}.html`;
-  downloadFile(fullHtml, fileName, 'text/html;charset=utf-8;');
+  openHtmlInNewTab(fullHtml);
 }
 
 // 9. Export Patron Receipt to HTML
@@ -428,8 +439,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
     </html>
   `;
     
-  const fileName = `receipt_${patron.lastName}_${auction.name.replace(/\s+/g, '_').toLowerCase()}.html`;
-  downloadFile(fullHtml, fileName, 'text/html;charset=utf-8;');
+  openHtmlInNewTab(fullHtml);
 }
 
 // 10. Export Donations for an Auction
