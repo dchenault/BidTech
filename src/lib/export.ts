@@ -385,6 +385,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
       <tr>
         <td>${item.sku}</td>
         <td>${itemName}</td>
+        <td>${item.paymentMethod || 'N/A'}</td>
         <td class="amount">${formatCurrency(item.winningBid || 0)}</td>
       </tr>
     `;
@@ -419,13 +420,14 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
               <tr>
                 <th>Item #</th>
                 <th>Item/Donation Name</th>
+                <th>Method</th>
                 <th class="amount">Amount</th>
               </tr>
             </thead>
             <tbody>
               ${itemsHtml}
               <tr class="total-row">
-                <td colspan="2" style="text-align: right;"><b>Total:</b></td>
+                <td colspan="3" style="text-align: right;"><b>Total:</b></td>
                 <td class="amount"><b>${formatCurrency(totalSpent)}</b></td>
               </tr>
             </tbody>
