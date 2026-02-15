@@ -81,20 +81,31 @@ export default function PatronDetailsPage() {
         return;
       }
       
+      let fetchedPatron: Patron | null = null;
+      let patronFetchError: string | null = null;
+
+      // Waterfall Step 1: Fetch the Patron document. This is critical.
       try {
-        // Step A: Fetch Patron document
+        console.log(`Fetching patron with ID: ${patronId} for account: ${accountId}`);
         const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
         const patronSnap = await getDoc(patronRef);
 
         if (!patronSnap.exists()) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Patron not found.' });
-          router.push('/dashboard/patrons');
-          return;
+          throw new Error('Patron not found.');
         }
-        const fetchedPatron = { id: patronSnap.id, ...patronSnap.data() } as Patron;
+        fetchedPatron = { id: patronSnap.id, ...patronSnap.data() } as Patron;
+        console.log("Successfully fetched patron:", fetchedPatron);
         setNotes(fetchedPatron.notes || '');
+      } catch (err: any) {
+        console.error("CRITICAL: Failed to fetch patron document:", err);
+        patronFetchError = err.message || "Failed to load patron details.";
+        setPageData({ patron: null, wonItems: [], isInitialLoad: false, error: patronFetchError });
+        return; // Hard stop if we can't get the patron.
+      }
 
-        // Step B & C: Fetch Won Items and Donations
+      // Waterfall Step 2: Fetch won items. This is a "soft failure".
+      let fetchedWonItems: WonItem[] = [];
+      try {
         const itemsQuery = query(
           collectionGroup(firestore, 'items'),
           where('accountId', '==', accountId),
@@ -103,26 +114,27 @@ export default function PatronDetailsPage() {
         const itemsSnapshot = await getDocs(itemsQuery);
         
         const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
-        const fetchedWonItems = itemsSnapshot.docs.map(doc => {
+        fetchedWonItems = itemsSnapshot.docs.map(doc => {
           const item = { id: doc.id, ...doc.data() } as Item;
           return {
             ...item,
             auctionName: auctionMap.get(item.auctionId) || 'Unknown Auction',
           };
         });
-
-        // Step D: setPageData
-        setPageData({
-          patron: fetchedPatron,
-          wonItems: fetchedWonItems,
-          isInitialLoad: false,
-          error: null,
-        });
+        console.log(`Found ${fetchedWonItems.length} won items/donations.`);
 
       } catch (err: any) {
-        console.error("Error fetching patron data:", err);
-        setPageData({ patron: null, wonItems: [], isInitialLoad: false, error: "Failed to load patron details." });
+          console.error("NON-CRITICAL: Failed to fetch won items:", err);
+          // We will still proceed to render the patron's details, with an empty items array.
       }
+
+      // Final state update
+      setPageData({
+        patron: fetchedPatron,
+        wonItems: fetchedWonItems, // This will be [] if the fetch failed
+        isInitialLoad: false,
+        error: null, // No CRITICAL error
+      });
     };
 
     fetchData();
