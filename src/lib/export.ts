@@ -137,7 +137,11 @@ export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) 
 
 // 6. Export Winning Bids for an Auction
 export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
-  const winningBids = items.filter(item => item.winningBid && item.winner);
+  const winningBids = items.filter(item => 
+    item.winningBid && 
+    item.winner &&
+    !item.sku.toString().startsWith('DON-')
+  );
 
   const csvHeader = [
     'Item SKU', 'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email', 'Winner Phone', 'Winner Street', 'Winner City', 'Winner State', 'Winner ZIP'
@@ -169,7 +173,11 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
 
 // 7. Export All Winning Bids (Full Report)
 export function exportAllWinningBidsToCSV(items: (Item & { auctionName?: string })[]) {
-    const winningBids = items.filter(item => item.winningBid && item.winner);
+    const winningBids = items.filter(item => 
+      item.winningBid && 
+      item.winner &&
+      !item.sku.toString().startsWith('DON-')
+    );
 
     const csvHeader = [
     'Auction Name', 'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email'
