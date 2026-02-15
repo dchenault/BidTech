@@ -16,6 +16,13 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recha
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/hooks/use-account';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 export default function DashboardPage() {
@@ -25,6 +32,7 @@ export default function DashboardPage() {
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
     const [allItems, setAllItems] = useState<Item[]>([]);
     const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
+    const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (firestore && accountId && auctions.length > 0) {
@@ -44,10 +52,30 @@ export default function DashboardPage() {
 
     const stats = useMemo(() => {
         const totalRevenue = allItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
-        const activeAuctions = auctions.filter(a => a.status === 'active').length;
         const totalPatrons = patrons.length;
-        return { totalRevenue, activeAuctions, totalPatrons };
-    }, [allItems, auctions, patrons]);
+        return { totalRevenue, totalPatrons };
+    }, [allItems, patrons]);
+
+    const activeAuctions = useMemo(() => {
+        return auctions.filter(a => a.status === 'active');
+    }, [auctions]);
+
+    useEffect(() => {
+        if (activeAuctions.length > 0 && !selectedActiveAuctionId) {
+            setSelectedActiveAuctionId(activeAuctions[0].id);
+        }
+        if (selectedActiveAuctionId && !activeAuctions.find(a => a.id === selectedActiveAuctionId)) {
+            setSelectedActiveAuctionId(activeAuctions.length > 0 ? activeAuctions[0].id : undefined);
+        }
+    }, [activeAuctions, selectedActiveAuctionId]);
+
+    const selectedAuctionRevenue = useMemo(() => {
+        if (!selectedActiveAuctionId) return 0;
+        return allItems
+            .filter(item => item.auctionId === selectedActiveAuctionId)
+            .reduce((sum, item) => sum + (item.winningBid || 0), 0);
+    }, [allItems, selectedActiveAuctionId]);
+
 
     const chartData = useMemo(() => {
         return auctions
@@ -127,12 +155,27 @@ export default function DashboardPage() {
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Auctions</CardTitle>
-                    <Activity className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Active Auction Revenue</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">+{stats.activeAuctions}</div>
-                    <p className="text-xs text-muted-foreground">Currently running events</p>
+                    <div className="text-2xl font-bold">{formatCurrency(selectedAuctionRevenue)}</div>
+                    {activeAuctions.length > 0 ? (
+                        <Select onValueChange={setSelectedActiveAuctionId} value={selectedActiveAuctionId}>
+                            <SelectTrigger className="text-xs border-none shadow-none focus:ring-0 p-0 h-auto mt-1 w-auto bg-transparent">
+                                <SelectValue placeholder="Select an active auction" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {activeAuctions.map(auction => (
+                                    <SelectItem key={auction.id} value={auction.id}>
+                                        {auction.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">No active auctions</p>
+                    )}
                 </CardContent>
             </Card>
             <Card>
