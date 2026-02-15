@@ -68,33 +68,28 @@ export default function PatronDetailsPage() {
     setNotes(patron?.notes || '');
   }, [patron]);
 
-  const stableAccountId = useMemo(() => accountId?.toString().trim(), [accountId]);
-  const stablePatronId = useMemo(() => patronId?.toString().trim(), [patronId]);
+  // Derive accountId from the patron object for a more stable query dependency
+  const patronAccountId = useMemo(() => patron?.accountId, [patron]);
 
   const wonItemsQuery = useMemoFirebase(
     () => {
-      if (firestore && stableAccountId && stablePatronId) {
-        console.log("DEBUG: Running Query with stable IDs:", { stableAccountId, stablePatronId });
+      // Use the more stable accountId from the patron object itself
+      if (firestore && patronAccountId && patronId) {
         return query(
           collectionGroup(firestore, 'items'),
-          where('accountId', '==', stableAccountId),
-          where('winnerId', '==', stablePatronId)
+          where('accountId', '==', patronAccountId),
+          where('winnerId', '==', patronId)
         );
       }
-      console.log("DEBUG: Query skipped - Missing parameters");
       return null;
     },
-    [firestore, stableAccountId, stablePatronId]
+    [firestore, patronAccountId, patronId] // Use the new stable dependency
   );
 
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
 
   const wonItems: WonItem[] = useMemo(() => {
-    console.log("DEBUG: Raw wonItemsData from Firestore:", wonItemsData);
-    console.log("DEBUG: Current Auctions list size:", auctions?.length);
-
     if (!wonItemsData || wonItemsData.length === 0) {
-      console.log("DEBUG: wonItems returning empty because wonItemsData is null or length 0");
       return [];
     }
   
@@ -108,14 +103,11 @@ export default function PatronDetailsPage() {
       };
     });
 
-    console.log("DEBUG: Final processed wonItems list:", processed);
     return processed;
   }, [wonItemsData, auctions]);
 
   const unpaidItems = useMemo(() => {
-    const filtered = wonItems.filter(item => !item.paid);
-    console.log("DEBUG: Unpaid filter result count:", filtered.length);
-    return filtered;
+    return wonItems.filter(item => !item.paid);
   }, [wonItems]);
 
   const auctionsWithWonItems = useMemo(() => {
