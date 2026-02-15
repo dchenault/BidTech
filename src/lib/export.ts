@@ -140,7 +140,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   const winningBids = items.filter(item => item.winningBid && item.winner);
 
   const csvHeader = [
-    'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email'
+    'Item SKU', 'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email', 'Winner Phone', 'Winner Street', 'Winner City', 'Winner State', 'Winner ZIP'
   ].join(',');
   
   let totalRevenue = 0;
@@ -148,14 +148,20 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   const csvRows = winningBids.map(item => {
     totalRevenue += item.winningBid || 0;
     return [
+      item.sku,
       `"${item.name}"`,
       item.winningBid || 0,
       `"${item.winner!.firstName} ${item.winner!.lastName}"`,
-      item.winner?.email || ''
+      item.winner?.email || '',
+      item.winner?.phone || '',
+      `"${item.winner?.address?.street || ''}"`,
+      `"${item.winner?.address?.city || ''}"`,
+      `"${item.winner?.address?.state || ''}"`,
+      `"${item.winner?.address?.zip || ''}"`,
     ].join(',');
   });
 
-  const footer = `\n\nTotal,${totalRevenue}`;
+  const footer = `\n\n,Total,${totalRevenue}`;
   const csvContent = [csvHeader, ...csvRows, footer].join('\n');
   const fileName = `winning_bids_${auctionName.replace(/\s+/g, '_').toLowerCase()}.csv`;
   downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
