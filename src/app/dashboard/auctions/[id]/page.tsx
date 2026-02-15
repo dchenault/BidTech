@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -352,7 +353,7 @@ export default function AuctionDetailsPage() {
     if (!auctionId || !patron.id) return;
     try {
       // For donations added in-auction, we assume they are paid immediately (cash/check).
-      await addDonationToAuction(auctionId, patron.id, amount, true);
+      await addDonationToAuction(auctionId, patron, amount, true);
       // toast is handled inside the dialog
       setIsAddDonationDialogOpen(false);
     } catch (e: any) {

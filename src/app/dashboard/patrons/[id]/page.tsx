@@ -155,7 +155,7 @@ export default function PatronDetailsPage() {
   const handleAddDonation = async (amount: number, auctionId: string) => {
     if (!patron) return;
     try {
-        await addDonationToAuction(auctionId, patron.id, amount, true);
+        await addDonationToAuction(auctionId, patron, amount, true);
         toast({
             title: "Donation Recorded",
             description: `A donation of ${formatCurrency(amount)} has been added for ${patron.firstName}.`

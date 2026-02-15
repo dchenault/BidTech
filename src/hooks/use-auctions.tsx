@@ -311,7 +311,7 @@ export function useAuctions() {
   }, [firestore, accountId, storage]);
 
   // ... rest of the file ...
-  const addDonationToAuction = useCallback(async (auctionId: string, patronId: string, amount: number, isPaid: boolean = false) => {
+  const addDonationToAuction = useCallback(async (auctionId: string, patron: Patron, amount: number, isPaid: boolean = false) => {
       if (!firestore || !accountId) throw new Error("Missing context");
 
       await runTransaction(firestore, async (transaction) => {
@@ -319,11 +319,6 @@ export function useAuctions() {
           const accountSnap = await transaction.get(accountRef);
           if (!accountSnap.exists()) throw new Error("Account not found");
           const accountData = accountSnap.data() as Account;
-
-          const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
-          const patronSnap = await transaction.get(patronRef);
-          if (!patronSnap.exists()) throw new Error("Patron not found");
-          const patronData = { id: patronSnap.id, ...patronSnap.data() } as Patron;
           
           const newSku = `DON-${(accountData.lastItemSku || 999) + 1}`;
 
@@ -333,8 +328,8 @@ export function useAuctions() {
               sku: newSku,
               estimatedValue: amount,
               winningBid: amount,
-              winnerId: patronId,
-              winner: patronData, 
+              winnerId: patron.id,
+              winner: patron, 
               auctionId: auctionId,
               accountId: accountId,
               category: { id: "cat-donation", name: "Donation" },
