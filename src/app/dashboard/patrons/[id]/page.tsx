@@ -21,20 +21,19 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
-import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard } from 'lucide-react';
-import type { Item, PatronFormValues, Auction, PaymentMethod } from '@/lib/types';
+import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2 } from 'lucide-react';
+import type { Item, PatronFormValues, Auction, PaymentMethod, Patron } from '@/lib/types';
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
 import { EditPatronDialog } from '@/components/edit-patron-dialog';
-import type { Patron } from '@/lib/types';
 import { exportPatronReceiptToHTML } from '@/lib/export';
 import { PrintReceiptDialog } from '@/components/print-receipt-dialog';
 import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { useAccount } from '@/hooks/use-account';
-import { doc, writeBatch, collectionGroup, query, where } from 'firebase/firestore';
+import { doc, writeBatch, collectionGroup, query, where, getDoc, getDocs } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -44,67 +43,92 @@ interface WonItem extends Item {
   auctionName: string;
 }
 
+interface PageData {
+  patron: Patron | null;
+  wonItems: WonItem[];
+  isInitialLoad: boolean;
+  error: string | null;
+}
+
 export default function PatronDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const firestore = useFirestore();
   const { accountId } = useAccount();
-  const { patrons, updatePatron, isLoading: isLoadingPatrons } = usePatrons();
+  const { updatePatron } = usePatrons();
   const { auctions, isLoading: isLoadingAuctions, addDonationToAuction } = useAuctions();
   const patronId = typeof params.id === 'string' ? params.id : '';
   const { toast } = useToast();
   
+  const [pageData, setPageData] = useState<PageData>({
+    patron: null,
+    wonItems: [],
+    isInitialLoad: true,
+    error: null,
+  });
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [itemsToPay, setItemsToPay] = useState<Item[]>([]);
-  
-  const patron = useMemo(() => patrons.find((p) => p.id === patronId), [patrons, patronId]);
-  
-  const [notes, setNotes] = useState(patron?.notes || '');
-  
+  const [notes, setNotes] = useState('');
+
+  // Waterfall data fetching
   useEffect(() => {
-    setNotes(patron?.notes || '');
-  }, [patron]);
-
-  // Stabilize IDs for use in query dependencies
-  const stableAccountId = useMemo(() => accountId, [accountId]);
-  const stablePatronId = useMemo(() => patronId, [patronId]);
-
-  const wonItemsQuery = useMemoFirebase(
-    () => {
-      if (firestore && stableAccountId && stablePatronId) {
-        return query(
-          collectionGroup(firestore, 'items'),
-          where('accountId', '==', stableAccountId),
-          where('winnerId', '==', stablePatronId)
-        );
+    const fetchData = async () => {
+      if (!firestore || !accountId || !patronId || isLoadingAuctions) {
+        return;
       }
-      return null;
-    },
-    [firestore, stableAccountId, stablePatronId]
-  );
+      
+      try {
+        // Step A: Fetch Patron document
+        const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
+        const patronSnap = await getDoc(patronRef);
 
-  const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
+        if (!patronSnap.exists()) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Patron not found.' });
+          router.push('/dashboard/patrons');
+          return;
+        }
+        const fetchedPatron = { id: patronSnap.id, ...patronSnap.data() } as Patron;
+        setNotes(fetchedPatron.notes || '');
 
-  const wonItems: WonItem[] = useMemo(() => {
-    if (!wonItemsData || wonItemsData.length === 0) {
-      return [];
-    }
-  
-    const auctionMap = new Map(auctions?.map(a => [a.id, a.name]) || []);
-  
-    const processed = wonItemsData.map(item => {
-      const auctionName = auctionMap.get(item.auctionId) || "Loading Auction Name...";
-      return {
-        ...item,
-        auctionName,
-      };
-    });
+        // Step B & C: Fetch Won Items and Donations
+        const itemsQuery = query(
+          collectionGroup(firestore, 'items'),
+          where('accountId', '==', accountId),
+          where('winnerId', '==', patronId)
+        );
+        const itemsSnapshot = await getDocs(itemsQuery);
+        
+        const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
+        const fetchedWonItems = itemsSnapshot.docs.map(doc => {
+          const item = { id: doc.id, ...doc.data() } as Item;
+          return {
+            ...item,
+            auctionName: auctionMap.get(item.auctionId) || 'Unknown Auction',
+          };
+        });
 
-    return processed;
-  }, [wonItemsData, auctions]);
+        // Step D: setPageData
+        setPageData({
+          patron: fetchedPatron,
+          wonItems: fetchedWonItems,
+          isInitialLoad: false,
+          error: null,
+        });
+
+      } catch (err: any) {
+        console.error("Error fetching patron data:", err);
+        setPageData({ patron: null, wonItems: [], isInitialLoad: false, error: "Failed to load patron details." });
+      }
+    };
+
+    fetchData();
+  }, [firestore, accountId, patronId, isLoadingAuctions, auctions, router, toast]);
+
+  const { patron, wonItems, isInitialLoad, error } = pageData;
 
   const unpaidItems = useMemo(() => {
     return wonItems.filter(item => !item.paid);
@@ -118,6 +142,7 @@ export default function PatronDetailsPage() {
   const handlePatronUpdated = (updatedPatronData: PatronFormValues) => {
     if (!patron) return;
     updatePatron(patron.id, updatedPatronData);
+    setPageData(prev => ({ ...prev, patron: { ...prev.patron!, ...updatedPatronData }}));
     setIsEditDialogOpen(false);
   };
   
@@ -148,6 +173,26 @@ export default function PatronDetailsPage() {
     if (!patron) return;
     try {
         await addDonationToAuction(auctionId, patron, amount, true);
+        
+        const newDonation = {
+          id: `temp-donation-${Date.now()}`,
+          sku: `DON-${Date.now()}`,
+          name: "Donation",
+          description: `Cash donation of ${amount}`,
+          estimatedValue: amount,
+          winningBid: amount,
+          winnerId: patron.id,
+          winner: patron,
+          auctionId,
+          accountId: patron.accountId,
+          category: { id: "cat-donation", name: "Donation" },
+          categoryId: "cat-donation",
+          paid: true,
+          paymentMethod: 'Cash' as PaymentMethod,
+          auctionName: auctions.find(a => a.id === auctionId)?.name || 'Unknown'
+        };
+        setPageData(prev => ({...prev, wonItems: [...prev.wonItems, newDonation]}));
+
         toast({
             title: "Donation Recorded",
             description: `A donation of ${formatCurrency(amount)} has been added for ${patron.firstName}.`
@@ -183,6 +228,15 @@ export default function PatronDetailsPage() {
 
     try {
       await batch.commit();
+
+      const itemsToPayIds = new Set(itemsToPay.map(i => i.id));
+      setPageData(prev => ({
+        ...prev,
+        wonItems: prev.wonItems.map(item => 
+          itemsToPayIds.has(item.id) ? { ...item, paid: true, paymentMethod } : item
+        )
+      }));
+
       toast({
         title: 'Payment Successful',
         description: `${itemsToPay.length} item(s) have been marked as paid.`,
@@ -208,9 +262,27 @@ export default function PatronDetailsPage() {
     });
   };
 
+  if (isInitialLoad) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
-  if (isLoadingPatrons || !patron) {
-    return <div>Loading patron...</div>;
+  if (error) {
+    return (
+      <div className="text-center text-destructive py-10">
+        <h2 className="text-xl font-bold">Error</h2>
+        <p>{error}</p>
+        <Button onClick={() => router.push('/dashboard/patrons')} className="mt-4">Back to Patrons List</Button>
+      </div>
+    );
+  }
+  
+  if (!patron) {
+    // This case should be handled by the router push in useEffect, but it's a good safeguard.
+    return <div>Patron not found. Redirecting...</div>; 
   }
   
   const totalSpent = wonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
@@ -338,9 +410,7 @@ export default function PatronDetailsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingWonItems ? (
-              <div className="text-center text-muted-foreground py-8">Loading contributions...</div>
-            ) : wonItems.length > 0 ? (
+            {wonItems.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
