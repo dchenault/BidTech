@@ -22,7 +22,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2 } from 'lucide-react';
-import type { Item, PatronFormValues, Auction, PaymentMethod, Patron } from '@/lib/types';
+import type { Item, PatronFormValues, Auction, PaymentMethod, Patron, RegisteredPatron } from '@/lib/types';
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { useAccount } from '@/hooks/use-account';
-import { doc, writeBatch, collectionGroup, query, where, getDoc, getDocs } from 'firebase/firestore';
+import { doc, writeBatch, collection, collectionGroup, query, where, getDoc, getDocs, limit } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -173,12 +173,12 @@ export default function PatronDetailsPage() {
     setIsEditDialogOpen(false);
   };
   
-  const handlePrintReceipt = (auctionId: string) => {
-    if (!patron) return;
+  const handlePrintReceipt = async (auctionId: string) => {
+    if (!patron || !firestore || !accountId) return;
     const selectedAuction = auctions.find(a => a.id === auctionId);
     if (!selectedAuction) return;
 
-    const itemsForReceipt = wonItems.filter(item => item.auctionId === auctionId && item.paid);
+    const itemsForReceipt = wonItems.filter((item: WonItem) => item.auctionId === auctionId && item.paid);
     
     if (itemsForReceipt.length === 0) {
       toast({
@@ -189,11 +189,36 @@ export default function PatronDetailsPage() {
       return;
     }
 
-    exportPatronReceiptToHTML({
-      patron,
-      items: itemsForReceipt,
-      auction: selectedAuction
-    });
+    try {
+        const regPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
+        const q = query(regPatronsRef, where('patronId', '==', patron.id), limit(1));
+        const querySnapshot = await getDocs(q);
+
+        let biddingNumber: number | undefined;
+        if (!querySnapshot.empty) {
+            const regData = querySnapshot.docs[0].data() as RegisteredPatron;
+            biddingNumber = regData.bidderNumber;
+        }
+
+        const patronForReceipt = {
+            ...patron,
+            biddingNumber: biddingNumber,
+        };
+
+        exportPatronReceiptToHTML({
+          patron: patronForReceipt,
+          items: itemsForReceipt,
+          auction: selectedAuction
+        });
+
+    } catch (error) {
+        console.error("Error fetching bidding number for receipt:", error);
+        toast({
+            variant: "destructive",
+            title: "Error Printing Receipt",
+            description: "Could not find the bidder number for this auction."
+        });
+    }
   };
 
   const handleAddDonation = async (amount: number, auctionId: string) => {
