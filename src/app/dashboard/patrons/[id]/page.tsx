@@ -68,22 +68,22 @@ export default function PatronDetailsPage() {
     setNotes(patron?.notes || '');
   }, [patron]);
 
-  // Derive accountId from the patron object for a more stable query dependency
-  const patronAccountId = useMemo(() => patron?.accountId, [patron]);
+  // Stabilize IDs for use in query dependencies
+  const stableAccountId = useMemo(() => accountId, [accountId]);
+  const stablePatronId = useMemo(() => patronId, [patronId]);
 
   const wonItemsQuery = useMemoFirebase(
     () => {
-      // Use the more stable accountId from the patron object itself
-      if (firestore && patronAccountId && patronId) {
+      if (firestore && stableAccountId && stablePatronId) {
         return query(
           collectionGroup(firestore, 'items'),
-          where('accountId', '==', patronAccountId),
-          where('winnerId', '==', patronId)
+          where('accountId', '==', stableAccountId),
+          where('winnerId', '==', stablePatronId)
         );
       }
       return null;
     },
-    [firestore, patronAccountId, patronId] // Use the new stable dependency
+    [firestore, stableAccountId, stablePatronId]
   );
 
   const { data: wonItemsData, isLoading: isLoadingWonItems } = useCollection<Item>(wonItemsQuery);
