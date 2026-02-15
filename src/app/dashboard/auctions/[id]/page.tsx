@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -67,6 +66,7 @@ import { useAccount } from '@/hooks/use-account';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { EditLotDialog } from '@/components/edit-lot-dialog';
+import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -74,16 +74,17 @@ export default function AuctionDetailsPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
-  const { accountId } = useAccount();
+  const { accountId, isGuest } = useAccount();
   const { toast } = useToast();
 
-  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction } = useAuctions();
+  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
+  const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
 
@@ -347,6 +348,22 @@ export default function AuctionDetailsPage() {
     await addItemToAuction(auction.id, newItemData);
   }
 
+  const handleAddDonation = async (amount: number, patron: Patron) => {
+    if (!auctionId || !patron.id) return;
+    try {
+      // For donations added in-auction, we assume they are paid immediately (cash/check).
+      await addDonationToAuction(auctionId, patron.id, amount, true);
+      // toast is handled inside the dialog
+      setIsAddDonationDialogOpen(false);
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: e.message || "Failed to record donation."
+      })
+    }
+  }
+
   const handleAddCategory = (values: CategoryFormValues) => {
     if (!auction) return;
     addCategoryToAuction(auction.id, { name: values.name });
@@ -532,60 +549,6 @@ export default function AuctionDetailsPage() {
         )}
       </>
     );
-
-    const renderDonationsTable = () => (
-      <Card>
-          <CardHeader>
-              <CardTitle>Donations</CardTitle>
-              <CardDescription>Cash donations made during this auction.</CardDescription>
-          </CardHeader>
-          <CardContent>
-              {isLoadingItems ? (
-                  <div className="text-center text-muted-foreground py-8">Loading donations...</div>
-              ) : searchedDonations.length > 0 ? (
-                  <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead>Patron</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>SKU</TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          {searchedDonations.map((donation) => (
-                              <TableRow 
-                                key={donation.id}
-                                onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
-                                className={cn(donation.winner?.id && "cursor-pointer")}
-                              >
-                                  <TableCell>
-                                      <div className="flex items-center gap-3">
-                                          <Avatar className="hidden h-9 w-9 sm:flex">
-                                              <AvatarImage src={donation.winner?.avatarUrl} alt="Avatar" />
-                                              <AvatarFallback>{donation.winner?.firstName?.charAt(0)}{donation.winner?.lastName?.charAt(0)}</AvatarFallback>
-                                          </Avatar>
-                                          <div className="grid gap-0.5">
-                                              <p className="font-medium">
-                                                {donation.winner?.firstName} {donation.winner?.lastName}
-                                              </p>
-                                              <p className="text-xs text-muted-foreground">{donation.winner?.email}</p>
-                                          </div>
-                                      </div>
-                                  </TableCell>
-                                  <TableCell className="font-medium text-green-600">{formatCurrency(donation.winningBid || 0)}</TableCell>
-                                  <TableCell className="font-mono text-muted-foreground">{donation.sku}</TableCell>
-                              </TableRow>
-                          ))}
-                      </TableBody>
-                  </Table>
-              ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                      No donations found{searchQuery && ` for "${searchQuery}"`}.
-                  </div>
-              )}
-          </CardContent>
-      </Card>
-  );
 
   const renderLiveAuctionView = () => (
     <Card>
@@ -852,17 +815,73 @@ export default function AuctionDetailsPage() {
                 {renderAuctionContent()}
             </TabsContent>
             <TabsContent value="donations" className="space-y-4">
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="search"
-                        placeholder="Search donations by patron name or SKU..."
-                        className="w-full rounded-lg bg-background pl-8"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-                {renderDonationsTable()}
+                 <Card>
+                    <CardHeader className="flex-row items-center justify-between">
+                        <div>
+                            <CardTitle>Donations</CardTitle>
+                            <CardDescription>Cash donations made during this auction.</CardDescription>
+                        </div>
+                        <Button size="sm" onClick={() => setIsAddDonationDialogOpen(true)} disabled={isGuest}>
+                            <HeartHandshake className="mr-2 h-4 w-4" />
+                            Add Donation
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="relative pb-4">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search donations by patron name or SKU..."
+                                className="w-full rounded-lg bg-background pl-8"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        {isLoadingItems ? (
+                            <div className="text-center text-muted-foreground py-8">Loading donations...</div>
+                        ) : searchedDonations.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Patron</TableHead>
+                                        <TableHead>Amount</TableHead>
+                                        <TableHead>SKU</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {searchedDonations.map((donation) => (
+                                        <TableRow 
+                                            key={donation.id}
+                                            onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
+                                            className={cn(donation.winner?.id && "cursor-pointer")}
+                                        >
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="hidden h-9 w-9 sm:flex">
+                                                        <AvatarImage src={donation.winner?.avatarUrl} alt="Avatar" />
+                                                        <AvatarFallback>{donation.winner?.firstName?.charAt(0)}{donation.winner?.lastName?.charAt(0)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="grid gap-0.5">
+                                                        <p className="font-medium">
+                                                            {donation.winner?.firstName} {donation.winner?.lastName}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">{donation.winner?.email}</p>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-medium text-green-600">{formatCurrency(donation.winningBid || 0)}</TableCell>
+                                            <TableCell className="font-mono text-muted-foreground">{donation.sku}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-8">
+                                No donations found{searchQuery && ` for "${searchQuery}"`}.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             </TabsContent>
             <TabsContent value="patrons" className="space-y-4">
                 <Card>
@@ -1091,6 +1110,13 @@ export default function AuctionDetailsPage() {
         onRegister={handleRegisterPatron}
         onAddNewPatron={addPatron}
         isLoadingPatrons={isLoadingPatrons}
+      />
+
+      <AddAuctionDonationDialog
+        isOpen={isAddDonationDialogOpen}
+        onClose={() => setIsAddDonationDialogOpen(false)}
+        patrons={registeredPatronsWithDetails}
+        onSubmit={handleAddDonation}
       />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={(isOpen) => !isOpen && setItemToDelete(null)}>
