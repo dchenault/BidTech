@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Trash2, Upload } from 'lucide-react';
+import { Download, Loader2, Trash2, Upload, FileText, Gift, Users, Package, FilePieChart } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -46,29 +46,32 @@ import {
   exportPatronsToCSV,
   exportDonorsToCSV,
   exportItemsToCSV,
+  exportAllItemsToCSV,
   exportWinningBidsToCSV,
-  exportFullReportToCSV,
+  exportAllWinningBidsToCSV,
   exportAuctionPatronsToCSV,
   exportDonationsToCSV,
+  exportAllDonationsToCSV,
 } from '@/lib/export';
-import { ExportAuctionDialog } from '@/components/export-auction-dialog';
 import { useInvitations } from '@/hooks/use-invitations';
-import type { Invitation } from '@/lib/types';
+import type { Invitation, Item } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
+import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
+
+type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations';
 
 export default function SettingsPage() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isImportPatronsDialogOpen, setIsImportPatronsDialogOpen] = useState(false);
   const [isImportDonorsDialogOpen, setIsImportDonorsDialogOpen] = useState(false);
-  const [exportType, setExportType] = useState<'items' | 'bids' | 'patrons' | 'donations' | null>(null);
   const [isProcessingExport, setIsProcessingExport] = useState(false);
   const [invitationToRevoke, setInvitationToRevoke] = useState<Invitation | null>(null);
   const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [exportDialog, setExportDialog] = useState<{ isOpen: boolean; type: ExportType; title: string; } | null>(null);
   
-  const { auctions, isLoading: isLoadingAuctions } = useAuctions();
+  const { auctions, isLoading: isLoadingAuctions, fetchAllItems } = useAuctions();
   const { patrons, isLoading: isLoadingPatrons, importPatronsFromCSV } = usePatrons();
   const { donors, isLoading: isLoadingDonors, importDonorsFromCSV } = useDonors();
   const { invitations, isLoading: isLoadingInvitations, sendInvitation, revokeInvitation } = useInvitations();
@@ -102,96 +105,94 @@ export default function SettingsPage() {
         });
     });
   };
-
-  const handleExportAllPatrons = () => {
-    if (isLoadingPatrons) {
-      toast({ title: "Please wait", description: "Patron data is still loading." });
-      return;
-    }
-    exportPatronsToCSV(patrons);
-  };
-
-  const handleExportAllDonors = () => {
-    if (isLoadingDonors) {
-      toast({ title: "Please wait", description: "Donor data is still loading." });
-      return;
-    }
-    exportDonorsToCSV(donors);
-  };
-
-  const handleOpenExportDialog = (type: 'items' | 'bids' | 'patrons' | 'donations') => {
-    setExportType(type);
-    setIsExportDialogOpen(true);
-  };
   
   const handleRevoke = async () => {
     if (!invitationToRevoke) return;
     await revokeInvitation(invitationToRevoke.id, invitationToRevoke.auctionId, invitationToRevoke.acceptedBy);
     setInvitationToRevoke(null);
   };
+  
+  const getAuctionName = (auctionId: string) => {
+    return auctions.find(a => a.id === auctionId)?.name || 'Unknown Auction';
+  }
 
-  const handleAuctionExport = async (auctionId: string) => {
-    if (!firestore || !accountId) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-      return;
-    }
+  const handleOpenExportDialog = (type: ExportType, title: string) => {
+    setExportDialog({ isOpen: true, type, title });
+  };
+  
+  const handleExport = async (selection: ExportSelection) => {
+    if (!firestore || !accountId || !exportDialog) return;
 
-    setIsExportDialogOpen(false);
     setIsProcessingExport(true);
+    setExportDialog(null);
 
     try {
-      const selectedAuction = auctions.find(a => a.id === auctionId);
-      if (!selectedAuction) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Auction not found.' });
-        return;
-      }
-      
-      if (exportType === 'patrons') {
-        const auctionPatrons = await fetchRegisteredPatronsWithDetails(firestore, accountId, auctionId);
-        exportAuctionPatronsToCSV(auctionPatrons, selectedAuction.name);
-      } else {
-        const items = await fetchAuctionItems(firestore, accountId, auctionId);
-        if (exportType === 'items') {
-          exportItemsToCSV(items, selectedAuction.name);
-        } else if (exportType === 'bids') {
-          exportWinningBidsToCSV(items, selectedAuction.name);
-        } else if (exportType === 'donations') {
-          exportDonationsToCSV(items, selectedAuction.name);
+        const { type, auctionId } = selection;
+        const allItems = (type === 'full' && (exportDialog.type !== 'donors' && exportDialog.type !== 'patrons')) ? await fetchAllItems() : [];
+
+        // Attach auction names to items for 'all' exports
+        if (type === 'full' && allItems.length > 0) {
+            const auctionMap = new Map(auctions.map(a => [a.id, a.name]));
+            allItems.forEach(item => (item as Item & { auctionName: string }).auctionName = auctionMap.get(item.auctionId) || 'N/A');
         }
-      }
+
+        switch (exportDialog.type) {
+            case 'donors':
+                if (type === 'full') {
+                    exportDonorsToCSV(donors);
+                } else if (auctionId) {
+                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    const donorIds = new Set(items.map(i => i.donorId).filter(Boolean));
+                    const auctionDonors = donors.filter(d => donorIds.has(d.id!));
+                    exportDonorsToCSV(auctionDonors, `donors_${getAuctionName(auctionId).replace(/\s+/g, '_').toLowerCase()}.csv`);
+                }
+                break;
+            
+            case 'items':
+                if (type === 'full') {
+                    exportAllItemsToCSV(allItems);
+                } else if (auctionId) {
+                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    exportItemsToCSV(items, getAuctionName(auctionId));
+                }
+                break;
+            
+            case 'reports':
+                if (type === 'full') {
+                    exportAllWinningBidsToCSV(allItems);
+                } else if (auctionId) {
+                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    exportWinningBidsToCSV(items, getAuctionName(auctionId));
+                }
+                break;
+            
+            case 'patrons':
+                if (type === 'full') {
+                    exportPatronsToCSV(patrons);
+                } else if (auctionId) {
+                    const auctionPatrons = await fetchRegisteredPatronsWithDetails(firestore, accountId, auctionId);
+                    exportAuctionPatronsToCSV(auctionPatrons, getAuctionName(auctionId));
+                }
+                break;
+            
+            case 'donations':
+                 if (type === 'full') {
+                    exportAllDonationsToCSV(allItems);
+                } else if (auctionId) {
+                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    exportDonationsToCSV(items, getAuctionName(auctionId));
+                }
+                break;
+        }
+
     } catch (error) {
       console.error("Export failed:", error);
-      toast({ variant: 'destructive', title: 'Export Failed', description: 'Could not fetch auction data for export.' });
+      toast({ variant: 'destructive', title: 'Export Failed', description: 'Could not fetch data for export.' });
     } finally {
       setIsProcessingExport(false);
     }
   };
 
-  const handleFullReportExport = async () => {
-    if (!firestore || !accountId) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-      return;
-    }
-    setIsProcessingExport(true);
-    try {
-      const allAuctionsWithItems = await Promise.all(
-        auctions.map(async (auction) => {
-          const items = await fetchAuctionItems(firestore, accountId, auction.id);
-          return { ...auction, items };
-        })
-      );
-      exportFullReportToCSV(allAuctionsWithItems);
-
-    } catch (error) {
-       toast({ variant: 'destructive', title: 'Error', description: 'Could not generate full report.' });
-    } finally {
-        setIsProcessingExport(false);
-    }
-  }
-  
-  const getAuctionName = (auctionId: string) => {
-    return auctions.find(a => a.id === auctionId)?.name || 'Unknown Auction';
-  }
 
   return (
     <>
@@ -224,34 +225,21 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            <Button variant="outline" onClick={handleExportAllPatrons} disabled={isLoadingPatrons}>
-              {isLoadingPatrons ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              All Patrons
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            <Button variant="outline" onClick={() => handleOpenExportDialog('donors', 'Donors')} disabled={isProcessingExport}>
+                <Gift className="mr-2 h-4 w-4" />Donors
             </Button>
-            <Button variant="outline" onClick={handleExportAllDonors} disabled={isLoadingDonors}>
-              {isLoadingDonors ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              All Donors
+            <Button variant="outline" onClick={() => handleOpenExportDialog('items', 'Items')} disabled={isProcessingExport}>
+                <Package className="mr-2 h-4 w-4" />Items
             </Button>
-            <Button variant="outline" onClick={() => handleOpenExportDialog('items')} disabled={isProcessingExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Auction Items
+             <Button variant="outline" onClick={() => handleOpenExportDialog('reports', 'Auction Reports')} disabled={isProcessingExport}>
+                <FilePieChart className="mr-2 h-4 w-4" />Auction Reports
             </Button>
-            <Button variant="outline" onClick={() => handleOpenExportDialog('patrons')} disabled={isProcessingExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Auction Patrons
+             <Button variant="outline" onClick={() => handleOpenExportDialog('patrons', 'Patrons')} disabled={isProcessingExport}>
+                <Users className="mr-2 h-4 w-4" />Patrons
             </Button>
-            <Button variant="outline" onClick={() => handleOpenExportDialog('bids')} disabled={isProcessingExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Winning Bids
-            </Button>
-            <Button variant="outline" onClick={() => handleOpenExportDialog('donations')} disabled={isProcessingExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Donations
-            </Button>
-             <Button variant="outline" onClick={handleFullReportExport} disabled={isProcessingExport}>
-              {isProcessingExport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Full Auction Report
+             <Button variant="outline" onClick={() => handleOpenExportDialog('donations', 'Donations')} disabled={isProcessingExport}>
+                <FileText className="mr-2 h-4 w-4" />Donations
             </Button>
           </div>
         </CardContent>
@@ -336,6 +324,19 @@ export default function SettingsPage() {
       </Card>
     </div>
 
+    {exportDialog && (
+      <ExportDialog
+        isOpen={exportDialog.isOpen}
+        onClose={() => setExportDialog(null)}
+        title={exportDialog.title}
+        auctions={auctions}
+        onExport={handleExport}
+        isLoadingAuctions={isLoadingAuctions}
+        isProcessingExport={isProcessingExport}
+        reportOptions={exportDialog.type === 'reports' ? { full: 'All Winning Bids', specific: 'Winning Bids from a specific auction' } : undefined}
+      />
+    )}
+
     <ImportCsvDialog
         isOpen={isImportPatronsDialogOpen}
         onClose={() => setIsImportPatronsDialogOpen(false)}
@@ -353,16 +354,6 @@ export default function SettingsPage() {
         title="Import Donors from CSV"
         description="Upload a CSV file with donor data. The column headers must include: name, and type ('Individual' or 'Business'). Optional columns: email, phone, street, city, state, zip, and contactPerson."
     />
-
-     <ExportAuctionDialog
-        isOpen={isExportDialogOpen}
-        onClose={() => setIsExportDialogOpen(false)}
-        auctions={auctions}
-        onSubmit={handleAuctionExport}
-        title={`Export ${exportType === 'items' ? 'Items' : exportType === 'bids' ? 'Winning Bids' : exportType === 'donations' ? 'Donations' : 'Patrons'}`}
-        description="Select an auction to export data from."
-        isLoading={isLoadingAuctions}
-      />
       
       <AlertDialog open={!!invitationToRevoke} onOpenChange={(isOpen) => !isOpen && setInvitationToRevoke(null)}>
         <AlertDialogContent>

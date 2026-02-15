@@ -19,6 +19,7 @@ import {
   addDoc,
   updateDoc,
   documentId,
+  collectionGroup,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -310,7 +311,6 @@ export function useAuctions() {
     });
   }, [firestore, accountId, storage]);
 
-  // ... rest of the file ...
   const addDonationToAuction = useCallback(async (auctionId: string, patron: Patron, amount: number, isPaid: boolean = false) => {
       if (!firestore || !accountId) throw new Error("Missing context");
 
@@ -496,6 +496,13 @@ export function useAuctions() {
         await deleteDoc(registrationRef);
     }, [firestore, accountId]);
     
+    const fetchAllItems = useCallback(async (): Promise<Item[]> => {
+        if (!firestore || !accountId) return [];
+        const itemsQuery = query(collectionGroup(firestore, 'items'), where('accountId', '==', accountId));
+        const snapshot = await getDocs(itemsQuery);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
+    }, [firestore, accountId]);
+
   return { 
       auctions: auctionsData || EMPTY_AUCTIONS, 
       isLoading, addAuction, updateAuction, addItemToAuction, updateItemInAuction,
@@ -504,6 +511,7 @@ export function useAuctions() {
       getRegisteredPatrons, addLotToAuction, getAuctionLots, moveItemToLot,
       updateLotInAuction, deleteLotFromAuction,
       unregisterPatronFromAuction,
+      fetchAllItems,
  };
 }
 
