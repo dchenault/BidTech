@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -447,7 +448,7 @@ export default function PatronDetailsPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {auctionItems.map((item) => {
+                                  {auctionItems.map((item: any) => {
                                     const isDonation = item.sku.toString().startsWith('DON-');
                                     return (
                                         <TableRow 
