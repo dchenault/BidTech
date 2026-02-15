@@ -1,4 +1,3 @@
-
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -94,14 +93,12 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 // 4. Export Auction Items
 export function exportItemsToCSV(items: Item[], auctionName: string) {
   const csvHeader = [
-    'SKU', 'Item ID', 'Auction ID', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Name'
+    'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Name'
   ].join(',');
 
   const csvRows = items.map(item => 
     [
       item.sku,
-      item.id,
-      item.auctionId,
       `"${item.name}"`,
       `"${item.description.replace(/"/g, '""')}"`,
       `"${item.category.name}"`,
