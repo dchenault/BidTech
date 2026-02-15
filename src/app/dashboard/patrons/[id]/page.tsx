@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -421,8 +420,8 @@ export default function PatronDetailsPage() {
           <CardContent className="space-y-6 pt-6">
             {contributionsByAuction.size > 0 ? (
                 Array.from(contributionsByAuction.entries()).map(([auctionId, { auctionName, items: auctionItems }]) => {
-                const unpaidForAuction = auctionItems.filter(i => !i.paid);
-                const paidForAuction = auctionItems.filter(i => i.paid);
+                const unpaidForAuction = auctionItems.filter((i: WonItem) => !i.paid);
+                const paidForAuction = auctionItems.filter((i: WonItem) => i.paid);
                 return (
                     <Card key={auctionId} className="shadow-md">
                         <CardHeader className="flex flex-row items-center justify-between">
