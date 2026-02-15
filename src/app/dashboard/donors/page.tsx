@@ -186,7 +186,11 @@ export default function DonorsPage() {
                 </TableHeader>
                 <TableBody>
                 {filteredDonors.map((donor) => (
-                    <TableRow key={donor.id}>
+                    <TableRow 
+                        key={donor.id}
+                        onClick={() => setEditingDonor(donor)}
+                        className="cursor-pointer"
+                    >
                     <TableCell className="font-medium">
                         {donor.name}
                     </TableCell>
@@ -196,17 +200,25 @@ export default function DonorsPage() {
                     <TableCell>
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <Button 
+                                aria-haspopup="true" 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={(e) => e.stopPropagation()}
+                            >
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Toggle menu</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditingDonor(donor)}>
+                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); setEditingDonor(donor)}}>
                             Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDeleteClick(donor)} className="text-destructive">
+                            <DropdownMenuItem 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(donor) }} 
+                                className="text-destructive"
+                            >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete
                             </DropdownMenuItem>
