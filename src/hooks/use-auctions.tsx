@@ -369,6 +369,48 @@ export function useAuctions() {
      }
   }, [firestore, accountId, auctionsData]);
 
+  const deleteCategoryFromAuction = useCallback(async (auctionId: string, categoryId: string) => {
+    if (!firestore || !accountId || !auctionsData) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete category.' });
+        return;
+    };
+
+    const auction = auctionsData.find(a => a.id === auctionId);
+    if (!auction) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Auction not found.' });
+      return;
+    }
+    
+    const categoryToDelete = auction.categories?.find(c => c.id === categoryId);
+    if (!categoryToDelete) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Category not found.' });
+        return;
+    }
+
+    // Check if any items are using this category
+    const itemsInAuction = await fetchAuctionItems(firestore, accountId, auctionId);
+    const isCategoryInUse = itemsInAuction.some(item => item.categoryId === categoryId);
+
+    if (isCategoryInUse) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Delete Category',
+        description: `"${categoryToDelete.name}" is in use by one or more items. Please reassign them to another category before deleting.`,
+      });
+      return;
+    }
+
+    const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+    await updateDoc(auctionDocRef, {
+      categories: arrayRemove(categoryToDelete)
+    });
+
+    toast({
+      title: 'Category Deleted',
+      description: `"${categoryToDelete.name}" has been deleted successfully.`,
+    });
+  }, [firestore, accountId, auctionsData, toast]);
+
   const addLotToAuction = useCallback(async (auctionId: string, lotData: LotFormValues) => {
     if (!firestore || !accountId) return;
     const lotsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
@@ -444,7 +486,7 @@ export function useAuctions() {
       auctions: auctionsData || EMPTY_AUCTIONS, 
       isLoading, addAuction, updateAuction, addItemToAuction, updateItemInAuction,
       deleteItemFromAuction, addCategoryToAuction, updateCategoryInAuction,
-      addDonationToAuction, getAuction, getAuctionItems, getItem,
+      deleteCategoryFromAuction, addDonationToAuction, getAuction, getAuctionItems, getItem,
       getRegisteredPatrons, addLotToAuction, getAuctionLots, moveItemToLot,
       updateLotInAuction, deleteLotFromAuction,
       unregisterPatronFromAuction,

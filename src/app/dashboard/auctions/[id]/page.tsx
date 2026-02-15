@@ -78,7 +78,7 @@ export default function AuctionDetailsPage() {
   const { accountId } = useAccount();
   const { toast } = useToast();
 
-  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
+  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -90,6 +90,7 @@ export default function AuctionDetailsPage() {
   const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
   const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
@@ -316,6 +317,12 @@ export default function AuctionDetailsPage() {
     setSelectedCategory(category);
     setIsEditCategoryDialogOpen(true);
   }
+
+  const handleConfirmDeleteCategory = async () => {
+    if (!categoryToDelete || !auction) return;
+    await deleteCategoryFromAuction(auction.id, categoryToDelete.id);
+    setCategoryToDelete(null);
+  };
 
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
     if (!auction || !selectedItem || !firestore || !accountId) return;
@@ -976,7 +983,7 @@ export default function AuctionDetailsPage() {
                             <TableHeader>
                                 <TableRow>
                                 <TableHead>Category Name</TableHead>
-                                <TableHead className="w-[100px] text-right">Edit</TableHead>
+                                <TableHead className="w-[150px] text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -984,9 +991,13 @@ export default function AuctionDetailsPage() {
                                 <TableRow key={category.id}>
                                     <TableCell className="font-medium">{category.name}</TableCell>
                                     <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
+                                      <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
+                                          <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
+                                          <Trash2 className="h-4 w-4" />
+                                          <span className="sr-only">Delete Category</span>
+                                      </Button>
                                     </TableCell>
                                 </TableRow>
                                 ))}
@@ -1150,6 +1161,23 @@ export default function AuctionDetailsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDeleteLot} className="bg-destructive hover:bg-destructive/90">
               Delete Lot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!categoryToDelete} onOpenChange={(isOpen) => !isOpen && setCategoryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the category "{categoryToDelete?.name}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteCategory} className="bg-destructive hover:bg-destructive/90">
+              Delete Category
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
