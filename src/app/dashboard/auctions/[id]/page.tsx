@@ -207,7 +207,7 @@ export default function AuctionDetailsPage() {
           ...patronDetails,
           accountId: patronDetails.accountId,
           registeredPatronDocId: rp.id,
-          biddingNumber: rp.biddingNumber,
+          biddingNumber: rp.bidderNumber,
         };
       })
       .filter((p): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
