@@ -31,16 +31,10 @@ service cloud.firestore {
     }
     
     function canAdminRevokeAccess() {
-      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      let oldAccountKeys = resource.data.accounts.keys();
-      let newAccountKeys = request.resource.data.accounts.keys();
-      let removedKeys = oldAccountKeys.difference(newAccountKeys);
-      let addedKeys = newAccountKeys.difference(oldAccountKeys);
-      
-      return affectedKeys.hasOnly(['accounts']) &&
-        addedKeys.size() == 0 &&
-        removedKeys.size() == 1 &&
-        isAccountAdmin(removedKeys.toList()[0]);
+      // This rule is currently disabled as it relies on toList(),
+      // which is not a valid function in Firestore security rules.
+      // Awaiting a different implementation pattern.
+      return false;
     }
 
     function isInvitedUser(invitation) {
@@ -72,9 +66,8 @@ service cloud.firestore {
       // A user can read their own profile.
       allow read: if isUser(userId);
 
-      // A user can update their own profile. An account admin can also update a user's
-      // profile, but ONLY to remove that user from the account they administrate.
-      allow update: if isUser(userId) || canAdminRevokeAccess();
+      // A user can update their own profile. The canAdminRevokeAccess rule is currently disabled.
+      allow update: if isUser(userId); // || canAdminRevokeAccess();
       
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
@@ -133,8 +126,6 @@ service cloud.firestore {
           );
         }
 
-        // Helper for staff access. This requires the staff portal to use anonymous auth
-        // and create a document in the 'staff' subcollection with their UID.
         function isAuthorizedStaff() {
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
@@ -142,34 +133,25 @@ service cloud.firestore {
 
         // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
         allow get: if true; // Allow anyone to get the document for login handshake
-        allow list: if isAccountMember(accountId); // Only account members can list auctions
+        allow list: if isAccountMember(accountId);
         allow create: if isAccountMember(accountId);
-        allow update: if isOwnerOrManager(); // Staff cannot update the main auction doc.
-        allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid; // Only owner can delete.
+        allow update: if isOwnerOrManager();
+        allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
         // -- SUBCOLLECTION RULES --
         
         // New 'staff' subcollection for staff sessions
         match /staff/{staffUserId} {
-          // Admin management of staff usernames
           allow list, create, delete: if isOwnerOrManager();
-
-          // Staff self-service login via public portal (PIN check)
           allow create: if isSignedIn() && request.auth.uid == staffUserId &&
                          request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
-          
-          // Staff self-service logout or session check
           allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
-          
-          allow update: if false; // No updates allowed to session docs.
+          allow update: if false;
         }
 
-        // Rules for auction subcollections inherit from the auction's permissions.
+        // Simplified subcollection rule for owners, managers, and staff
         match /{subcollection}/{docId} {
-            // Owners/Managers have full read/write access.
-            // Staff can read, list, create, and update, but not delete.
-            allow read, create, update: if isOwnerOrManager() || isAuthorizedStaff();
-            allow delete: if isOwnerOrManager();
+            allow read, list, create, update, delete: if isOwnerOrManager() || isAuthorizedStaff();
         }
       }
     }
