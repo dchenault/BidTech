@@ -12,14 +12,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system">
       <FirebaseClientProvider>
-        <AccountProvider>
-          <StaffSessionProvider>
+        <StaffSessionProvider>
+          <AccountProvider>
             <SearchProvider>
               {children}
               <Toaster />
             </SearchProvider>
-          </StaffSessionProvider>
-        </AccountProvider>
+          </AccountProvider>
+        </StaffSessionProvider>
       </FirebaseClientProvider>
     </ThemeProvider>
   );
