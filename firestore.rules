@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -130,46 +129,50 @@ service cloud.firestore {
       // Auctions have more granular rules for managers.
       match /auctions/{auctionId} {
         
-        function isAuctionManager() {
-          // Check the currently stored data, not the incoming request data.
-          return isSignedIn() && resource.data.managers[request.auth.uid] == true;
+        // -- HELPER FUNCTIONS FOR AUCTION SCOPE --
+        function isOwnerOrManager() {
+          let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
+          return isSignedIn() && (
+            (auction.data.ownerId != null && auction.data.ownerId == request.auth.uid) ||
+            (request.auth.token.email != null && request.auth.token.email in auction.data.authorizedManagers)
+          );
         }
 
-        // Any account member can create an auction.
+        // Helper for staff access. This requires the staff portal to use anonymous auth
+        // and create a document in the 'staff' subcollection with their UID.
+        function isAuthorizedStaff() {
+          return isSignedIn() &&
+                 exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
+        }
+
+        // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
+        allow get: if true; // Allow anyone to get the document for login handshake
+        allow list: if isAccountMember(accountId); // Only account members can list auctions
         allow create: if isAccountMember(accountId);
+        allow update: if isOwnerOrManager(); // Staff cannot update the main auction doc.
+        allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid; // Only owner can delete.
 
-        // Account members can read. Anyone can read if it's public.
-        allow get: if isAccountMember(accountId) || resource.data.isPublic == true;
-        allow list: if isAccountMember(accountId);
+        // -- SUBCOLLECTION RULES --
         
-        // Only admins or auction managers can delete an auction.
-        allow delete: if isAccountAdmin(accountId) || isAuctionManager();
-
-        // Update logic is the most complex.
-        allow update: if 
-          // An account admin can always update.
-          isAccountAdmin(accountId) ||
-          // An existing auction manager can update.
-          isAuctionManager() ||
-          // A new user accepting a valid invite can add themselves to the managers list.
-          (
-            isAccountMember(accountId) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['managers']) &&
-            request.resource.data.managers.size() == resource.data.managers.size() + 1 &&
-            request.resource.data.managers[request.auth.uid] == true
-          );
+        // New 'staff' subcollection for staff sessions
+        match /staff/{staffUserId} {
+          // Allow creation of a staff session document IF the user is authenticated (anonymously)
+          // and the provided PIN is correct. The PIN must be passed in the written document's data.
+          allow create: if isSignedIn() && request.auth.uid == staffUserId &&
+                         request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
+          
+          // Allow the staff member to read or delete their own session document (e.g., on logout).
+          allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
+          
+          allow update: if false; // Session docs are create/delete only.
+        }
 
         // Rules for auction subcollections inherit from the auction's permissions.
         match /{subcollection}/{docId} {
-            function getParentAuction() {
-                return get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-            }
-            
-            // Only account admins or auction managers can write items, lots, etc.
-            allow write: if isAccountAdmin(accountId) || isAuctionManager();
-            
-            // Admins, managers, or the public (for public auctions) can read.
-            allow read: if isAccountAdmin(accountId) || isAuctionManager() || getParentAuction().data.isPublic == true;
+            // Owners/Managers have full read/write access.
+            // Staff can read, list, create, and update, but not delete.
+            allow read, create, update: if isOwnerOrManager() || isAuthorizedStaff();
+            allow delete: if isOwnerOrManager();
         }
       }
     }
