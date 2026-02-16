@@ -45,7 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useDonors } from '@/hooks/use-donors';
 import type { Donor, DonorFormValues } from '@/lib/types';
 import { EditDonorForm } from '@/components/edit-donor-form';
@@ -55,6 +55,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
 export default function DonorsPage() {
+  const router = useRouter();
   const { donors, updateDonor, addDonor, deleteDonor, isLoading } = useDonors();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
@@ -188,7 +189,7 @@ export default function DonorsPage() {
                 {filteredDonors.map((donor) => (
                     <TableRow 
                         key={donor.id}
-                        onClick={() => setEditingDonor(donor)}
+                        onClick={() => router.push(`/dashboard/donors/${donor.id}`)}
                         className="cursor-pointer"
                     >
                     <TableCell className="font-medium">
@@ -211,8 +212,11 @@ export default function DonorsPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); router.push(`/dashboard/donors/${donor.id}`)}}>
+                                View Details
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => {e.stopPropagation(); setEditingDonor(donor)}}>
-                            Edit
+                                Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 

@@ -28,6 +28,7 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('staffName');
     sessionStorage.removeItem('activeAuctionId');
     sessionStorage.removeItem('isStaffSession');
+    sessionStorage.removeItem('staffAccountId');
     setStaffName(null);
     setIsStaffSession(false);
     // Reload to clear all state and revert to admin view

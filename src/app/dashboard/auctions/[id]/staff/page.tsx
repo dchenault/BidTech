@@ -51,6 +51,7 @@ export default function StaffLoginPage() {
         sessionStorage.setItem('staffName', username.trim());
         sessionStorage.setItem('activeAuctionId', auctionId);
         sessionStorage.setItem('isStaffSession', 'true');
+        sessionStorage.setItem('staffAccountId', accountId); // Persist the account ID
         router.push(`/dashboard/auctions/${auctionId}`);
       } else {
         setError('Invalid username for this auction.');

@@ -1105,10 +1105,10 @@ export default function AuctionDetailsPage() {
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
                                       id="staff-url"
-                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${auctionId}`}
+                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
                                       readOnly
                                   />
-                                  <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${auctionId}`)}>
+                                  <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`)}>
                                       <Copy className="mr-2 h-4 w-4" />
                                       Copy Link
                                   </Button>
