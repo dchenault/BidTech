@@ -50,7 +50,7 @@ export default function StaffLoginPage() {
       const staffUsernameSnap = await getDoc(staffUsernameRef);
 
       if (!staffUsernameSnap.exists()) {
-        throw new Error('Invalid username for this auction.');
+        throw new Error('This username is not authorized for this auction.');
       }
       
       // Step 2: Create a session marker document using the currently logged-in manager's UID.
