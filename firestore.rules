@@ -30,13 +30,6 @@ service cloud.firestore {
       return isSignedIn() && userProfile.data.accounts[accountId] != null;
     }
     
-    function canAdminRevokeAccess() {
-      // This rule is currently disabled as it relies on toList(),
-      // which is not a valid function in Firestore security rules.
-      // Awaiting a different implementation pattern.
-      return false;
-    }
-
     function isInvitedUser(invitation) {
       // The client already saves the invitation email as lowercase.
       return isSignedIn() &&
@@ -66,8 +59,8 @@ service cloud.firestore {
       // A user can read their own profile.
       allow read: if isUser(userId);
 
-      // A user can update their own profile. The canAdminRevokeAccess rule is currently disabled.
-      allow update: if isUser(userId); // || canAdminRevokeAccess();
+      // A user can update their own profile.
+      allow update: if isUser(userId);
       
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
@@ -114,7 +107,7 @@ service cloud.firestore {
           allow read, write: if isAccountMember(accountId);
       }
       
-      // Auctions have more granular rules for managers.
+      // Auctions have more granular rules for managers and staff.
       match /auctions/{auctionId} {
         
         // -- HELPER FUNCTIONS FOR AUCTION SCOPE --
@@ -132,26 +125,40 @@ service cloud.firestore {
         }
 
         // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
-        allow get: if true; // Allow anyone to get the document for login handshake
+        // Handshake: Allow anyone to fetch the basic auction doc for login
+        allow get: if true;
+        // Owners/Members can list all auctions in their account
         allow list: if isAccountMember(accountId);
+        // Members can create auctions
         allow create: if isAccountMember(accountId);
+        // Only owners/managers can update the auction doc
         allow update: if isOwnerOrManager();
+        // Only the original owner can delete the entire auction
         allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
         // -- SUBCOLLECTION RULES --
         
-        // New 'staff' subcollection for staff sessions
+        // Rules for the 'staff' subcollection itself
         match /staff/{staffUserId} {
+          // Owner/manager can add/remove staff usernames
           allow list, create, delete: if isOwnerOrManager();
+          // A user can create their own staff session doc if they have the PIN
           allow create: if isSignedIn() && request.auth.uid == staffUserId &&
                          request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
+          // A staff member can read/delete their own session doc (to logout)
           allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
+          // Staff cannot update their session doc
           allow update: if false;
         }
 
-        // Simplified subcollection rule for owners, managers, and staff
+        // Rules for all other data subcollections (items, patrons, registered_patrons, etc.)
         match /{subcollection}/{docId} {
-            allow read, list, create, update, delete: if isOwnerOrManager() || isAuthorizedStaff();
+            // Owners, managers, and staff can read and search data.
+            allow read, list: if isOwnerOrManager() || isAuthorizedStaff();
+            // Owners, managers, and staff can add and edit data.
+            allow create, update: if isOwnerOrManager() || isAuthorizedStaff();
+            // IMPORTANT: Only Owners and Managers can delete data. Staff cannot.
+            allow delete: if isOwnerOrManager();
         }
       }
     }
