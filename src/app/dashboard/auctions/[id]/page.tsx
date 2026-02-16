@@ -934,8 +934,8 @@ export default function AuctionDetailsPage() {
                         <TableRow>
                             <TableHead>#</TableHead>
                             <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead className="hidden md:table-cell">Phone</TableHead>
+                            <TableHead className="hidden md:table-cell">Email</TableHead>
+                            <TableHead className="hidden lg:table-cell">Phone</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
@@ -950,8 +950,8 @@ export default function AuctionDetailsPage() {
                             <TableCell className="font-medium">
                                 {patron.firstName} {patron.lastName}
                             </TableCell>
-                            <TableCell>{patron.email}</TableCell>
-                            <TableCell className="hidden md:table-cell">{patron.phone}</TableCell>
+                            <TableCell className="hidden md:table-cell">{patron.email}</TableCell>
+                            <TableCell className="hidden lg:table-cell">{patron.phone}</TableCell>
                             <TableCell className="text-right">
                                 <Button 
                                     variant="ghost" 
