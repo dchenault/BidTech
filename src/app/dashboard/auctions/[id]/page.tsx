@@ -272,12 +272,13 @@ export default function AuctionDetailsPage() {
     });
   }
 
-    const handleCopyUrl = (url: string) => {
+  const handleCopyStaffLoginLink = () => {
+    const url = `${window.location.origin}/dashboard/auctions/${auctionId}/staff`;
     navigator.clipboard.writeText(url).then(() => {
-        toast({ title: 'Link Copied!', description: 'The staff portal link has been copied to your clipboard.'});
+        toast({ title: 'Staff Login Link Copied!', description: 'Share this link with your on-site staff.'});
     }).catch(err => {
         toast({ variant: 'destructive', title: 'Failed to Copy Link'});
-        console.error('Failed to copy: ', err);
+        console.error('Failed to copy staff login link: ', err);
     });
   };
 
@@ -1068,7 +1069,7 @@ export default function AuctionDetailsPage() {
                                               value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
                                               readOnly
                                           />
-                                          <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`)}>
+                                          <Button type="button" onClick={handleShareCatalog}>
                                               <Copy className="mr-2 h-4 w-4" />
                                               Copy Link
                                           </Button>
@@ -1084,81 +1085,64 @@ export default function AuctionDetailsPage() {
                       </Card>
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-xl">Staff Access</CardTitle>
-                          <CardDescription>
-                            Set a PIN for this auction to allow staff access via the Public Staff Portal.
-                          </CardDescription>
+                            <CardTitle className="text-xl">Staff Management</CardTitle>
+                            <CardDescription>Manage usernames for staff who need access to this auction's dashboard.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-6">
                            <div className="space-y-2">
-                              <Label htmlFor="staffPin">Staff PIN</Label>
-                              <Input
-                                id="staffPin"
-                                type="text"
-                                placeholder="Enter a 4-8 digit PIN"
-                                defaultValue={auction.staffPin || ''}
-                                onBlur={(e) => updateAuction(auctionId, { staffPin: e.target.value })}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Public Staff Portal Link</Label>
+                                <Label>Staff Login Link</Label>
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
-                                      id="staff-url"
-                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
+                                      id="staff-login-url"
+                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/auctions/${auctionId}/staff`}
                                       readOnly
                                   />
-                                  <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`)}>
+                                  <Button type="button" onClick={handleCopyStaffLoginLink}>
                                       <Copy className="mr-2 h-4 w-4" />
                                       Copy Link
                                   </Button>
                               </div>
                             </div>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl">On-Site Staff</CardTitle>
-                            <CardDescription>Manage usernames for staff using the dashboard's "shadow login" feature.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <Input 
-                                    placeholder="New staff username"
-                                    value={newStaffUsername}
-                                    onChange={(e) => setNewStaffUsername(e.target.value)}
-                                />
-                                <Button onClick={handleAddStaff}>Add Staff</Button>
-                            </div>
-                            <div className="mt-4 rounded-md border">
-                                {isLoadingStaff ? (
-                                    <div className="p-4 text-center text-sm text-muted-foreground">Loading staff...</div>
-                                ) : (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Username</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {staffData && staffData.length > 0 ? staffData.map((staff: {id: string}) => (
-                                                <TableRow key={staff.id}>
-                                                    <TableCell className="font-medium">{staff.id}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveStaff(staff.id)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )) : (
+                            <div className="space-y-2">
+                                <Label>Add Staff Username</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input 
+                                        placeholder="New staff username"
+                                        value={newStaffUsername}
+                                        onChange={(e) => setNewStaffUsername(e.target.value)}
+                                    />
+                                    <Button onClick={handleAddStaff}>Add Staff</Button>
+                                </div>
+                                <div className="mt-4 rounded-md border">
+                                    {isLoadingStaff ? (
+                                        <div className="p-4 text-center text-sm text-muted-foreground">Loading staff...</div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
                                                 <TableRow>
-                                                    <TableCell colSpan={2} className="text-center text-muted-foreground">No staff usernames added yet.</TableCell>
+                                                    <TableHead>Username</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
                                                 </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                )}
+                                            </TableHeader>
+                                            <TableBody>
+                                                {staffData && staffData.length > 0 ? staffData.map((staff: {id: string}) => (
+                                                    <TableRow key={staff.id}>
+                                                        <TableCell className="font-medium">{staff.id}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveStaff(staff.id)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={2} className="text-center text-muted-foreground">No staff usernames added yet.</TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
                             </div>
                         </CardContent>
                       </Card>
