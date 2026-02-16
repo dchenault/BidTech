@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAccount } from '@/hooks/use-account';
 
 import { Button } from '@/components/ui/button';
@@ -19,11 +19,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Gavel, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function StaffLoginPage() {
   const params = useParams();
   const firestore = useFirestore();
+  const { user } = useUser();
   const { accountId } = useAccount();
+  const { toast } = useToast();
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
 
@@ -33,8 +36,8 @@ export default function StaffLoginPage() {
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!username.trim() || !firestore || !accountId || !auctionId) {
-      setError('Username cannot be empty.');
+    if (!username.trim() || !firestore || !accountId || !auctionId || !user) {
+      setError('Required information is missing.');
       return;
     }
 
@@ -42,23 +45,36 @@ export default function StaffLoginPage() {
     setError(null);
 
     try {
-      const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username.trim());
-      const staffDocSnap = await getDoc(staffDocRef);
+      // Step 1: Verify the username is valid for this auction.
+      const staffUsernameRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username.trim());
+      const staffUsernameSnap = await getDoc(staffUsernameRef);
 
-      if (staffDocSnap.exists()) {
-        // Save session info to localStorage and perform a hard redirect
-        localStorage.setItem('staffName', username.trim());
-        localStorage.setItem('activeAuctionId', auctionId);
-        localStorage.setItem('isStaffSession', 'true');
-        localStorage.setItem('staffAccountId', accountId); // Persist the account ID
-        window.location.href = `/dashboard/auctions/${auctionId}`;
-      } else {
-        setError('Invalid username for this auction.');
-        setIsLoading(false);
+      if (!staffUsernameSnap.exists()) {
+        throw new Error('Invalid username for this auction.');
       }
-    } catch (err) {
+      
+      // Step 2: Create a session marker document using the currently logged-in manager's UID.
+      // The security rules will check for this document's existence to grant staff permissions.
+      const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', user.uid);
+      await setDoc(staffSessionRef, { 
+          actingAs: username.trim(),
+          managerUid: user.uid,
+          createdAt: new Date(),
+      });
+
+      // Step 3: Save session info to localStorage and perform a hard redirect.
+      localStorage.setItem('staffName', username.trim());
+      localStorage.setItem('activeAuctionId', auctionId);
+      localStorage.setItem('isStaffSession', 'true');
+      localStorage.setItem('staffAccountId', accountId);
+
+      toast({ title: "Staff Session Started", description: `You are now acting as ${username.trim()}.`})
+
+      window.location.href = `/dashboard/auctions/${auctionId}`;
+
+    } catch (err: any) {
       console.error("Staff login error:", err);
-      setError('An error occurred during login. Please try again.');
+      setError(err.message || 'An error occurred during login. Please try again.');
       setIsLoading(false);
     }
   };

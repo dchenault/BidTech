@@ -112,56 +112,56 @@ service cloud.firestore {
         
         // -- HELPER FUNCTIONS FOR AUCTION SCOPE --
         function isOwnerOrManager() {
+          // An "owner" is the account admin. A "manager" is in the authorizedManagers map.
           let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-          // Check if the user is the original owner (via ownerId field)
-          let isOwner = isSignedIn() && auction.data.ownerId == request.auth.uid;
-          // Check if the user's email is in the authorizedManagers map
           let isManager = isSignedIn() && request.auth.token.email != null && (request.auth.token.email in auction.data.authorizedManagers);
-          
-          return isOwner || isManager;
+          return isAccountAdmin(accountId) || isManager;
         }
 
         function isAuthorizedStaff() {
-          // This function checks if the requesting user (who should be authenticated, e.g., anonymously)
-          // has a corresponding document in the auction's staff subcollection.
-          // This signifies an active, PIN-verified staff session.
+          // This function checks if the requesting user has an active, session document.
+          // This works for both anonymous PIN users and managers in a shadow session.
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
 
         // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
-        // Handshake: Allow anyone to fetch the basic auction doc for login
-        allow get: if true;
-        // Owners/Members can list all auctions in their account
+        allow get: if true; // Allow anyone to fetch the basic auction doc for login
         allow list: if isAccountMember(accountId);
-        // Members can create auctions
         allow create: if isAccountMember(accountId);
-        // Only owners/managers can update the auction doc
         allow update: if isOwnerOrManager();
-        // Only the original owner can delete the entire auction
-        allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+        allow delete: if isAccountAdmin(accountId); // Only the account admin can delete the auction
 
         // -- SUBCOLLECTION RULES --
         
         // Rules for the 'staff' subcollection itself
-        match /staff/{staffUserId} {
-          // Owner/manager can add/remove staff usernames
-          allow list, create, delete: if isOwnerOrManager();
-          // A user can create their own staff session doc if they have the PIN
-          // This rule is for the staff portal login itself.
-          allow create: if isSignedIn() && request.auth.uid == staffUserId &&
+        // Note: The documents in this collection have two purposes:
+        // 1. A list of valid usernames (created by admins).
+        // 2. Active session markers (keyed by UID, created by staff/managers).
+        match /staff/{staffDocId} {
+          // An owner/manager can add or remove staff *usernames*.
+          allow create, delete: if isOwnerOrManager();
+          
+          // An anonymous user can create their own session marker *if they have the PIN*.
+          allow create: if isSignedIn() && request.auth.uid == staffDocId &&
                          request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
-          // A staff member can read/delete their own session doc (to logout)
-          allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
-          // Staff cannot update their session doc
+          
+          // A manager can create their own session marker (for a shadow login).
+          allow create: if isOwnerOrManager() && request.auth.uid == staffDocId;
+          
+          // Staff can read their own session doc and owners/managers can list all staff/sessions.
+          allow read, list: if isOwnerOrManager() || (isSignedIn() && request.auth.uid == staffDocId);
+          
+          // A staff member can delete their own session doc to log out.
+          allow delete: if isSignedIn() && request.auth.uid == staffDocId;
+          
+          // No one can update a staff doc.
           allow update: if false;
         }
 
         // Rules for all other data subcollections (items, patrons, registered_patrons, etc.)
         match /{subcollection}/{docId} {
-            // Owners, managers, and staff can READ and SEARCH data.
             allow read, list: if isOwnerOrManager() || isAuthorizedStaff();
-            // Owners, managers, and staff can ADD and EDIT data.
             allow create, update: if isOwnerOrManager() || isAuthorizedStaff();
             // IMPORTANT: Only Owners and Managers can delete data. Staff cannot.
             allow delete: if isOwnerOrManager();
