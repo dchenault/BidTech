@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -78,13 +79,7 @@ service cloud.firestore {
       // No one can list all users or delete profiles from the client.
       allow list, delete: if false;
     }
-
-  match /auctions/{auctionId}/items/{itemId} {
-  // Allow read if the user is the owner of the auction
-  allow read: if request.auth != null && 
-               get(/databases/$(database)/documents/auctions/$(auctionId)).data.ownerId == request.auth.uid;
-}
-    
+  
     // The `invitations` collection stores invites for users to manage auctions.
     match /invitations/{inviteId} {
       // An admin of the target account can create or delete invites.
@@ -156,15 +151,17 @@ service cloud.firestore {
         
         // New 'staff' subcollection for staff sessions
         match /staff/{staffUserId} {
-          // Allow creation of a staff session document IF the user is authenticated (anonymously)
-          // and the provided PIN is correct. The PIN must be passed in the written document's data.
+          // Admin management of staff usernames
+          allow list, create, delete: if isOwnerOrManager();
+
+          // Staff self-service login via public portal (PIN check)
           allow create: if isSignedIn() && request.auth.uid == staffUserId &&
                          request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
           
-          // Allow the staff member to read or delete their own session document (e.g., on logout).
+          // Staff self-service logout or session check
           allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
           
-          allow update: if false; // Session docs are create/delete only.
+          allow update: if false; // No updates allowed to session docs.
         }
 
         // Rules for auction subcollections inherit from the auction's permissions.

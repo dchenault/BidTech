@@ -52,7 +52,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -102,6 +102,7 @@ export default function AuctionDetailsPage() {
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
+  const [newStaffUsername, setNewStaffUsername] = useState('');
   
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
@@ -115,6 +116,12 @@ export default function AuctionDetailsPage() {
     [firestore, accountId, auctionId]
   );
   const { data: registeredPatronsData, isLoading: isLoadingRegisteredPatrons } = useCollection<RegisteredPatron>(registeredPatronsRef);
+
+  const staffRef = useMemoFirebase(
+    () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff') : null),
+    [firestore, accountId, auctionId]
+  );
+  const { data: staffData, isLoading: isLoadingStaff } = useCollection(staffRef);
 
   const searchedItems = useMemo(() => {
     if (!items) return [];
@@ -450,6 +457,22 @@ export default function AuctionDetailsPage() {
             });
         }
     };
+
+    const handleAddStaff = async () => {
+        if (!firestore || !accountId || !auctionId || !newStaffUsername.trim()) return;
+        const username = newStaffUsername.trim();
+        const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username);
+        await setDoc(staffDocRef, { addedBy: user?.uid, createdAt: serverTimestamp() });
+        setNewStaffUsername('');
+        toast({ title: 'Staff Added', description: `Username "${username}" can now access the dashboard staff portal.`});
+    }
+
+    const handleRemoveStaff = async (username: string) => {
+        if (!firestore || !accountId || !auctionId) return;
+        const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username);
+        await deleteDoc(staffDocRef);
+        toast({ title: 'Staff Removed', description: `Username "${username}" has been revoked.`});
+    }
     
     const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
       <>
@@ -1063,7 +1086,7 @@ export default function AuctionDetailsPage() {
                         <CardHeader>
                           <CardTitle className="text-xl">Staff Access</CardTitle>
                           <CardDescription>
-                            Set a PIN for this auction to allow staff access via the Staff Portal.
+                            Set a PIN for this auction to allow staff access via the Public Staff Portal.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -1078,7 +1101,7 @@ export default function AuctionDetailsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                                <Label>Staff Portal Link</Label>
+                                <Label>Public Staff Portal Link</Label>
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
                                       id="staff-url"
@@ -1090,6 +1113,52 @@ export default function AuctionDetailsPage() {
                                       Copy Link
                                   </Button>
                               </div>
+                            </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl">On-Site Staff</CardTitle>
+                            <CardDescription>Manage usernames for staff using the dashboard's "shadow login" feature.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-center gap-2">
+                                <Input 
+                                    placeholder="New staff username"
+                                    value={newStaffUsername}
+                                    onChange={(e) => setNewStaffUsername(e.target.value)}
+                                />
+                                <Button onClick={handleAddStaff}>Add Staff</Button>
+                            </div>
+                            <div className="mt-4 rounded-md border">
+                                {isLoadingStaff ? (
+                                    <div className="p-4 text-center text-sm text-muted-foreground">Loading staff...</div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Username</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {staffData && staffData.length > 0 ? staffData.map(staff => (
+                                                <TableRow key={staff.id}>
+                                                    <TableCell className="font-medium">{staff.id}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveStaff(staff.id)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={2} className="text-center text-muted-foreground">No staff usernames added yet.</TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                )}
                             </div>
                         </CardContent>
                       </Card>
