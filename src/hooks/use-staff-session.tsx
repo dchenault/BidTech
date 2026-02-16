@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -17,7 +16,7 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // This code runs only on the client, after hydration.
-    const name = sessionStorage.getItem('staffName');
+    const name = localStorage.getItem('staffName');
     if (name) {
       setStaffName(name);
       setIsStaffSession(true);
@@ -25,10 +24,10 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logoutStaff = () => {
-    sessionStorage.removeItem('staffName');
-    sessionStorage.removeItem('activeAuctionId');
-    sessionStorage.removeItem('isStaffSession');
-    sessionStorage.removeItem('staffAccountId');
+    localStorage.removeItem('staffName');
+    localStorage.removeItem('activeAuctionId');
+    localStorage.removeItem('isStaffSession');
+    localStorage.removeItem('staffAccountId');
     setStaffName(null);
     setIsStaffSession(false);
     // Reload to clear all state and revert to admin view

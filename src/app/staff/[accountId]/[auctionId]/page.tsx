@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -23,7 +22,6 @@ import { AlertCircle, Gavel, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function PublicStaffLoginPage() {
-  const router = useRouter();
   const params = useParams();
   const { firestore, auth } = useFirebase();
   const { toast } = useToast();
@@ -90,17 +88,17 @@ export default function PublicStaffLoginPage() {
       });
 
       // 3. Save session info and redirect
-      sessionStorage.setItem('staffName', 'Staff'); // Using a generic name
-      sessionStorage.setItem('activeAuctionId', auctionId);
-      sessionStorage.setItem('isStaffSession', 'true');
-      sessionStorage.setItem('staffAccountId', accountId);
+      localStorage.setItem('staffName', 'Staff'); // Using a generic name
+      localStorage.setItem('activeAuctionId', auctionId);
+      localStorage.setItem('isStaffSession', 'true');
+      localStorage.setItem('staffAccountId', accountId);
 
       toast({
         title: "Login Successful",
         description: "You have been logged in as a staff member."
       });
 
-      router.push(`/dashboard/auctions/${auctionId}`);
+      window.location.href = `/dashboard/auctions/${auctionId}`;
 
     } catch (err: any) {
       console.error("Staff login error:", err);

@@ -33,7 +33,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // This effect runs only on the client.
     if (isStaffSession) {
-      const storedAccountId = sessionStorage.getItem('staffAccountId');
+      const storedAccountId = localStorage.getItem('staffAccountId');
       setStaffAccountId(storedAccountId);
     } else {
       setStaffAccountId(null);
@@ -44,7 +44,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const accountId = isStaffSession ? staffAccountId : userAccountId;
   
   // The provider is only "loading" if it's NOT a staff session and the regular user path is still resolving.
-  // For a staff session, the accountId is available synchronously from sessionStorage.
+  // For a staff session, the accountId is available synchronously from localStorage.
   const isLoading = !isStaffSession && isUserPathLoading;
 
   return (

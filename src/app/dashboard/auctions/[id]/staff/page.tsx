@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAccount } from '@/hooks/use-account';
@@ -21,7 +21,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Gavel, Loader2 } from 'lucide-react';
 
 export default function StaffLoginPage() {
-  const router = useRouter();
   const params = useParams();
   const firestore = useFirestore();
   const { accountId } = useAccount();
@@ -47,19 +46,19 @@ export default function StaffLoginPage() {
       const staffDocSnap = await getDoc(staffDocRef);
 
       if (staffDocSnap.exists()) {
-        // Save session info and redirect
-        sessionStorage.setItem('staffName', username.trim());
-        sessionStorage.setItem('activeAuctionId', auctionId);
-        sessionStorage.setItem('isStaffSession', 'true');
-        sessionStorage.setItem('staffAccountId', accountId); // Persist the account ID
-        router.push(`/dashboard/auctions/${auctionId}`);
+        // Save session info to localStorage and perform a hard redirect
+        localStorage.setItem('staffName', username.trim());
+        localStorage.setItem('activeAuctionId', auctionId);
+        localStorage.setItem('isStaffSession', 'true');
+        localStorage.setItem('staffAccountId', accountId); // Persist the account ID
+        window.location.href = `/dashboard/auctions/${auctionId}`;
       } else {
         setError('Invalid username for this auction.');
+        setIsLoading(false);
       }
     } catch (err) {
       console.error("Staff login error:", err);
       setError('An error occurred during login. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
