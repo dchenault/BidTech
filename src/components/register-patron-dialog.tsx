@@ -201,8 +201,8 @@ export function RegisterPatronDialog({
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="bidderNumber" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="bidderNumber">
                   Bidder #
                 </Label>
                 <Input
@@ -210,7 +210,6 @@ export function RegisterPatronDialog({
                   type="number"
                   value={bidderNumber}
                   onChange={(e) => setBidderNumber(e.target.value)}
-                  className="col-span-3"
                   placeholder="e.g. 101"
                   required
                   autoFocus
@@ -228,7 +227,7 @@ export function RegisterPatronDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         {renderContent()}
       </DialogContent>
     </Dialog>

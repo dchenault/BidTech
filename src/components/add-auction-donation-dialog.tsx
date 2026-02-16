@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -87,7 +88,7 @@ export function AddAuctionDonationDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Record a Donation</DialogTitle>
           <DialogDescription>
@@ -95,8 +96,8 @@ export function AddAuctionDonationDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="amount" className="text-right">
+          <div className="space-y-2">
+            <Label htmlFor="amount">
               Amount
             </Label>
             <Input
@@ -104,13 +105,12 @@ export function AddAuctionDonationDialog({
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="col-span-3"
               placeholder="e.g. 500.00"
               required
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="winner" className="text-right">
+          <div className="space-y-2">
+            <Label>
               Patron
             </Label>
             <Combobox
@@ -120,7 +120,7 @@ export function AddAuctionDonationDialog({
                 placeholder="Select a patron..."
                 searchPlaceholder="Search patrons..."
                 noResultsText="No patron found."
-                className="col-span-3"
+                className="w-full"
              />
           </div>
         </div>

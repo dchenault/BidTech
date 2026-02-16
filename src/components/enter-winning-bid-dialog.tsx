@@ -92,7 +92,7 @@ export function EnterWinningBidDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Enter Winning Bid for "{item.name}"</DialogTitle>
           <DialogDescription>
@@ -100,8 +100,8 @@ export function EnterWinningBidDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="bidAmount" className="text-right">
+          <div className="space-y-2">
+            <Label htmlFor="bidAmount">
               Bid Amount
             </Label>
             <Input
@@ -109,17 +109,16 @@ export function EnterWinningBidDialog({
               type="number"
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
-              className="col-span-3"
               placeholder="e.g. 150.00"
               required
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="winner" className="text-right">
+          <div className="space-y-2">
+            <Label htmlFor="winner">
               Winner
             </Label>
             <Select onValueChange={setWinnerId} value={winnerId} required>
-              <SelectTrigger className="col-span-3">
+              <SelectTrigger id="winner" className="w-full">
                 <SelectValue placeholder="Select a patron" />
               </SelectTrigger>
               <SelectContent>

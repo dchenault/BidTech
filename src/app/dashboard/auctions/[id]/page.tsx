@@ -767,12 +767,12 @@ export default function AuctionDetailsPage() {
     <>
       <div className="print:hidden">
         <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-y-4">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">{auction.name}</h1>
                 <p className="text-muted-foreground">{auction.description}</p>
             </div>
-             <div className="ml-auto flex items-center gap-2">
+             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <Button 
                         size="sm"
                         variant={auction.status === 'completed' ? 'default' : 'destructive'}
@@ -932,7 +932,7 @@ export default function AuctionDetailsPage() {
                     <Table>
                         <TableHeader>
                         <TableRow>
-                            <TableHead>Bidding #</TableHead>
+                            <TableHead>#</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead className="hidden md:table-cell">Phone</TableHead>
