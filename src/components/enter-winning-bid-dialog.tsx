@@ -96,7 +96,7 @@ export function EnterWinningBidDialog({
         <DialogHeader>
           <DialogTitle>Enter Winning Bid for "{item.name}"</DialogTitle>
           <DialogDescription>
-            Enter the final bid amount and select the winning patron. Both fields are required.
+            Enter the final bid amount and select the winning patron.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

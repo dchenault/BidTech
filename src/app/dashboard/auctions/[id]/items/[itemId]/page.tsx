@@ -110,7 +110,7 @@ export default function ItemDetailsPage() {
   return (
     <>
       <div className="grid gap-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Button variant="outline" size="icon" className="h-7 w-7" asChild>
             <Link href={`/dashboard/auctions/${auctionId}`}>
               <ChevronLeft className="h-4 w-4" />
@@ -120,8 +120,8 @@ export default function ItemDetailsPage() {
           <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
             {item.name}
           </h1>
-          <Badge variant="outline">{item.category.name}</Badge>
-          <div className="ml-auto flex items-center gap-2">
+          <Badge variant="outline" className="shrink-0">{item.category.name}</Badge>
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:ml-auto sm:w-auto">
             <Button
               size="sm"
               variant="outline"
@@ -141,36 +141,36 @@ export default function ItemDetailsPage() {
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="lg:col-span-2 space-y-6">
-            <CardHeader>
-              <CardTitle>{item.name}</CardTitle>
-              <CardDescription>{item.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Item Image</CardTitle>
-                </CardHeader>
-                <CardContent className="flex justify-center items-center">
-                  <div className="relative aspect-video w-full max-w-lg bg-muted rounded-lg flex items-center justify-center">
-                    {item.imageUrl ? (
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        fill
-                        className="object-contain rounded-lg"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <ImageIcon className="h-12 w-12" />
-                        <p>No image uploaded</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </CardContent>
-          </Card>
+          <div className="lg:col-span-2 space-y-6">
+             <Card>
+              <CardHeader>
+                <CardTitle>Item Image</CardTitle>
+              </CardHeader>
+              <CardContent className="flex justify-center items-center">
+                <div className="relative aspect-video w-full max-w-lg bg-muted rounded-lg flex items-center justify-center">
+                  {item.imageUrl ? (
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      fill
+                      className="object-contain rounded-lg"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <ImageIcon className="h-12 w-12" />
+                      <p>No image uploaded</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{item.name}</CardTitle>
+                <CardDescription>{item.description}</CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
           <div className="space-y-4">
             <Card>
               <CardHeader>
@@ -197,13 +197,13 @@ export default function ItemDetailsPage() {
                   <CardTitle>Donated By</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4">
-                    <Avatar className="hidden h-12 w-12 sm:flex">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Avatar className="h-12 w-12 sm:flex">
                       <AvatarFallback>
                         <Gift />
                       </AvatarFallback>
                     </Avatar>
-                    <div className="grid gap-1">
+                    <div className="grid gap-1 flex-1">
                       <p className="text-sm font-medium leading-none">
                         {item.donor.name}
                       </p>
@@ -211,8 +211,8 @@ export default function ItemDetailsPage() {
                         {item.donor.email}
                       </p>
                     </div>
-                    <div className="ml-auto font-medium">
-                      <Button asChild size="sm" variant="outline">
+                    <div className="w-full sm:w-auto">
+                      <Button asChild size="sm" variant="outline" className="w-full">
                         <Link href={`/dashboard/donors/${item.donor.id}`}>
                           View Donor
                         </Link>
@@ -228,8 +228,8 @@ export default function ItemDetailsPage() {
                   <CardTitle>Winner</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4">
-                    <Avatar className="hidden h-12 w-12 sm:flex">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Avatar className="h-12 w-12 sm:flex">
                       <AvatarImage
                         src={userAvatar?.imageUrl}
                         alt={item.winner.firstName}
@@ -239,7 +239,7 @@ export default function ItemDetailsPage() {
                         {item.winner.lastName.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="grid gap-1">
+                    <div className="grid gap-1 flex-1">
                       <p className="text-sm font-medium leading-none">
                         {item.winner.firstName} {item.winner.lastName}
                       </p>
@@ -247,8 +247,8 @@ export default function ItemDetailsPage() {
                         {item.winner.email}
                       </p>
                     </div>
-                    <div className="ml-auto font-medium">
-                      <Button asChild size="sm" variant="outline">
+                     <div className="w-full sm:w-auto">
+                      <Button asChild size="sm" variant="outline" className="w-full">
                         <Link href={`/dashboard/patrons/${item.winner.id}`}>
                           View Patron
                         </Link>

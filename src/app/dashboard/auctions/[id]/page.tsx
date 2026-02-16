@@ -460,28 +460,28 @@ export default function AuctionDetailsPage() {
                         Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden md:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">
                         Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
-                <TableHead className="hidden md:table-cell">
+                <TableHead className="hidden lg:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4 h-8">
                         Est. Value {sortConfig?.key === 'estimatedValue' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
-                <TableHead className="hidden md:table-cell">
+                <TableHead className="hidden lg:table-cell">
                       <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
                         Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
-                <TableHead className="hidden md:table-cell">
+                <TableHead className="hidden lg:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">
                         Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
                 <TableHead>
-                    Actions
+                    <span className="sr-only">Actions</span>
                 </TableHead>
             </TableRow>
             </TableHeader>
@@ -511,16 +511,16 @@ export default function AuctionDetailsPage() {
                 <TableCell className="font-medium">
                     {item.name}
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                     <Badge variant="outline">{item.category.name}</Badge>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">
+                <TableCell className="hidden lg:table-cell">
                     {formatCurrency(item.estimatedValue)}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">
+                <TableCell className="hidden lg:table-cell">
                     {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">
+                <TableCell className="hidden lg:table-cell">
                     {item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}
                 </TableCell>
                 <TableCell>
