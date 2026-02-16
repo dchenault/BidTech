@@ -125,11 +125,11 @@ export default function AuctionDetailsPage() {
 
   const searchedItems = useMemo(() => {
     if (!items) return [];
-    const actualItems = items.filter(item => !item.sku.toString().startsWith('DON-'));
+    const actualItems = items.filter((item: Item) => !item.sku.toString().startsWith('DON-'));
 
     if (!searchQuery) return actualItems;
     
-    return actualItems.filter(item => 
+    return actualItems.filter((item: Item) => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         item.sku.toString().includes(searchQuery)
@@ -139,7 +139,7 @@ export default function AuctionDetailsPage() {
   const sortedAndSearchedItems = useMemo(() => {
     let sortableItems = [...searchedItems];
     if (sortConfig) {
-      sortableItems.sort((a, b) => {
+      sortableItems.sort((a: Item, b: Item) => {
         let aValue: any;
         let bValue: any;
 
@@ -176,11 +176,11 @@ export default function AuctionDetailsPage() {
 
   const searchedDonations = useMemo(() => {
       if (!items) return [];
-      const donations = items.filter(item => item.sku.toString().startsWith('DON-'));
+      const donations = items.filter((item: Item) => item.sku.toString().startsWith('DON-'));
 
       if (!searchQuery) return donations;
 
-      return donations.filter(item =>
+      return donations.filter((item: Item) =>
           item.winner?.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.winner?.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.sku.toString().includes(searchQuery)
@@ -189,10 +189,10 @@ export default function AuctionDetailsPage() {
 
   const { liveItems, silentItemsByLot } = useMemo(() => {
     if (!sortedAndSearchedItems) return { liveItems: [], silentItemsByLot: new Map() };
-    const liveItems = sortedAndSearchedItems.filter(item => !item.lotId);
+    const liveItems = sortedAndSearchedItems.filter((item: Item) => !item.lotId);
     const silentItemsByLot = sortedAndSearchedItems
-        .filter(item => item.lotId)
-        .reduce((acc, item) => {
+        .filter((item: Item) => item.lotId)
+        .reduce((acc, item: Item) => {
             if (!item.lotId) return acc;
             if (!acc.has(item.lotId)) {
                 acc.set(item.lotId, []);
@@ -209,8 +209,8 @@ export default function AuctionDetailsPage() {
     if (!registeredPatronsData || isLoadingPatrons) return [];
   
     return registeredPatronsData
-      .map(rp => {
-        const patronDetails = patrons.find(p => p.id === rp.patronId);
+      .map((rp: RegisteredPatron) => {
+        const patronDetails = patrons.find((p: Patron) => p.id === rp.patronId);
         if (!patronDetails) return null;
   
         return {
@@ -220,13 +220,13 @@ export default function AuctionDetailsPage() {
           biddingNumber: rp.bidderNumber,
         };
       })
-      .filter((p): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
+      .filter((p: (Patron & { registeredPatronDocId: string; biddingNumber: number; }) | null): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
   }, [registeredPatronsData, patrons, isLoadingPatrons]);
 
 
   const filteredRegisteredPatrons = useMemo(() => {
     if (!searchQuery) return registeredPatronsWithDetails;
-    return registeredPatronsWithDetails.filter(p =>
+    return registeredPatronsWithDetails.filter((p: Patron & {biddingNumber: number}) =>
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.biddingNumber?.toString().includes(searchQuery)
@@ -234,7 +234,7 @@ export default function AuctionDetailsPage() {
   }, [registeredPatronsWithDetails, searchQuery]);
 
 
-  if (!auction || !accountId) {
+  if (!auction || (!accountId && !isStaffSession)) {
     return <div>Loading auction...</div>;
   }
 
@@ -519,7 +519,7 @@ export default function AuctionDetailsPage() {
             </TableRow>
             </TableHeader>
             <TableBody>
-            {itemsToRender.map((item) => (
+            {itemsToRender.map((item: Item) => (
                 <TableRow 
                     key={item.id}
                     onClick={() => router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}
@@ -621,7 +621,7 @@ export default function AuctionDetailsPage() {
         </Card>
       ) : (
         <>
-          {lots.map(lot => {
+          {lots.map((lot: Lot) => {
             const lotItems = silentItemsByLot.get(lot.id) || [];
             const hasItems = lotItems.length > 0;
             return (
@@ -722,7 +722,7 @@ export default function AuctionDetailsPage() {
           <Card><CardContent className="text-center text-muted-foreground py-8">Loading lots...</CardContent></Card>
         ) : lots.length > 0 ? (
           <>
-            {lots.map(lot => {
+            {lots.map((lot: Lot) => {
               const lotItems = silentItemsByLot.get(lot.id) || [];
               const hasItems = lotItems.length > 0;
               return (
@@ -901,7 +901,7 @@ export default function AuctionDetailsPage() {
                                       </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                      {searchedDonations.map((donation) => (
+                                      {searchedDonations.map((donation: Item) => (
                                           <TableRow 
                                               key={donation.id}
                                               onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
@@ -975,7 +975,7 @@ export default function AuctionDetailsPage() {
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {filteredRegisteredPatrons.map((patron) => (
+                        {filteredRegisteredPatrons.map((patron: Patron & { registeredPatronDocId: string, biddingNumber: number }) => (
                             <TableRow 
                                 key={patron.id}
                                 onClick={() => router.push(`/dashboard/patrons/${patron.id}`)}
@@ -1033,7 +1033,7 @@ export default function AuctionDetailsPage() {
                                   </TableRow>
                               </TableHeader>
                               <TableBody>
-                                  {auction.categories?.map(category => (
+                                  {auction.categories?.map((category: Category) => (
                                   <TableRow key={category.id}>
                                       <TableCell className="font-medium">{category.name}</TableCell>
                                       <TableCell className="text-right">
@@ -1142,7 +1142,7 @@ export default function AuctionDetailsPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {staffData && staffData.length > 0 ? staffData.map(staff => (
+                                            {staffData && staffData.length > 0 ? staffData.map((staff: {id: string}) => (
                                                 <TableRow key={staff.id}>
                                                     <TableCell className="font-medium">{staff.id}</TableCell>
                                                     <TableCell className="text-right">
