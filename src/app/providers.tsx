@@ -6,16 +6,19 @@ import { Toaster } from '@/components/ui/toaster';
 import { SearchProvider } from '@/hooks/use-search';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AccountProvider } from '@/hooks/use-account';
+import { StaffSessionProvider } from '@/hooks/use-staff-session';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system">
       <FirebaseClientProvider>
         <AccountProvider>
-          <SearchProvider>
-            {children}
-            <Toaster />
-          </SearchProvider>
+          <StaffSessionProvider>
+            <SearchProvider>
+              {children}
+              <Toaster />
+            </SearchProvider>
+          </StaffSessionProvider>
         </AccountProvider>
       </FirebaseClientProvider>
     </ThemeProvider>

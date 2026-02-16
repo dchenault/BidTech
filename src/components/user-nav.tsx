@@ -17,11 +17,13 @@ import { useRouter } from 'next/navigation';
 import { ThemeToggle } from './theme-toggle';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { useStaffSession } from '@/hooks/use-staff-session';
 
 export function UserNav() {
   const router = useRouter();
   const auth = useAuth();
   const { user } = useUser();
+  const { isStaffSession, staffName, logoutStaff } = useStaffSession();
 
   const handleLogout = () => {
     if (auth) {
@@ -30,6 +32,18 @@ export function UserNav() {
       });
     }
   };
+
+  if (isStaffSession) {
+    return (
+        <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <div className="flex flex-col items-end">
+                <p className="text-sm font-medium leading-none">Staff: {staffName}</p>
+                <Button variant="link" className="p-0 h-auto text-xs" onClick={logoutStaff}>End Session</Button>
+            </div>
+        </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-4">

@@ -52,7 +52,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc, updateDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -68,6 +68,8 @@ import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
+import { useStaffSession } from '@/hooks/use-staff-session';
+import { Label } from '@/components/ui/label';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -77,6 +79,7 @@ export default function AuctionDetailsPage() {
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId } = useAccount();
   const { toast } = useToast();
+  const { isStaffSession, staffName } = useStaffSession();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
@@ -262,11 +265,9 @@ export default function AuctionDetailsPage() {
     });
   }
 
-    const handleCopyUrl = () => {
-    if (!auction.isPublic || !auction.slug) return;
-    const url = `${window.location.origin}/catalog/${auction.accountId}/${auction.slug}`;
+    const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url).then(() => {
-        toast({ title: 'Public Link Copied!', description: 'The link to the public catalog has been copied to your clipboard.'});
+        toast({ title: 'Link Copied!', description: 'The staff portal link has been copied to your clipboard.'});
     }).catch(err => {
         toast({ variant: 'destructive', title: 'Failed to Copy Link'});
         console.error('Failed to copy: ', err);
@@ -329,11 +330,16 @@ export default function AuctionDetailsPage() {
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     
     try {
-      await updateDoc(itemRef, { 
+      const payload: { [key: string]: any } = { 
         winningBid: winningBid, 
         winnerId: winner.id, 
-        winner: winner 
-      });
+        winner: winner,
+        metadata: {
+            updatedBy: isStaffSession ? `Staff: ${staffName}` : user?.email || 'Unknown User',
+            updatedAt: serverTimestamp()
+        }
+      };
+      await updateDoc(itemRef, payload);
       setIsWinningBidDialogOpen(false);
       setSelectedItem(null);
     } catch (error) {
@@ -419,6 +425,10 @@ export default function AuctionDetailsPage() {
       auctionId: auctionId,
       patronId: patron.id,
       bidderNumber: bidderNumber,
+      metadata: {
+        updatedBy: isStaffSession ? `Staff: ${staffName}` : user?.email || 'Unknown User',
+        updatedAt: serverTimestamp()
+      }
     };
     
     await addDoc(registeredPatronsRef, newRegistrationData);
@@ -812,9 +822,9 @@ export default function AuctionDetailsPage() {
             <div className="flex items-center">
                 <TabsList>
                     <TabsTrigger value="items">Items</TabsTrigger>
-                    <TabsTrigger value="donations">Donations</TabsTrigger>
+                    {!isStaffSession && <TabsTrigger value="donations">Donations</TabsTrigger>}
                     <TabsTrigger value="patrons">Patrons</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    {!isStaffSession && <TabsTrigger value="settings">Settings</TabsTrigger>}
                 </TabsList>
             </div>
             <TabsContent value="items" className="mt-4 space-y-4">
@@ -832,75 +842,77 @@ export default function AuctionDetailsPage() {
                  )}
                 {renderAuctionContent()}
             </TabsContent>
-            <TabsContent value="donations" className="space-y-4">
-                 <Card>
-                    <CardHeader className="flex-row items-center justify-between">
-                        <div>
-                            <CardTitle>Donations</CardTitle>
-                            <CardDescription>Cash donations made during this auction.</CardDescription>
-                        </div>
-                        <Button size="sm" onClick={() => setIsAddDonationDialogOpen(true)}>
-                            <HeartHandshake className="mr-2 h-4 w-4" />
-                            Add Donation
-                        </Button>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="relative pb-4">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Search donations by patron name or SKU..."
-                                className="w-full rounded-lg bg-background pl-8"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                        {isLoadingItems ? (
-                            <div className="text-center text-muted-foreground py-8">Loading donations...</div>
-                        ) : searchedDonations.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Patron</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>SKU</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {searchedDonations.map((donation) => (
-                                        <TableRow 
-                                            key={donation.id}
-                                            onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
-                                            className={cn(donation.winner?.id && "cursor-pointer")}
-                                        >
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar className="hidden h-9 w-9 sm:flex">
-                                                        <AvatarImage src={donation.winner?.avatarUrl} alt="Avatar" />
-                                                        <AvatarFallback>{donation.winner?.firstName?.charAt(0)}{donation.winner?.lastName?.charAt(0)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="grid gap-0.5">
-                                                        <p className="font-medium">
-                                                            {donation.winner?.firstName} {donation.winner?.lastName}
-                                                        </p>
-                                                        <p className="text-xs text-muted-foreground">{donation.winner?.email}</p>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="font-medium text-green-600">{formatCurrency(donation.winningBid || 0)}</TableCell>
-                                            <TableCell className="font-mono text-muted-foreground">{donation.sku}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            <div className="text-center text-muted-foreground py-8">
-                                No donations found{searchQuery && ` for "${searchQuery}"`}.
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
+            {!isStaffSession && (
+              <TabsContent value="donations" className="space-y-4">
+                  <Card>
+                      <CardHeader className="flex-row items-center justify-between">
+                          <div>
+                              <CardTitle>Donations</CardTitle>
+                              <CardDescription>Cash donations made during this auction.</CardDescription>
+                          </div>
+                          <Button size="sm" onClick={() => setIsAddDonationDialogOpen(true)}>
+                              <HeartHandshake className="mr-2 h-4 w-4" />
+                              Add Donation
+                          </Button>
+                      </CardHeader>
+                      <CardContent>
+                          <div className="relative pb-4">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                  type="search"
+                                  placeholder="Search donations by patron name or SKU..."
+                                  className="w-full rounded-lg bg-background pl-8"
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                              />
+                          </div>
+                          {isLoadingItems ? (
+                              <div className="text-center text-muted-foreground py-8">Loading donations...</div>
+                          ) : searchedDonations.length > 0 ? (
+                              <Table>
+                                  <TableHeader>
+                                      <TableRow>
+                                          <TableHead>Patron</TableHead>
+                                          <TableHead>Amount</TableHead>
+                                          <TableHead>SKU</TableHead>
+                                      </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                      {searchedDonations.map((donation) => (
+                                          <TableRow 
+                                              key={donation.id}
+                                              onClick={() => donation.winner?.id && router.push(`/dashboard/patrons/${donation.winner.id}`)}
+                                              className={cn(donation.winner?.id && "cursor-pointer")}
+                                          >
+                                              <TableCell>
+                                                  <div className="flex items-center gap-3">
+                                                      <Avatar className="hidden h-9 w-9 sm:flex">
+                                                          <AvatarImage src={donation.winner?.avatarUrl} alt="Avatar" />
+                                                          <AvatarFallback>{donation.winner?.firstName?.charAt(0)}{donation.winner?.lastName?.charAt(0)}</AvatarFallback>
+                                                      </Avatar>
+                                                      <div className="grid gap-0.5">
+                                                          <p className="font-medium">
+                                                              {donation.winner?.firstName} {donation.winner?.lastName}
+                                                          </p>
+                                                          <p className="text-xs text-muted-foreground">{donation.winner?.email}</p>
+                                                      </div>
+                                                  </div>
+                                              </TableCell>
+                                              <TableCell className="font-medium text-green-600">{formatCurrency(donation.winningBid || 0)}</TableCell>
+                                              <TableCell className="font-mono text-muted-foreground">{donation.sku}</TableCell>
+                                          </TableRow>
+                                      ))}
+                                  </TableBody>
+                              </Table>
+                          ) : (
+                              <div className="text-center text-muted-foreground py-8">
+                                  No donations found{searchQuery && ` for "${searchQuery}"`}.
+                              </div>
+                          )}
+                      </CardContent>
+                  </Card>
+              </TabsContent>
+            )}
             <TabsContent value="patrons" className="space-y-4">
                 <Card>
                 <CardHeader className='flex-row items-center justify-between'>
@@ -974,80 +986,116 @@ export default function AuctionDetailsPage() {
                 </CardContent>
                 </Card>
             </TabsContent>
-            <TabsContent value="settings">
-                <div className="grid gap-6">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="text-xl">Item Categories</CardTitle>
-                                <CardDescription>Manage the categories for items in this auction.</CardDescription>
-                            </div>
-                            <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Category
-                            </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                            <TableHeader>
-                                <TableRow>
-                                <TableHead>Category Name</TableHead>
-                                <TableHead className="w-[150px] text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {auction.categories?.map(category => (
-                                <TableRow key={category.id}>
-                                    <TableCell className="font-medium">{category.name}</TableCell>
-                                    <TableCell className="text-right">
-                                      <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
-                                          <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
-                                          <Trash2 className="h-4 w-4" />
-                                          <span className="sr-only">Delete Category</span>
-                                      </Button>
-                                    </TableCell>
-                                </TableRow>
-                                ))}
-                            </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl">Public Online Catalog</CardTitle>
-                            <CardDescription>Manage and share the public URL for your auction catalog.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {auction.isPublic && auction.slug ? (
-                                <div className="space-y-4">
-                                    <p className="text-sm text-muted-foreground">
-                                        Your public catalog is live. Share this link with potential bidders.
-                                    </p>
-                                    <div className="flex w-full items-center space-x-2">
-                                        <Input
-                                            id="public-url"
-                                            value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
-                                            readOnly
-                                        />
-                                        <Button type="button" onClick={handleCopyUrl}>
-                                            <Copy className="mr-2 h-4 w-4" />
-                                            Copy Link
+            {!isStaffSession && (
+              <TabsContent value="settings">
+                  <div className="grid gap-6">
+                      <Card>
+                          <CardHeader>
+                              <div className="flex items-center justify-between">
+                              <div>
+                                  <CardTitle className="text-xl">Item Categories</CardTitle>
+                                  <CardDescription>Manage the categories for items in this auction.</CardDescription>
+                              </div>
+                              <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
+                                  <PlusCircle className="mr-2 h-4 w-4" /> Add Category
+                              </Button>
+                              </div>
+                          </CardHeader>
+                          <CardContent>
+                              <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                  <TableHead>Category Name</TableHead>
+                                  <TableHead className="w-[150px] text-right">Actions</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {auction.categories?.map(category => (
+                                  <TableRow key={category.id}>
+                                      <TableCell className="font-medium">{category.name}</TableCell>
+                                      <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
+                                            <Pencil className="h-4 w-4" />
                                         </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-sm text-muted-foreground">
-                                    This auction's catalog is private. To generate a shareable public link,
-                                    edit the auction and enable the "Make Catalog Public" option.
-                                </div>
-                            )}
+                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="sr-only">Delete Category</span>
+                                        </Button>
+                                      </TableCell>
+                                  </TableRow>
+                                  ))}
+                              </TableBody>
+                              </Table>
+                          </CardContent>
+                      </Card>
+                      <Card>
+                          <CardHeader>
+                              <CardTitle className="text-xl">Public Online Catalog</CardTitle>
+                              <CardDescription>Manage and share the public URL for your auction catalog.</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                              {auction.isPublic && auction.slug ? (
+                                  <div className="space-y-4">
+                                      <p className="text-sm text-muted-foreground">
+                                          Your public catalog is live. Share this link with potential bidders.
+                                      </p>
+                                      <div className="flex w-full items-center space-x-2">
+                                          <Input
+                                              id="public-url"
+                                              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
+                                              readOnly
+                                          />
+                                          <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`)}>
+                                              <Copy className="mr-2 h-4 w-4" />
+                                              Copy Link
+                                          </Button>
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <div className="text-sm text-muted-foreground">
+                                      This auction's catalog is private. To generate a shareable public link,
+                                      edit the auction and enable the "Make Catalog Public" option.
+                                  </div>
+                              )}
+                          </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-xl">Staff Access</CardTitle>
+                          <CardDescription>
+                            Set a PIN for this auction to allow staff access via the Staff Portal.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           <div className="space-y-2">
+                              <Label htmlFor="staffPin">Staff PIN</Label>
+                              <Input
+                                id="staffPin"
+                                type="text"
+                                placeholder="Enter a 4-8 digit PIN"
+                                defaultValue={auction.staffPin || ''}
+                                onBlur={(e) => updateAuction(auctionId, { staffPin: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Staff Portal Link</Label>
+                                <div className="flex w-full items-center space-x-2">
+                                  <Input
+                                      id="staff-url"
+                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${auctionId}`}
+                                      readOnly
+                                  />
+                                  <Button type="button" onClick={() => handleCopyUrl(`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${auctionId}`)}>
+                                      <Copy className="mr-2 h-4 w-4" />
+                                      Copy Link
+                                  </Button>
+                              </div>
+                            </div>
                         </CardContent>
-                    </Card>
-                </div>
-            </TabsContent>
+                      </Card>
+                  </div>
+              </TabsContent>
+            )}
             </Tabs>
         </div>
       </div>

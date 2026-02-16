@@ -48,6 +48,10 @@ export type Item = {
   donor?: Donor;
   imageUrl?: string;
   thumbnailUrl?: string;
+  metadata?: {
+      updatedBy: string;
+      updatedAt: any;
+  };
 };
 
 export type Lot = {
@@ -86,9 +90,10 @@ export type Auction = {
   categories: Category[];
   lots: Lot[];
   accountId: string;
-  managers?: Record<string, string>; // Map of UID to role
+  authorizedManagers?: string[];
   slug?: string;
   isPublic?: boolean;
+  staffPin?: string;
 };
 
 export type Account = {
@@ -124,6 +129,10 @@ export type RegisteredPatron = {
     patronId: string;
     bidderNumber: number;
     accountId: string;
+    metadata?: {
+        updatedBy: string;
+        updatedAt: any;
+    };
 };
 
 //made updates
@@ -148,6 +157,7 @@ export const auctionFormSchema = z.object({
     required_error: "A start date is required.",
   }),
   isPublic: z.boolean().default(false).optional(),
+  staffPin: z.string().optional(),
 });
 
 export type FormValues = z.infer<typeof auctionFormSchema>;
