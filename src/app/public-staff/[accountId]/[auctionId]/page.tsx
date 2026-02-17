@@ -50,7 +50,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -77,6 +77,7 @@ export default function PublicStaffAuctionPage() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const { user, isUserLoading } = useUser();
   
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
@@ -120,8 +121,9 @@ export default function PublicStaffAuctionPage() {
     const staffName = localStorage.getItem('staffName');
     const sessionAccountId = localStorage.getItem('staffAccountId');
     const sessionAuctionId = localStorage.getItem('activeAuctionId');
+    const isSession = localStorage.getItem('isStaffSession') === 'true';
     
-    if (staffName && sessionAccountId === accountId && sessionAuctionId === auctionId) {
+    if (staffName && isSession && sessionAccountId === accountId && sessionAuctionId === auctionId) {
         setIsAuthorized(true);
         setStaffName(staffName);
     } else {
@@ -131,8 +133,11 @@ export default function PublicStaffAuctionPage() {
 
   // --- Direct Data Fetching ---
   useEffect(() => {
-    if (!isAuthorized || !firestore || !accountId || !auctionId) {
-        if(isAuthorized === false) setIsLoading(false);
+    if (isUserLoading) {
+      return; // Wait for auth state to be resolved
+    }
+    if (!isAuthorized || !firestore || !accountId || !auctionId || !user) {
+        if(isAuthorized === false || (isAuthorized && !user && !isUserLoading)) setIsLoading(false);
         return;
     }
 
@@ -158,7 +163,6 @@ export default function PublicStaffAuctionPage() {
       ),
     ];
 
-    // Use getDocs for initial load completion check
     const checkInitialLoad = async () => {
         try {
             await Promise.all([
@@ -167,14 +171,14 @@ export default function PublicStaffAuctionPage() {
             setIsLoading(false);
         } catch (error) {
             console.error("Error during initial data load:", error);
-            setIsLoading(false); // Stop loading on error
+            setIsLoading(false);
         }
     };
     checkInitialLoad();
 
     return () => unsubscribers.forEach(unsub => unsub());
 
-  }, [isAuthorized, firestore, accountId, auctionId]);
+  }, [isAuthorized, firestore, accountId, auctionId, user, isUserLoading]);
   
   // --- Re-implemented Actions ---
   const updateAuction = useCallback(async (updatedAuctionData: Partial<Auction>) => {
@@ -183,7 +187,6 @@ export default function PublicStaffAuctionPage() {
     await updateDoc(auctionDocRef, updatedAuctionData);
   }, [firestore, accountId, auctionId]);
   
-  // Duplicated from useAuctions hook to be self-contained
   const addDonationToAuction = useCallback(async (patron: Patron, amount: number, isPaid: boolean = false) => {
       if (!firestore || !accountId || !auctionId) throw new Error("Missing context");
 
@@ -297,7 +300,7 @@ export default function PublicStaffAuctionPage() {
   }, [registeredPatronsWithDetails, searchQuery]);
   
   // --- Render logic ---
-  if (isAuthorized === null) {
+  if (isAuthorized === null || (isAuthorized && isUserLoading)) {
       return (
           <div className="flex h-full flex-1 flex-col items-center justify-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -348,11 +351,9 @@ export default function PublicStaffAuctionPage() {
     navigator.clipboard.writeText(url).then(() => toast({ title: 'Staff Login Link Copied!'})).catch(err => toast({ variant: 'destructive', title: 'Failed to Copy Link'}));
   };
   
-  // ... Dialog handlers ...
   const handleOpenWinningBidDialog = (item: Item) => { setSelectedItem(item); setIsWinningBidDialogOpen(true); };
   const handleOpenEditDialog = (item: Item) => { setSelectedItem(item); setIsEditDialogOpen(true); };
   
-  // --- Re-implemented actions ---
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
     if (!selectedItem || !firestore || !accountId) return;
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', selectedItem.id);
@@ -361,16 +362,16 @@ export default function PublicStaffAuctionPage() {
     setSelectedItem(null);
   };
 
-  const handleItemAdd = async (newItemData: any) => {
+  const handleItemAdd = async (itemData: any) => {
     if (!firestore || !accountId || !storage) throw new Error('Cannot add item: missing context.');
     try {
-        const finalImageUrl = newItemData.imageUrl && newItemData.imageUrl.startsWith('data:') 
-            ? await uploadDataUriAndGetURL(storage, newItemData.imageUrl, `items/${accountId}/${auctionId}`)
+        const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:') 
+            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, `items/${accountId}/${auctionId}`)
             : undefined;
 
-        if (newItemData.sku && newItemData.sku.trim() !== '') {
-            const skuQuery = query(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items'), where('sku', '==', newItemData.sku.trim()));
-            if (!(await getDocs(skuQuery)).empty) throw new Error(`SKU "${newItemData.sku.trim()}" is already in use.`);
+        if (itemData.sku && itemData.sku.trim() !== '') {
+            const skuQuery = query(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items'), where('sku', '==', itemData.sku.trim()));
+            if (!(await getDocs(skuQuery)).empty) throw new Error(`SKU "${itemData.sku.trim()}" is already in use.`);
         }
 
         await runTransaction(firestore, async (transaction) => {
@@ -382,39 +383,39 @@ export default function PublicStaffAuctionPage() {
 
             const auctionData = auctionSnap.data() as Auction;
             const accountData = accountSnap.data() as Account;
-            let newSku: string | number = newItemData.sku?.trim() || (accountData.lastItemSku || 999) + 1;
+            let newSku: string | number = itemData.sku?.trim() || (accountData.lastItemSku || 999) + 1;
             
-            const category = auctionData.categories.find(c => c.name === newItemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+            const category = auctionData.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
             let donor: Donor | undefined;
-            if (newItemData.donorId) {
-                const donorSnap = await transaction.get(doc(firestore, 'accounts', accountId, 'donors', newItemData.donorId));
+            if (itemData.donorId) {
+                const donorSnap = await transaction.get(doc(firestore, 'accounts', accountId, 'donors', itemData.donorId));
                 if (donorSnap.exists()) donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
             }
 
             const newItemPayload: Omit<Item, 'id'> = {
-                name: newItemData.name, description: newItemData.description || "", estimatedValue: newItemData.estimatedValue, sku: newSku, category, auctionId, accountId, paid: false, categoryId: category.id,
-                ...(newItemData.lotId && { lotId: newItemData.lotId }), ...(newItemData.donorId && { donorId: newItemData.donorId }), ...(donor && { donor: donor }), ...(finalImageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl }),
+                name: itemData.name, description: itemData.description || "", estimatedValue: itemData.estimatedValue, sku: newSku, category, auctionId, accountId, paid: false, categoryId: category.id,
+                ...(itemData.lotId && { lotId: itemData.lotId }), ...(itemData.donorId && { donorId: itemData.donorId }), ...(donor && { donor: donor }), ...(finalImageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl }),
             };
             
             transaction.set(doc(collection(auctionRef, 'items')), newItemPayload);
             transaction.update(auctionRef, { itemCount: increment(1) });
             if (typeof newSku === 'number') transaction.update(accountRef, { lastItemSku: newSku });
         });
-        toast({ title: "Success", description: `"${newItemData.name}" added successfully.` });
+        toast({ title: "Success", description: `"${itemData.name}" added successfully.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Error", description: error.message });
         throw error;
     }
   };
 
-  const handleItemUpdate = async (updatedItemData: any) => {
+  const handleItemUpdate = async (itemData: any) => {
     if (!selectedItem || !firestore || !accountId || !storage) return;
     try {
-        const finalImageUrl = updatedItemData.imageUrl && updatedItemData.imageUrl.startsWith('data:')
-            ? await uploadDataUriAndGetURL(storage, updatedItemData.imageUrl, `items/${accountId}/${auctionId}`)
-            : (updatedItemData.imageUrl === "" ? deleteField() : updatedItemData.imageUrl);
+        const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:')
+            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, `items/${accountId}/${auctionId}`)
+            : (itemData.imageUrl === "" ? deleteField() : itemData.imageUrl);
         
-        if (updatedItemData.imageUrl === "" && selectedItem.imageUrl) await deleteFileByUrl(storage, selectedItem.imageUrl);
+        if (itemData.imageUrl === "" && selectedItem.imageUrl) await deleteFileByUrl(storage, selectedItem.imageUrl);
         
         await runTransaction(firestore, async (transaction) => {
             const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', selectedItem.id);
@@ -423,23 +424,23 @@ export default function PublicStaffAuctionPage() {
             if (!auctionSnap.exists()) throw new Error("Auction not found");
             const auctionData = auctionSnap.data() as Auction;
             
-            const category = auctionData.categories.find(c => c.name === updatedItemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
+            const category = auctionData.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
             let donor: Donor | undefined | null = null;
-            if (updatedItemData.donorId) {
-                const donorSnap = await transaction.get(doc(firestore, 'accounts', accountId, 'donors', updatedItemData.donorId));
+            if (itemData.donorId) {
+                const donorSnap = await transaction.get(doc(firestore, 'accounts', accountId, 'donors', itemData.donorId));
                 if (donorSnap.exists()) donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
             }
 
             const updatePayload: { [key: string]: any } = {
-                sku: updatedItemData.sku || selectedItem.sku, name: updatedItemData.name, description: updatedItemData.description || "", estimatedValue: updatedItemData.estimatedValue, category, categoryId: category.id,
-                lotId: updatedItemData.lotId === 'none' ? deleteField() : (updatedItemData.lotId || deleteField()),
+                sku: itemData.sku || selectedItem.sku, name: itemData.name, description: itemData.description || "", estimatedValue: itemData.estimatedValue, category, categoryId: category.id,
+                lotId: itemData.lotId === 'none' ? deleteField() : (itemData.lotId || deleteField()),
                 donor: donor === null ? deleteField() : donor,
-                donorId: updatedItemData.donorId || deleteField(),
+                donorId: itemData.donorId || deleteField(),
                 ...(finalImageUrl !== selectedItem.imageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl })
             };
             transaction.update(itemRef, updatePayload);
         });
-        toast({ title: "Item Updated", description: `Changes to "${updatedItemData.name}" were saved.` });
+        toast({ title: "Item Updated", description: `Changes to "${itemData.name}" were saved.` });
     } catch (error: any) {
         toast({ variant: "destructive", title: "Update Failed", description: error.message });
         throw error;
@@ -489,7 +490,7 @@ export default function PublicStaffAuctionPage() {
   const addPatron = async (patronData: any): Promise<Patron | void> => {
     if (!firestore || !accountId) return;
     const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
-    const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0 };
+    const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0, createdInAuction: auctionId };
     const docRef = await addDoc(patronsRef, newPatron);
     return { id: docRef.id, ...newPatron };
   };
@@ -513,7 +514,7 @@ export default function PublicStaffAuctionPage() {
         toast({ title: 'Patron Unregistered' });
     };
     
-    // --- More handlers that need to be re-implemented... this is a lot. ---
+    // ... More handlers
     const handleConfirmDeleteCategory = async () => { /* ... */ };
     const handleUpdateCategory = (values: any) => { /* ... */ };
     const handleAddLot = (values: { name: string, closingDate?: Date }) => { /* ... */ };
@@ -523,7 +524,6 @@ export default function PublicStaffAuctionPage() {
     const handleDeleteStaff = async () => { /* ... */ };
 
     
-    // --- JSX (copied from original, needs careful checking) ---
     const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
       <>
         {itemsToRender.length > 0 ? (

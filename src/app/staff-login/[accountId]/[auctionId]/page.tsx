@@ -1,9 +1,11 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signInAnonymously, signOut } from 'firebase/auth';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +22,7 @@ export default function StaffLoginPage() {
     
     const params = useParams();
     const router = useRouter();
-    const firestore = useFirestore();
+    const { firestore, auth } = useFirebase();
     const { toast } = useToast();
 
     const accountId = typeof params.accountId === 'string' ? params.accountId : '';
@@ -34,8 +36,8 @@ export default function StaffLoginPage() {
             setError('Please enter a username.');
             return;
         }
-        if (!firestore || !accountId || !auctionId) {
-            setError('Invalid URL. Cannot attempt login.');
+        if (!auth || !firestore || !accountId || !auctionId) {
+            setError('Invalid URL or missing database connection.');
             return;
         }
 
@@ -47,11 +49,27 @@ export default function StaffLoginPage() {
             const staffUsernameDoc = await getDoc(staffUsernameRef);
 
             if (staffUsernameDoc.exists()) {
-                // Set localStorage items to establish a session for the public-staff page
+                 // If there's an existing user, sign them out first to ensure a clean slate
+                if (auth.currentUser) {
+                    await signOut(auth);
+                }
+                
+                const userCredential = await signInAnonymously(auth);
+                const uid = userCredential.user.uid;
+
+                // Create the session marker document that the security rules will check
+                const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', uid);
+                await setDoc(staffSessionRef, {
+                    username: enteredUsername,
+                    createdAt: serverTimestamp(),
+                });
+                
+                // Set localStorage items for the public page to use for non-sensitive UI state
                 localStorage.setItem('staffName', enteredUsername);
                 localStorage.setItem('staffAccountId', accountId);
                 localStorage.setItem('activeAuctionId', auctionId);
-                
+                localStorage.setItem('isStaffSession', 'true');
+
                 toast({ title: "Login Successful", description: "Redirecting to auction dashboard..." });
                 router.push(`/public-staff/${accountId}/${auctionId}`);
 
@@ -60,7 +78,7 @@ export default function StaffLoginPage() {
             }
         } catch (err: any) {
             console.error("Staff login error:", err);
-            setError('An error occurred during login. Please ensure you are online and try again.');
+            setError('An error occurred during login. Could not create a secure session.');
         } finally {
             setIsLoading(false);
         }
