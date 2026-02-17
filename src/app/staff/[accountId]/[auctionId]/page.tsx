@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { useFirebase } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
+import { initializeFirebase } from '@/firebase';
+import { doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
+import { signInAnonymously, type Auth } from 'firebase/auth';
 import type { Auction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,8 +24,10 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function PublicStaffLoginPage() {
   const params = useParams();
-  const { firestore, auth } = useFirebase();
   const { toast } = useToast();
+
+  const [firestore, setFirestore] = useState<Firestore | null>(null);
+  const [auth, setAuth] = useState<Auth | null>(null);
 
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
@@ -36,6 +39,14 @@ export default function PublicStaffLoginPage() {
   const [auction, setAuction] = useState<Auction | null>(null);
 
   useEffect(() => {
+    // This page initializes its own Firebase instance to be self-sufficient.
+    const { firestore: fs, auth: au } = initializeFirebase();
+    setFirestore(fs);
+    setAuth(au);
+  }, []);
+
+
+  useEffect(() => {
     if (!firestore || !accountId || !auctionId) return;
 
     const fetchAuction = async () => {
@@ -43,7 +54,12 @@ export default function PublicStaffLoginPage() {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
         const auctionSnap = await getDoc(auctionRef);
         if (auctionSnap.exists()) {
-          setAuction(auctionSnap.data() as Auction);
+          const auctionData = auctionSnap.data() as Auction;
+          if (!auctionData.staffPin) {
+              setError("This auction is not configured for public staff login.");
+          } else {
+              setAuction(auctionData);
+          }
         } else {
           setError('Auction not found or you do not have permission to view it.');
         }
