@@ -43,13 +43,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useState, useMemo, useEffect } from 'react';
-import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, LotFormValues, Auction, Account } from '@/lib/types';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, LotFormValues, Auction, Account, Donor } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
