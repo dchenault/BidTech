@@ -50,6 +50,12 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     const breadcrumbSegments = segments.slice(1);
 
     return breadcrumbSegments.map((segment, index) => {
+      // For staff sessions, we don't want to show a clickable "Auctions" link
+      // as it would lead to an empty list. This hides that specific segment.
+      if (isStaffSession && segment === 'auctions') {
+          return null;
+      }
+      
       const href = `/${segments.slice(0, index + 2).join('/')}`;
       const isLast = index === breadcrumbSegments.length - 1;
       
