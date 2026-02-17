@@ -234,8 +234,20 @@ export default function AuctionDetailsPage() {
   }, [registeredPatronsWithDetails, searchQuery]);
 
 
-  if (!auction || (!user && !isStaffSession)) {
+  if (isLoadingItems && !localStorage.getItem('staffName')) {
     return <div>Loading auction...</div>;
+  }
+  
+  if (!auction) {
+    // This can happen briefly for staff before accountId is synced.
+    if (localStorage.getItem('staffName')) {
+       return <div>Loading staff session...</div>;
+    }
+    return <div>Auction not found.</div>;
+  }
+  
+  if (!user && !isStaffSession) {
+    return <div>Loading session...</div>;
   }
 
   const requestSort = (key: string) => {
@@ -1091,7 +1103,7 @@ export default function AuctionDetailsPage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                            <div className="space-y-2">
-                                <Label>Staff Login Link</Label>
+                                <Label>Staff Login Link (PIN-based)</Label>
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
                                       id="staff-login-url"
@@ -1105,7 +1117,7 @@ export default function AuctionDetailsPage() {
                               </div>
                             </div>
                             <div className="space-y-2">
-                                <Label>Add Staff Username</Label>
+                                <Label>Add Staff Username (For Manager Shadow Login)</Label>
                                 <div className="flex items-center gap-2">
                                     <Input 
                                         placeholder="New staff username"
