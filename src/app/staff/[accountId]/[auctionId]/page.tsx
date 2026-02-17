@@ -1,19 +1,20 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { initializeFirebase } from '@/firebase';
-import { doc, getDoc, type Firestore } from 'firebase/firestore';
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +24,9 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function PublicStaffUsernameLoginPage() {
   const params = useParams();
+  const router = useRouter();
   const { toast } = useToast();
-
-  const [firestore, setFirestore] = useState<Firestore | null>(null);
+  const { firestore, auth } = useFirebase();
 
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
@@ -33,14 +34,6 @@ export default function PublicStaffUsernameLoginPage() {
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
-
-  useEffect(() => {
-    // This page initializes its own Firebase instance to be self-sufficient.
-    const { firestore: fs } = initializeFirebase();
-    setFirestore(fs);
-    setIsPageLoading(false);
-  }, []);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -51,7 +44,7 @@ export default function PublicStaffUsernameLoginPage() {
       return;
     }
     
-    if (!firestore || !accountId || !auctionId) {
+    if (!firestore || !auth || !accountId || !auctionId) {
       setError('Page is not ready. Please refresh and try again.');
       return;
     }
@@ -60,10 +53,22 @@ export default function PublicStaffUsernameLoginPage() {
     setError(null);
 
     try {
-      const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', enteredUsername);
-      const staffDoc = await getDoc(staffDocRef);
+      // Step 1: Check if the username is valid for this auction (the "handshake").
+      // This is allowed by the security rule: `allow get: if true;`
+      const staffUsernameRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', enteredUsername);
+      const staffUsernameDoc = await getDoc(staffUsernameRef);
 
-      if (staffDoc.exists()) {
+      if (staffUsernameDoc.exists()) {
+        // Step 2: Username is valid. Sign in anonymously to get a secure, temporary user session.
+        const userCredential = await signInAnonymously(auth);
+        const anonymousUid = userCredential.user.uid;
+        
+        // Step 3: Create a session document in Firestore that links the anonymous UID to this auction.
+        // This is the document our security rules will check for data access.
+        const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', anonymousUid);
+        await setDoc(staffSessionRef, { username: enteredUsername, createdAt: new Date() });
+
+        // Step 4: Store session info in localStorage for the client-side UI.
         localStorage.setItem('staffName', enteredUsername);
         localStorage.setItem('activeAuctionId', auctionId);
         localStorage.setItem('isStaffSession', 'true');
@@ -74,7 +79,7 @@ export default function PublicStaffUsernameLoginPage() {
           description: "You have been logged in as a staff member."
         });
 
-        // Hard redirect to force dashboard to re-evaluate context
+        // Step 5: Hard redirect to the main dashboard. It will now recognize the staff session.
         window.location.href = `/dashboard/auctions/${auctionId}`;
 
       } else {
@@ -88,14 +93,6 @@ export default function PublicStaffUsernameLoginPage() {
       setIsLoading(false);
     }
   };
-
-  if (isPageLoading) {
-    return (
-      <div className="flex w-full items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
 
   return (
     <Card className="w-full max-w-md">

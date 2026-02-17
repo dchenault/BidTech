@@ -2,8 +2,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { useUser, useFirestore } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 interface StaffSessionContextType {
   isStaffSession: boolean;
@@ -21,9 +22,10 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
   const firestore = useFirestore();
-  const { user } = useUser();
+  const auth = useAuth();
 
   useEffect(() => {
+    // This effect runs only on the client, after hydration.
     const name = localStorage.getItem('staffName');
     const accountId = localStorage.getItem('staffAccountId');
     const isSession = localStorage.getItem('isStaffSession') === 'true';
@@ -35,9 +37,13 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logoutStaff = async () => {
+    if (!auth) return;
+
     const accountId = localStorage.getItem('staffAccountId');
     const auctionId = localStorage.getItem('activeAuctionId');
+    const currentUid = auth.currentUser?.uid;
     
+    // Clear local storage immediately
     localStorage.removeItem('staffName');
     localStorage.removeItem('activeAuctionId');
     localStorage.removeItem('isStaffSession');
@@ -45,14 +51,17 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
     
     setSession({ isStaffSession: false, staffName: null, staffAccountId: null });
     
-    if (firestore && accountId && auctionId && user) {
-        const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', user.uid);
+    // Clean up the firestore session document
+    if (firestore && accountId && auctionId && currentUid) {
+        const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', currentUid);
         await deleteDoc(staffSessionRef).catch(err => {
             console.error("Could not clean up staff session marker:", err);
         });
     }
-    
-    window.location.reload(); 
+
+    // Sign out the anonymous user and then reload the page to clear all state.
+    await signOut(auth);
+    window.location.href = '/'; 
   };
 
   const value = { ...session, logoutStaff, isSessionLoading };

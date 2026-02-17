@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -125,7 +126,8 @@ service cloud.firestore {
         }
 
         // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
-        allow get: if true; // Allow anyone to fetch the basic auction doc for login
+        // Public catalogs need this, staff login also needs it to get auction details.
+        allow get: if true; 
         allow list: if isAccountMember(accountId);
         allow create: if isAccountMember(accountId);
         allow update: if isOwnerOrManager();
@@ -135,12 +137,15 @@ service cloud.firestore {
         
         // Rules for the 'staff' subcollection. This is the "Staff Handshake" rule.
         // A manager can add/remove usernames. The public can read to check for a valid username.
-        match /staff/{staffUsername} {
+        match /staff/{staffId} {
+          // Allow anyone to check if a username exists (the ID is the username).
+          // Allow a manager to create/delete a username.
           allow get: if true; 
           allow list, create, delete: if isOwnerOrManager();
           
-          // Allow a user to create their own staff session document after anonymous sign-in.
-          allow create: if isSignedIn() && staffUsername == request.auth.uid;
+          // Allow a newly authenticated ANONYMOUS user to create their own session document.
+          // In this case, the {staffId} is the anonymous UID.
+          allow create: if isSignedIn() && staffId == request.auth.uid;
           
           // Nobody can update a staff username document from the client after creation.
           allow update: if false;
