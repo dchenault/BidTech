@@ -123,30 +123,35 @@ export default function PublicStaffAuctionPage() {
   useEffect(() => {
     setMounted(true);
     const staffNameFromStorage = localStorage.getItem('staffName');
-    setDisplayName(staffNameFromStorage || 'Staff');
     const sessionAccountId = localStorage.getItem('staffAccountId');
     const sessionAuctionId = localStorage.getItem('activeAuctionId');
     const isSession = localStorage.getItem('isStaffSession') === 'true';
+  
+    setDisplayName(staffNameFromStorage || 'Staff');
     
+    // If IDs match the URL, authorize locally immediately
     if (staffNameFromStorage && isSession && sessionAccountId === accountId && sessionAuctionId === auctionId) {
-        setIsAuthorized(true);
-        setStaffName(staffNameFromStorage);
+      setIsAuthorized(true);
+      setStaffName(staffNameFromStorage);
     } else {
-        setIsAuthorized(false);
+      setIsAuthorized(false);
     }
   }, [accountId, auctionId]);
 
   // --- Direct Data Fetching ---
   useEffect(() => {
-    if (isUserLoading) {
-      return; // Wait for auth state to be resolved
+    // We only exit if we've confirmed NO authorization AND there's no Google User
+    if (isAuthorized === false && !user && !isUserLoading) {
+      setIsLoading(false);
+      return;
     }
-    if (!isAuthorized || !firestore || !accountId || !auctionId || !user) {
-        if(isAuthorized === false || (isAuthorized && !user && !isUserLoading)) setIsLoading(false);
-        return;
-    }
-
+  
+    // START FETCHING if we have a staff session OR a Google user
+    if (!firestore || !accountId || !auctionId) return;
+    if (!isAuthorized && !user && isUserLoading) return; // Wait only if still loading auth
+  
     setIsLoading(true);
+  
     const unsubscribers = [
       onSnapshot(doc(firestore, 'accounts', accountId, 'auctions', auctionId), 
         (docSnap) => setAuction(docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as Auction : null)
@@ -160,29 +165,14 @@ export default function PublicStaffAuctionPage() {
       onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons'),
         (snap) => setRegisteredPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as RegisteredPatron)))
       ),
-      onSnapshot(collection(firestore, 'accounts', accountId, 'patrons'),
+      // CRITICAL: Aligned path for Patrons to match your Manager view
+      onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'patrons'),
         (snap) => setPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as Patron)))
       ),
-      onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff'),
-        (snap) => setStaffUsernames(snap.docs.map(d => ({ id: d.id })))
-      ),
     ];
-
-    const checkInitialLoad = async () => {
-        try {
-            await Promise.all([
-                getDoc(doc(firestore, 'accounts', accountId, 'auctions', auctionId)),
-            ]);
-            setIsLoading(false);
-        } catch (error) {
-            console.error("Error during initial data load:", error);
-            setIsLoading(false);
-        }
-    };
-    checkInitialLoad();
-
+  
+    setIsLoading(false);
     return () => unsubscribers.forEach(unsub => unsub());
-
   }, [isAuthorized, firestore, accountId, auctionId, user, isUserLoading]);
   
   // --- Re-implemented Actions ---
