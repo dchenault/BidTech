@@ -14,15 +14,17 @@ service cloud.firestore {
     }
     
     function isAccountAdmin(accountId) {
+      // User's profile determines their role in an account.
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return isSignedIn() && userProfile.data.accounts[accountId] == 'admin';
     }
 
     function isAccountMember(accountId) {
+      // User's profile determines their role in an account.
       let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return isSignedIn() && userProfile.data.accounts[accountId] != null;
     }
-
+    
     // ========= ROOT COLLECTIONS =========
     
     match /users/{userId} {
@@ -35,22 +37,34 @@ service cloud.firestore {
       allow create: if isSignedIn();
 
       // --- Subcollections of an Account (Global Patrons/Donors) ---
-      match /patrons/{patronId} { allow read, write: if isAccountMember(accountId); }
-      match /donors/{donorId} { allow read, write: if isAccountMember(accountId); }
+      
+      // This rule allows account members to manage patrons. It ALSO allows any
+      // temporary staff member (signed in anonymously) to read/create/update
+      // patrons, which is necessary for the staff portal functionality.
+      match /patrons/{patronId} { 
+        allow read, create, update: if isAccountMember(accountId) || (isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous');
+        allow delete: if isAccountAdmin(accountId); // Only admins can delete patrons
+      }
+      
+      match /donors/{donorId} { 
+        allow read, write: if isAccountMember(accountId); 
+      }
       
       // ========= AUCTION SCOPE =========
       match /auctions/{auctionId} {
         
-        // Helper: Check if User is Manager/Admin
+        // Helper: Check if User is a permanent Manager or the Account Admin
         function isManager() {
           let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
           return isAccountAdmin(accountId) || (isSignedIn() && request.auth.uid in auction.data.managers);
         }
 
-        // Helper: Check for Staff Session in Headers
-        function isStaff() {
-          let staffName = request.headers.staffname;
-          return exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(staffName));
+        // Helper: Check if user is an authorized staff member for THIS auction.
+        // This is the secure handshake for the public staff portal.
+        function isAuthorizedStaff() {
+          return isSignedIn() &&
+                 request.auth.token.firebase.sign_in_provider == 'anonymous' &&
+                 exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
 
         // Auction Document Permissions
@@ -59,17 +73,20 @@ service cloud.firestore {
         allow update: if isManager();
         allow delete: if isAccountAdmin(accountId);
 
-        // Staff Collection: Handshake
-        match /staff/{staffName} {
-          allow get: if true; // Allows the login page to verify the username
+        // Staff Collection: Used for the initial username check.
+        match /staff/{staffNameOrUid} {
+          // Allows the login page to verify the username exists.
+          allow get: if true;
+          // Allows a manager to add/remove staff usernames.
           allow list, create, delete: if isManager();
+          // Allows the anonymous user to create their temporary session document.
+          allow create: if isSignedIn() && staffNameOrUid == request.auth.uid;
         }
 
-        // THE FIX: Items, Patrons, and Donations inside the Auction
+        // Rules for all data within an auction (items, lots, etc.)
         match /{subcollection}/{docId} {
-          // Allow read/write if the user is a Manager OR if they have a valid Staff Username
-          allow read, list, create, update: if isManager() || isStaff();
-          allow delete: if isManager();
+          allow read, list, create, update: if isManager() || isAuthorizedStaff();
+          allow delete: if isManager(); // Staff cannot delete.
         }
       }
     }
