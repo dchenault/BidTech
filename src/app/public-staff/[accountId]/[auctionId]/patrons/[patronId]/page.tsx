@@ -173,6 +173,11 @@ export default function PublicStaffPatronDetailsPage() {
       toast({ variant: "destructive", title: "No Paid Items to Print" });
       return;
     }
+
+    if (!firestore || !accountId || !auctionId) {
+        toast({ variant: "destructive", title: "Database Error", description: "Connection to the database is not available." });
+        return;
+    }
     
      const regPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
      const q = query(regPatronsRef, where('patronId', '==', patron.id), limit(1));
