@@ -120,6 +120,7 @@ service cloud.firestore {
 
         function isAuthorizedStaff() {
           // This function checks if the requesting user has an active session document.
+          // This is created by the public staff login page.
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
@@ -133,19 +134,12 @@ service cloud.firestore {
 
         // -- SUBCOLLECTION RULES --
         
-        // Rules for the 'staff' subcollection. Docs in here are temporary session markers.
-        match /staff/{staffUserId} {
-          // Allow an anonymous user to create their own session doc if they provide the correct PIN
-          allow create: if isSignedIn() && request.auth.uid == staffUserId &&
-                         request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
-          
-          // Allow the user who created the session, or an auction owner/manager, to read or delete it.
-          allow read, delete: if (isSignedIn() && request.auth.uid == staffUserId) || isOwnerOrManager();
-
-          // Owners/managers can list active staff sessions.
-          allow list: if isOwnerOrManager();
-
-          // No one can update a session document.
+        // Rules for the 'staff' subcollection.
+        // A manager can add/remove usernames.
+        // The public can read to check if a username exists.
+        match /staff/{staffUsername} {
+          allow create, delete, list: if isOwnerOrManager();
+          allow get: if true; // Allows the public page to check for username existence.
           allow update: if false;
         }
 

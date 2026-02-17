@@ -52,7 +52,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -69,13 +69,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStaffSession } from '@/hooks/use-staff-session';
-import { Label } from '@/components/ui/label';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId } = useAccount();
   const { toast } = useToast();
@@ -99,23 +98,24 @@ export default function AuctionDetailsPage() {
   const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
   const [lotToEdit, setLotToEdit] = useState<Lot | null>(null);
   const [lotToDelete, setLotToDelete] = useState<Lot | null>(null);
+  const [newStaffUsername, setNewStaffUsername] = useState("");
+  const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
+
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
-  const [staffPinInput, setStaffPinInput] = useState('');
   
-
   const auctionId = typeof params.id === 'string' ? params.id : '';
   
   const auction = getAuction(auctionId);
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
 
-  useEffect(() => {
-    if (auction?.staffPin) {
-      setStaffPinInput(auction.staffPin);
-    }
-  }, [auction?.staffPin]);
+  const staffRef = useMemoFirebase(
+    () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff') : null),
+    [firestore, accountId, auctionId]
+  );
+  const { data: staffData, isLoading: isLoadingStaff } = useCollection(staffRef);
 
   const registeredPatronsRef = useMemoFirebase(
     () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
@@ -233,17 +233,14 @@ export default function AuctionDetailsPage() {
     );
   }, [registeredPatronsWithDetails, searchQuery]);
 
+  const isLoading = isLoadingItems || isLoadingLots || isLoadingPatrons || isLoadingRegisteredPatrons;
 
-  if (isLoadingItems && !localStorage.getItem('staffName')) {
+  if (isLoading && (typeof window === 'undefined' || !localStorage.getItem('staffName'))) {
     return <div>Loading auction...</div>;
   }
   
   if (!auction) {
-    // This can happen briefly for staff before accountId is synced.
-    if (localStorage.getItem('staffName')) {
-       return <div>Loading staff session...</div>;
-    }
-    return <div>Auction not found.</div>;
+    return <div>Loading auction details...</div>;
   }
   
   if (!user && !isStaffSession) {
@@ -288,27 +285,34 @@ export default function AuctionDetailsPage() {
     if (!auctionId || !accountId) return;
     const url = `${window.location.origin}/staff/${accountId}/${auctionId}`;
     navigator.clipboard.writeText(url).then(() => {
-        toast({ title: 'Staff Login Link Copied!', description: 'Share this public PIN login link with your on-site staff.'});
+        toast({ title: 'Staff Login Link Copied!', description: 'Share this public login link with your on-site staff.'});
     }).catch(err => {
         toast({ variant: 'destructive', title: 'Failed to Copy Link'});
         console.error('Failed to copy staff login link: ', err);
     });
   };
 
-  const handleSavePin = async () => {
-    if (!auction || !staffPinInput.match(/^\d{4,8}$/)) {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid PIN',
-            description: 'Please enter a PIN with 4 to 8 digits.',
-        });
+  const handleAddStaff = async () => {
+    const username = newStaffUsername.trim();
+    if (!username) {
+        toast({ variant: 'destructive', title: 'Username required' });
         return;
     }
-    await updateAuction(auction.id, { staffPin: staffPinInput });
-    toast({
-        title: 'PIN Saved',
-        description: 'The staff login PIN has been updated.',
-    });
+    if (!staffRef) {
+        toast({ variant: 'destructive', title: 'Database error' });
+        return;
+    }
+    // Set an empty document. The username is the document ID.
+    await setDoc(doc(staffRef, username), {});
+    toast({ title: 'Staff Added', description: `Username "${username}" can now log in.` });
+    setNewStaffUsername("");
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!staffToDelete || !staffRef) return;
+    await deleteDoc(doc(staffRef, staffToDelete));
+    toast({ title: 'Staff Removed', description: `Username "${staffToDelete}" has been removed.` });
+    setStaffToDelete(null);
   };
 
   const handleOpenWinningBidDialog = (item: Item) => {
@@ -1027,8 +1031,7 @@ export default function AuctionDetailsPage() {
               <TabsContent value="settings">
                   <div className="grid gap-6">
                       <Card>
-                          <CardHeader>
-                              <div className="flex items-center justify-between">
+                          <CardHeader className="flex items-center justify-between">
                               <div>
                                   <CardTitle className="text-xl">Item Categories</CardTitle>
                                   <CardDescription>Manage the categories for items in this auction.</CardDescription>
@@ -1036,7 +1039,6 @@ export default function AuctionDetailsPage() {
                               <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
                                   <PlusCircle className="mr-2 h-4 w-4" /> Add Category
                               </Button>
-                              </div>
                           </CardHeader>
                           <CardContent>
                               <Table>
@@ -1099,35 +1101,58 @@ export default function AuctionDetailsPage() {
                       <Card>
                         <CardHeader>
                             <CardTitle className="text-xl">Staff Management</CardTitle>
-                            <CardDescription>Manage on-site staff access using a shared PIN.</CardDescription>
+                            <CardDescription>Add or remove staff usernames for this auction. Share the login link for on-site access.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                           <div className="space-y-2">
-                                <Label htmlFor="staff-pin">Staff Login PIN</Label>
+                            <div>
+                                <div className="flex w-full items-center space-x-2">
+                                    <Input
+                                        id="staff-login-url"
+                                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
+                                        readOnly
+                                    />
+                                    <Button type="button" onClick={handleCopyStaffLoginLink}>
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Copy Staff Login Link
+                                    </Button>
+                                </div>
+                            </div>
+                             <div className="space-y-4">
                                 <div className="flex items-center gap-2">
                                     <Input
-                                        id="staff-pin"
-                                        placeholder="Enter a 4-8 digit PIN"
-                                        value={staffPinInput}
-                                        onChange={(e) => setStaffPinInput(e.target.value)}
+                                        placeholder="Enter new staff username"
+                                        value={newStaffUsername}
+                                        onChange={(e) => setNewStaffUsername(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddStaff()}
                                     />
-                                    <Button onClick={handleSavePin}>Save PIN</Button>
+                                    <Button onClick={handleAddStaff}>Add Staff</Button>
                                 </div>
-                                <p className="text-sm text-muted-foreground">Staff can use this PIN to log in via the public staff portal.</p>
-                           </div>
-                           <div className="space-y-2">
-                                <Label>Public Staff Login Link</Label>
-                                <div className="flex w-full items-center space-x-2">
-                                  <Input
-                                      id="staff-login-url"
-                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
-                                      readOnly
-                                  />
-                                  <Button type="button" onClick={handleCopyStaffLoginLink}>
-                                      <Copy className="mr-2 h-4 w-4" />
-                                      Copy Link
-                                  </Button>
-                              </div>
+                                {isLoadingStaff ? (
+                                    <p className="text-sm text-muted-foreground">Loading staff...</p>
+                                ) : (staffData && staffData.length > 0) ? (
+                                     <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Username</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {staffData.map(staff => (
+                                                <TableRow key={staff.id}>
+                                                    <TableCell className="font-medium">{staff.id}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setStaffToDelete(staff.id)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                     </Table>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground text-center py-4">No staff members have been added to this auction yet.</p>
+                                )}
                             </div>
                         </CardContent>
                       </Card>
@@ -1257,6 +1282,23 @@ export default function AuctionDetailsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDeleteLot} className="bg-destructive hover:bg-destructive/90">
               Delete Lot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+       <AlertDialog open={!!staffToDelete} onOpenChange={(isOpen) => !isOpen && setStaffToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Staff: {staffToDelete}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will revoke access for this username.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive hover:bg-destructive/90">
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

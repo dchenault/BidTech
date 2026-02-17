@@ -4,9 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { initializeFirebase } from '@/firebase';
-import { doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
-import { signInAnonymously, type Auth } from 'firebase/auth';
-import type { Auction } from '@/lib/types';
+import { doc, getDoc, type Firestore } from 'firebase/firestore';
+
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,67 +21,38 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Gavel, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-export default function PublicStaffLoginPage() {
+export default function PublicStaffUsernameLoginPage() {
   const params = useParams();
   const { toast } = useToast();
 
   const [firestore, setFirestore] = useState<Firestore | null>(null);
-  const [auth, setAuth] = useState<Auth | null>(null);
 
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
 
-  const [pin, setPin] = useState('');
+  const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
-  const [auction, setAuction] = useState<Auction | null>(null);
 
   useEffect(() => {
     // This page initializes its own Firebase instance to be self-sufficient.
-    const { firestore: fs, auth: au } = initializeFirebase();
+    const { firestore: fs } = initializeFirebase();
     setFirestore(fs);
-    setAuth(au);
+    setIsPageLoading(false);
   }, []);
-
-
-  useEffect(() => {
-    if (!firestore || !accountId || !auctionId) return;
-
-    const fetchAuction = async () => {
-      try {
-        const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        const auctionSnap = await getDoc(auctionRef);
-        if (auctionSnap.exists()) {
-          const auctionData = auctionSnap.data() as Auction;
-          if (!auctionData.staffPin) {
-              setError("This auction is not configured for public staff login.");
-          } else {
-              setAuction(auctionData);
-          }
-        } else {
-          setError('Auction not found or you do not have permission to view it.');
-        }
-      } catch (err) {
-        console.error("Error fetching auction:", err);
-        setError('An error occurred while fetching auction details.');
-      } finally {
-        setIsPageLoading(false);
-      }
-    };
-
-    fetchAuction();
-  }, [firestore, accountId, auctionId]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!pin.trim() || !firestore || !auth || !auction) {
-      setError('PIN cannot be empty.');
+    const enteredUsername = username.trim();
+
+    if (!enteredUsername) {
+      setError('Please enter a username.');
       return;
     }
     
-    if (pin !== auction.staffPin) {
-      setError('Invalid PIN for this auction.');
+    if (!firestore || !accountId || !auctionId) {
+      setError('Page is not ready. Please refresh and try again.');
       return;
     }
 
@@ -90,31 +60,27 @@ export default function PublicStaffLoginPage() {
     setError(null);
 
     try {
-      // 1. Sign in anonymously
-      const userCredential = await signInAnonymously(auth);
-      const user = userCredential.user;
-      
-      // 2. Create the staff session document in Firestore
-      const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', user.uid);
-      
-      // The security rules require us to pass the PIN when creating the session doc
-      await setDoc(staffDocRef, { 
-          staffPin: pin,
-          createdAt: new Date(),
-      });
+      const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', enteredUsername);
+      const staffDoc = await getDoc(staffDocRef);
 
-      // 3. Save session info and redirect
-      localStorage.setItem('staffName', 'Staff'); // Using a generic name
-      localStorage.setItem('activeAuctionId', auctionId);
-      localStorage.setItem('isStaffSession', 'true');
-      localStorage.setItem('staffAccountId', accountId);
+      if (staffDoc.exists()) {
+        localStorage.setItem('staffName', enteredUsername);
+        localStorage.setItem('activeAuctionId', auctionId);
+        localStorage.setItem('isStaffSession', 'true');
+        localStorage.setItem('staffAccountId', accountId);
 
-      toast({
-        title: "Login Successful",
-        description: "You have been logged in as a staff member."
-      });
+        toast({
+          title: "Login Successful",
+          description: "You have been logged in as a staff member."
+        });
 
-      window.location.href = `/dashboard/auctions/${auctionId}`;
+        // Hard redirect to force dashboard to re-evaluate context
+        window.location.href = `/dashboard/auctions/${auctionId}`;
+
+      } else {
+        setError('This username is not authorized for this auction.');
+        setIsLoading(false);
+      }
 
     } catch (err: any) {
       console.error("Staff login error:", err);
@@ -131,23 +97,6 @@ export default function PublicStaffLoginPage() {
     )
   }
 
-  if (!auction) {
-      return (
-           <Card className="w-full max-w-md">
-                <CardHeader className="text-center">
-                    <CardTitle>Error</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Login Failed</AlertTitle>
-                        <AlertDescription>{error || "This auction could not be loaded."}</AlertDescription>
-                    </Alert>
-                </CardContent>
-           </Card>
-      );
-  }
-
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
@@ -155,7 +104,7 @@ export default function PublicStaffLoginPage() {
           <Gavel className="h-8 w-8 text-primary-foreground" />
         </div>
         <CardTitle>Staff Portal Login</CardTitle>
-        <CardDescription>Enter the PIN for "{auction.name}" to access the auction tools.</CardDescription>
+        <CardDescription>Enter your assigned username to access the auction tools.</CardDescription>
       </CardHeader>
       <form onSubmit={handleLogin}>
         <CardContent className="space-y-4">
@@ -167,15 +116,16 @@ export default function PublicStaffLoginPage() {
             </Alert>
           )}
           <div className="space-y-2">
-            <Label htmlFor="pin">Staff PIN</Label>
+            <Label htmlFor="username">Staff Username</Label>
             <Input
-              id="pin"
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="Enter 4-8 digit PIN"
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter username"
               required
               disabled={isLoading}
+              autoFocus
             />
           </div>
         </CardContent>
