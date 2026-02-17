@@ -273,8 +273,8 @@ export default function AuctionDetailsPage() {
   }
 
   const handleCopyStaffLoginLink = () => {
-    if (!accountId || !auctionId) return;
-    const url = `${window.location.origin}/staff/${accountId}/${auctionId}`;
+    if (!auctionId) return;
+    const url = `${window.location.origin}/dashboard/auctions/${auctionId}/staff`;
     navigator.clipboard.writeText(url).then(() => {
         toast({ title: 'Staff Login Link Copied!', description: 'Share this link with your on-site staff.'});
     }).catch(err => {
@@ -1095,7 +1095,7 @@ export default function AuctionDetailsPage() {
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
                                       id="staff-login-url"
-                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
+                                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/auctions/${auctionId}/staff`}
                                       readOnly
                                   />
                                   <Button type="button" onClick={handleCopyStaffLoginLink}>
