@@ -3,24 +3,32 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // 1. GLOBAL SETTINGS
+    // Deny everything by default to ensure no accidental leaks.
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // 2. THE PUBLIC STAFF & CATALOG BYPASS (Highest Priority)
-    // This allows specific auction-related data to be read via the ID
+    // 2. THE COLLECTION GROUP BYPASS
+    // This allows searching for won items across ALL auctions for a single patron.
+    // Crucial for the "Patron Detail" page to show their invoice.
+    match /{path=**}/items/{itemId} {
+      allow read, update: if true; 
+    }
+
+    // 3. THE PUBLIC STAFF & CATALOG BYPASS (Highest Priority)
+    // Allows specific auction data to be managed without a Google login.
     match /accounts/{accountId}/auctions/{auctionId} {
       allow get: if true;
       
-      // Unlock all data INSIDE the auction (items, lots, staff, registered_patrons)
+      // Unlock all data INSIDE the auction (lots, staff, registered_patrons, etc.)
       match /{allSubcollections=**} {
         allow read, write: if true; 
       }
     }
 
-    // 3. THE "ORPHAN" DATA BYPASS
-    // Patrons and Donors are often stored at the Account level, not the Auction level.
-    // We must allow the Staff to 'get' these specific documents when they are linked to an item.
+    // 4. THE "ORPHAN" DATA BYPASS
+    // Patrons and Donors are stored at the Account level. Staff need access
+    // to link them to items or register them for the auction.
     match /accounts/{accountId}/patrons/{patronId} {
       allow read, write: if true;
     }
@@ -28,28 +36,15 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // 4. THE OWNER/ADMIN RULES (Google Auth Required)
+    // 5. THE OWNER/ADMIN RULES (Google Auth Required)
+    // Protects individual user profile data.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // THIS IS THE KEY: Allow searching for won items across the whole database
-    match /{path=**}/items/{itemId} {
-      allow read: if true; 
-    }
-
-    // Ensure the specific auction path still has full access
-    match /accounts/{accountId}/auctions/{auctionId} {
-      allow read, write: if true;
-      match /{allSubcollections=**} {
-        allow read, write: if true;
-      }
-    }
-
+    // Protects Account-level settings (billing, admin roles).
     match /accounts/{accountId} {
       allow read, write: if request.auth != null; 
-      // Note: We are simplifying this to 'any signed in user' temporarily 
-      // to ensure you aren't locked out of your own data while we fix this.
     }
   }
 }

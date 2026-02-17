@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { formatCurrency, cn, generateSlug } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,7 +120,7 @@ export default function PublicStaffAuctionPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
 
   // --- Hydration-Safe Authorization Check & Name Display ---
-  useEffect(() => {
+   useEffect(() => {
     setMounted(true);
     const staffNameFromStorage = localStorage.getItem('staffName');
     const sessionAccountId = localStorage.getItem('staffAccountId');
@@ -705,7 +705,11 @@ export default function PublicStaffAuctionPage() {
                         <TableHeader><TableRow><TableHead>#</TableHead><TableHead>Name</TableHead><TableHead className="hidden md:table-cell">Email</TableHead><TableHead className="hidden lg:table-cell">Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                         {filteredRegisteredPatrons.map((patron: Patron & { registeredPatronDocId: string, biddingNumber: number }) => (
-                            <TableRow key={patron.id}>
+                            <TableRow 
+                                key={patron.id}
+                                onClick={() => router.push(`/public-staff/${accountId}/${auctionId}/patrons/${patron.id}`)}
+                                className="cursor-pointer"
+                            >
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
                             <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell>
                             <TableCell className="hidden md:table-cell">{patron.email}</TableCell>
