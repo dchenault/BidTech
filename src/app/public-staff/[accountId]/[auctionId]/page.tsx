@@ -79,6 +79,7 @@ export default function PublicStaffAuctionPage() {
   const storage = useStorage();
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
+  const [mounted, setMounted] = useState(false);
   
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
@@ -120,6 +121,7 @@ export default function PublicStaffAuctionPage() {
 
   // --- Hydration-Safe Authorization Check & Name Display ---
   useEffect(() => {
+    setMounted(true);
     const staffNameFromStorage = localStorage.getItem('staffName');
     setDisplayName(staffNameFromStorage || 'Staff');
     const sessionAccountId = localStorage.getItem('staffAccountId');
@@ -301,6 +303,10 @@ export default function PublicStaffAuctionPage() {
       p.biddingNumber?.toString().includes(searchQuery)
     );
   }, [registeredPatronsWithDetails, searchQuery]);
+  
+  if (!mounted) {
+    return null;
+  }
   
   // --- Render logic ---
   if (isAuthorized === null || (isAuthorized && isUserLoading)) {
