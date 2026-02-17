@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -52,7 +51,7 @@ import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -68,18 +67,15 @@ import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
-import { useStaffSession } from '@/hooks/use-staff-session';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
-  const [debugStaffName, setDebugStaffName] = useState<string | null>(null);
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
-  const { isStaffSession, staffName, isSessionLoading } = useStaffSession();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
@@ -111,20 +107,6 @@ export default function AuctionDetailsPage() {
   const auction = getAuction(auctionId);
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
-
-  useEffect(() => {
-    const staffNameFromStorage = localStorage.getItem('staffName');
-    setDebugStaffName(staffNameFromStorage);
-    if (staffNameFromStorage) {
-      console.log('Staff session detected, forcing render');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (items) {
-      console.log('Items updated:', items.length);
-    }
-  }, [items]);
 
   const staffRef = useMemoFirebase(
     () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff') : null),
@@ -250,7 +232,7 @@ export default function AuctionDetailsPage() {
 
   const isLoading = isLoadingItems || isLoadingLots || isLoadingPatrons || isLoadingRegisteredPatrons || isAccountLoading;
 
-  if (isSessionLoading || (isLoading && !isStaffSession)) {
+  if (isLoading) {
     return <div>Loading auction...</div>;
   }
   
@@ -258,10 +240,6 @@ export default function AuctionDetailsPage() {
     return <div>Loading auction details...</div>;
   }
   
-  if (!user && !isStaffSession) {
-    return <div>Loading session...</div>;
-  }
-
   const requestSort = (key: string) => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -298,7 +276,7 @@ export default function AuctionDetailsPage() {
 
   const handleCopyStaffLoginLink = () => {
     if (!auctionId || !accountId) return;
-    const url = `${window.location.origin}/staff/${accountId}/${auctionId}`;
+    const url = `${window.location.origin}/staff-login/${accountId}/${auctionId}`;
     navigator.clipboard.writeText(url).then(() => {
         toast({ title: 'Staff Login Link Copied!', description: 'Share this public login link with your on-site staff.'});
     }).catch(err => {
@@ -308,7 +286,7 @@ export default function AuctionDetailsPage() {
   };
 
   const handleAddStaff = async () => {
-    const username = newStaffUsername.trim();
+    const username = newStaffUsername.trim().toLowerCase();
     if (!username) {
         toast({ variant: 'destructive', title: 'Username required' });
         return;
@@ -317,8 +295,15 @@ export default function AuctionDetailsPage() {
         toast({ variant: 'destructive', title: 'Database error' });
         return;
     }
-    // Set an empty document. The username is the document ID.
-    await setDoc(doc(staffRef, username), {});
+
+    const newStaffDocRef = doc(staffRef, username);
+    const docSnap = await getDoc(newStaffDocRef);
+    if(docSnap.exists()){
+      toast({ variant: 'destructive', title: 'Username already exists' });
+      return;
+    }
+
+    await setDoc(newStaffDocRef, {});
     toast({ title: 'Staff Added', description: `Username "${username}" can now log in.` });
     setNewStaffUsername("");
   };
@@ -382,7 +367,7 @@ export default function AuctionDetailsPage() {
   };
 
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
-    if (!auction || !selectedItem || !firestore || !accountId) return;
+    if (!auction || !selectedItem || !firestore || !accountId || !user) return;
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auction.id, 'items', selectedItem.id);
     
     try {
@@ -391,7 +376,7 @@ export default function AuctionDetailsPage() {
         winnerId: winner.id, 
         winner: winner,
         metadata: {
-            updatedBy: isStaffSession ? `Staff: ${staffName}` : user?.email || 'Unknown User',
+            updatedBy: user?.email || 'Unknown User',
             updatedAt: serverTimestamp()
         }
       };
@@ -474,7 +459,7 @@ export default function AuctionDetailsPage() {
   }
 
   const handleRegisterPatron = async (patron: Patron, bidderNumber: number) => {
-    if (!registeredPatronsRef || !accountId) return;
+    if (!registeredPatronsRef || !accountId || !user) return;
 
     const newRegistrationData: Omit<RegisteredPatron, 'id'> = {
       accountId: accountId,
@@ -482,7 +467,7 @@ export default function AuctionDetailsPage() {
       patronId: patron.id,
       bidderNumber: bidderNumber,
       metadata: {
-        updatedBy: isStaffSession ? `Staff: ${staffName}` : user?.email || 'Unknown User',
+        updatedBy: user.email || 'Unknown User',
         updatedAt: serverTimestamp()
       }
     };
@@ -831,20 +816,6 @@ export default function AuctionDetailsPage() {
 
   return (
     <>
-      <div
-        style={{
-          backgroundColor: 'red',
-          color: 'white',
-          padding: '10px',
-          marginBottom: '10px',
-          borderRadius: '5px',
-          textAlign: 'center',
-          fontWeight: 'bold',
-        }}
-      >
-        DEBUG: User: {user ? user.email : 'None'} | Staff:{' '}
-        {debugStaffName || 'None'}
-      </div>
       <div className="print:hidden">
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-y-4">
@@ -892,9 +863,9 @@ export default function AuctionDetailsPage() {
             <div className="flex items-center">
                 <TabsList>
                     <TabsTrigger value="items">Items</TabsTrigger>
-                    {!isStaffSession && <TabsTrigger value="donations">Donations</TabsTrigger>}
+                    <TabsTrigger value="donations">Donations</TabsTrigger>
                     <TabsTrigger value="patrons">Patrons</TabsTrigger>
-                    {!isStaffSession && <TabsTrigger value="settings">Settings</TabsTrigger>}
+                    <TabsTrigger value="settings">Settings</TabsTrigger>
                 </TabsList>
             </div>
             <TabsContent value="items" className="mt-4 space-y-4">
@@ -912,7 +883,6 @@ export default function AuctionDetailsPage() {
                  )}
                 {renderAuctionContent()}
             </TabsContent>
-            {!isStaffSession && (
               <TabsContent value="donations" className="space-y-4">
                   <Card>
                       <CardHeader className="flex-row items-center justify-between">
@@ -982,7 +952,6 @@ export default function AuctionDetailsPage() {
                       </CardContent>
                   </Card>
               </TabsContent>
-            )}
             <TabsContent value="patrons" className="space-y-4">
                 <Card>
                 <CardHeader className='flex-row items-center justify-between'>
@@ -1056,7 +1025,6 @@ export default function AuctionDetailsPage() {
                 </CardContent>
                 </Card>
             </TabsContent>
-            {!isStaffSession && (
               <TabsContent value="settings">
                   <div className="grid gap-6">
                       <Card>
@@ -1137,7 +1105,7 @@ export default function AuctionDetailsPage() {
                                 <div className="flex w-full items-center space-x-2">
                                     <Input
                                         id="staff-login-url"
-                                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff/${accountId}/${auctionId}`}
+                                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff-login/${accountId}/${auctionId}`}
                                         readOnly
                                     />
                                     <Button type="button" onClick={handleCopyStaffLoginLink}>
@@ -1187,7 +1155,6 @@ export default function AuctionDetailsPage() {
                       </Card>
                   </div>
               </TabsContent>
-            )}
             </Tabs>
         </div>
       </div>

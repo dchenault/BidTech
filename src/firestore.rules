@@ -114,19 +114,20 @@ service cloud.firestore {
         function isOwnerOrManager() {
           // An "owner" is the account admin. A "manager" is in the authorizedManagers map.
           let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-          let isManager = isSignedIn() && request.auth.token.email != null && (request.auth.token.email in auction.data.authorizedManagers);
+          let isManager = isSignedIn() && request.auth.uid in auction.data.managers;
           return isAccountAdmin(accountId) || isManager;
         }
 
+        // This function assumes the client performs an anonymous sign-in for staff.
+        // It checks if the anonymous user's UID is recorded in the staff subcollection.
         function isAuthorizedStaff() {
-          // This function checks if the requesting user has an active session document.
-          // This is created by the public staff login page.
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
 
         // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
-        allow get: if true; // Allow anyone to fetch the basic auction doc for login
+        // Public catalogs need this, staff login also needs it to get auction details.
+        allow get: if true; 
         allow list: if isAccountMember(accountId);
         allow create: if isAccountMember(accountId);
         allow update: if isOwnerOrManager();
@@ -134,12 +135,19 @@ service cloud.firestore {
 
         // -- SUBCOLLECTION RULES --
         
-        // Rules for the 'staff' subcollection.
-        // A manager can add/remove usernames.
-        // The public can read to check if a username exists.
-        match /staff/{staffUsername} {
-          allow create, delete, list: if isOwnerOrManager();
-          allow get: if true; // Allows the public page to check for username existence.
+        // Rules for the 'staff' subcollection. This is the "Staff Handshake" rule.
+        // A manager can add/remove usernames. The public can read to check for a valid username.
+        match /staff/{staffId} {
+          // Allow anyone to check if a username exists (the ID is the username).
+          // Allow a manager to create/delete a username.
+          allow get: if true; 
+          allow list, create, delete: if isOwnerOrManager();
+          
+          // Allow a newly authenticated ANONYMOUS user to create their own session document.
+          // In this case, the {staffId} is the anonymous UID.
+          allow create: if isSignedIn() && staffId == request.auth.uid;
+          
+          // Nobody can update a staff username document from the client after creation.
           allow update: if false;
         }
 
