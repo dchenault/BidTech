@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 
@@ -9,30 +8,27 @@ interface StaffSessionContextType {
   isStaffSession: boolean;
   staffName: string | null;
   logoutStaff: () => void;
+  isSessionLoading: boolean;
 }
 
 const StaffSessionContext = createContext<StaffSessionContextType | undefined>(undefined);
 
-// Helper function to get initial state, runs only on client
-const getInitialSessionState = () => {
-  if (typeof window === 'undefined') {
-    return { isStaffSession: false, staffName: null };
-  }
-  const name = localStorage.getItem('staffName');
-  const isSession = localStorage.getItem('isStaffSession') === 'true';
-  if (name && isSession) {
-    return { isStaffSession: true, staffName: name };
-  }
-  return { isStaffSession: false, staffName: null };
-};
-
 
 export function StaffSessionProvider({ children }: { children: ReactNode }) {
-  // Initialize state synchronously from localStorage on the client
-  const [session, setSession] = useState(getInitialSessionState);
-  
+  const [session, setSession] = useState({ isStaffSession: false, staffName: null });
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+
   const firestore = useFirestore();
   const { user } = useUser();
+
+  useEffect(() => {
+    const name = localStorage.getItem('staffName');
+    const isSession = localStorage.getItem('isStaffSession') === 'true';
+    if (name && isSession) {
+      setSession({ isStaffSession: true, staffName: name });
+    }
+    setIsSessionLoading(false);
+  }, []);
 
   const logoutStaff = async () => {
     const accountId = localStorage.getItem('staffAccountId');
@@ -56,7 +52,7 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
     window.location.reload(); 
   };
 
-  const value = { ...session, logoutStaff };
+  const value = { ...session, logoutStaff, isSessionLoading };
 
   return (
     <StaffSessionContext.Provider value={value}>

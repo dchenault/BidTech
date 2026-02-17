@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
@@ -16,7 +15,7 @@ const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading: isAuthLoading } = useUser();
-  const { isStaffSession } = useStaffSession();
+  const { isStaffSession, isSessionLoading } = useStaffSession();
   const firestore = useFirestore();
 
   // --- Path 1: Regular User ---
@@ -26,7 +25,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   );
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
   const userAccountId = useMemo(() => userProfile?.activeAccountId || null, [userProfile]);
-  const isUserPathLoading = isAuthLoading || isProfileLoading;
   
   // --- Path 2: Staff Session (Optimized) ---
   const staffAccountId = useMemo(() => {
@@ -38,7 +36,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // --- Combine Paths ---
   const accountId = isStaffSession ? staffAccountId : userAccountId;
   
-  const isLoading = !isStaffSession && isUserPathLoading;
+  const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading));
 
   return (
     <AccountContext.Provider value={{ accountId, isLoading }}>

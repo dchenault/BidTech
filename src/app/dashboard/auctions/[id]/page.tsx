@@ -76,9 +76,9 @@ export default function AuctionDetailsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
-  const { accountId } = useAccount();
+  const { accountId, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
-  const { isStaffSession, staffName } = useStaffSession();
+  const { isStaffSession, staffName, isSessionLoading } = useStaffSession();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
@@ -233,9 +233,9 @@ export default function AuctionDetailsPage() {
     );
   }, [registeredPatronsWithDetails, searchQuery]);
 
-  const isLoading = isLoadingItems || isLoadingLots || isLoadingPatrons || isLoadingRegisteredPatrons;
+  const isLoading = isLoadingItems || isLoadingLots || isLoadingPatrons || isLoadingRegisteredPatrons || isAccountLoading;
 
-  if (isLoading && (typeof window === 'undefined' || !localStorage.getItem('staffName'))) {
+  if (isSessionLoading || (isLoading && !isStaffSession)) {
     return <div>Loading auction...</div>;
   }
   
