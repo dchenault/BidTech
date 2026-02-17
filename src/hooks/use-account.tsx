@@ -16,7 +16,7 @@ const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading: isAuthLoading } = useUser();
-  const { isStaffSession, isSessionLoading } = useStaffSession();
+  const { isStaffSession, staffAccountId, isSessionLoading } = useStaffSession();
   const firestore = useFirestore();
 
   // --- Path 1: Regular User ---
@@ -35,15 +35,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       return null;
     }
     
-    // If it's a staff session, the account ID is in localStorage.
+    // If it's a staff session, use the account ID from the hook's state.
     if (isStaffSession) {
-      // This part runs only on the client and after isSessionLoading is false.
-      return localStorage.getItem('staffAccountId');
+      return staffAccountId;
     }
     
     // If it's a regular user, the account ID comes from their profile.
     return userProfile?.activeAccountId || null;
-  }, [isSessionLoading, isStaffSession, userProfile]);
+  }, [isSessionLoading, isStaffSession, staffAccountId, userProfile]);
   
   const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading));
 

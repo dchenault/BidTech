@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
@@ -7,6 +8,7 @@ import { doc, deleteDoc } from 'firebase/firestore';
 interface StaffSessionContextType {
   isStaffSession: boolean;
   staffName: string | null;
+  staffAccountId: string | null;
   logoutStaff: () => void;
   isSessionLoading: boolean;
 }
@@ -15,7 +17,7 @@ const StaffSessionContext = createContext<StaffSessionContextType | undefined>(u
 
 
 export function StaffSessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<{ isStaffSession: boolean; staffName: string | null }>({ isStaffSession: false, staffName: null });
+  const [session, setSession] = useState<{ isStaffSession: boolean; staffName: string | null, staffAccountId: string | null }>({ isStaffSession: false, staffName: null, staffAccountId: null });
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
   const firestore = useFirestore();
@@ -23,9 +25,11 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const name = localStorage.getItem('staffName');
+    const accountId = localStorage.getItem('staffAccountId');
     const isSession = localStorage.getItem('isStaffSession') === 'true';
-    if (name && isSession) {
-      setSession({ isStaffSession: true, staffName: name });
+    
+    if (name && isSession && accountId) {
+      setSession({ isStaffSession: true, staffName: name, staffAccountId: accountId });
     }
     setIsSessionLoading(false);
   }, []);
@@ -34,14 +38,13 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
     const accountId = localStorage.getItem('staffAccountId');
     const auctionId = localStorage.getItem('activeAuctionId');
     
-    // Clear local state immediately for snappy UI response
     localStorage.removeItem('staffName');
     localStorage.removeItem('activeAuctionId');
     localStorage.removeItem('isStaffSession');
     localStorage.removeItem('staffAccountId');
-    setSession({ isStaffSession: false, staffName: null });
     
-    // If this was a shadow login, delete the manager's session marker document.
+    setSession({ isStaffSession: false, staffName: null, staffAccountId: null });
+    
     if (firestore && accountId && auctionId && user) {
         const staffSessionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', user.uid);
         await deleteDoc(staffSessionRef).catch(err => {
