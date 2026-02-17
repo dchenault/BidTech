@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
@@ -27,7 +28,7 @@ function StaffAccountProvider({ children, accountId }: { children: ReactNode; ac
 
 // This allows useAccount() to work inside the nested AuctionDetailsPage component for this specific page.
 // It overrides the global hook within this component's scope.
-export const useAccount = (): { accountId: string | null; isLoading: boolean; } => {
+const useAccount = (): { accountId: string | null; isLoading: boolean; } => {
     const context = useContext(StaffAccountContext);
     if (context === undefined) throw new Error('useAccount must be used within this page\'s StaffAccountProvider');
     return context;
