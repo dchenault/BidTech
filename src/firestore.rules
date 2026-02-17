@@ -69,11 +69,11 @@ service cloud.firestore {
       
       match /patrons/{patronId} {
           // Allow full account members full write access.
-          allow write: if isAccountMember(accountId);
-          // Allow any authenticated user (including anonymous staff) to read the patron list
-          // and to create new patrons. This is a security concession to enable the staff portal.
-          // Staff cannot update or delete master patron records.
-          allow read, create: if isSignedIn();
+          allow read, write: if isAccountMember(accountId);
+          
+          // Allow anonymous users (staff) to read, create, and update patrons.
+          // This is a security concession for the staff portal. Deletion remains restricted.
+          allow create, read, update: if isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
       }
 
       match /donors/{donorId} {
@@ -115,6 +115,7 @@ service cloud.firestore {
         match /{subcollection}/{docId} {
             allow read, list: if isOwnerOrManager() || isAuthorizedStaff();
             allow create, update: if isOwnerOrManager() || isAuthorizedStaff();
+            // IMPORTANT: Only Owners and Managers can delete data. Staff cannot.
             allow delete: if isOwnerOrManager();
         }
       }

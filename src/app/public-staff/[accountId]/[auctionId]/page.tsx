@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -117,7 +118,7 @@ export default function PublicStaffAuctionPage() {
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
 
-  // --- Hydration-Safe Authorization Check ---
+  // --- Hydration-Safe Authorization Check & Name Display ---
   useEffect(() => {
     const staffNameFromStorage = localStorage.getItem('staffName');
     setDisplayName(staffNameFromStorage || 'Staff');
@@ -555,7 +556,7 @@ export default function PublicStaffAuctionPage() {
             </TableHeader>
             <TableBody>
             {itemsToRender.map((item: Item) => (
-                <TableRow key={item.id} className="cursor-pointer">
+                <TableRow key={item.id} className="cursor-pointer" onClick={() => handleOpenEditDialog(item)}>
                   <TableCell className="hidden sm:table-cell">
                     <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
                       {item.thumbnailUrl ? (<Image alt={item.name} className="aspect-square rounded-md object-cover" height="64" src={item.thumbnailUrl} width="64"/>) : (<ImageIcon className="h-6 w-6 text-muted-foreground" />)}
@@ -709,7 +710,7 @@ export default function PublicStaffAuctionPage() {
                         <TableHeader><TableRow><TableHead>#</TableHead><TableHead>Name</TableHead><TableHead className="hidden md:table-cell">Email</TableHead><TableHead className="hidden lg:table-cell">Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                         {filteredRegisteredPatrons.map((patron: Patron & { registeredPatronDocId: string, biddingNumber: number }) => (
-                            <TableRow key={patron.id} className="cursor-pointer">
+                            <TableRow key={patron.id}>
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
                             <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell>
                             <TableCell className="hidden md:table-cell">{patron.email}</TableCell>
