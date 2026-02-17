@@ -45,14 +45,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuctions } from '@/hooks/use-auctions';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, LotFormValues, Auction } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
@@ -70,6 +70,7 @@ import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStaffSession } from '@/hooks/use-staff-session';
 import { Label } from '@/components/ui/label';
+import { FormDescription } from '@/components/ui/form';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -102,7 +103,7 @@ export default function AuctionDetailsPage() {
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
-  const [newStaffUsername, setNewStaffUsername] = useState('');
+  const [staffPinInput, setStaffPinInput] = useState('');
   
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
@@ -111,17 +112,17 @@ export default function AuctionDetailsPage() {
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
 
+  useEffect(() => {
+    if (auction?.staffPin) {
+      setStaffPinInput(auction.staffPin);
+    }
+  }, [auction?.staffPin]);
+
   const registeredPatronsRef = useMemoFirebase(
     () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
     [firestore, accountId, auctionId]
   );
   const { data: registeredPatronsData, isLoading: isLoadingRegisteredPatrons } = useCollection<RegisteredPatron>(registeredPatronsRef);
-
-  const staffRef = useMemoFirebase(
-    () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff') : null),
-    [firestore, accountId, auctionId]
-  );
-  const { data: staffData, isLoading: isLoadingStaff } = useCollection(staffRef);
 
   const searchedItems = useMemo(() => {
     if (!items) return [];
@@ -292,6 +293,22 @@ export default function AuctionDetailsPage() {
     }).catch(err => {
         toast({ variant: 'destructive', title: 'Failed to Copy Link'});
         console.error('Failed to copy staff login link: ', err);
+    });
+  };
+
+  const handleSavePin = async () => {
+    if (!auction || !staffPinInput.match(/^\d{4,8}$/)) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid PIN',
+            description: 'Please enter a PIN with 4 to 8 digits.',
+        });
+        return;
+    }
+    await updateAuction(auction.id, { staffPin: staffPinInput });
+    toast({
+        title: 'PIN Saved',
+        description: 'The staff login PIN has been updated.',
     });
   };
 
@@ -471,22 +488,6 @@ export default function AuctionDetailsPage() {
             });
         }
     };
-
-    const handleAddStaff = async () => {
-        if (!firestore || !accountId || !auctionId || !newStaffUsername.trim()) return;
-        const username = newStaffUsername.trim();
-        const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username);
-        await setDoc(staffDocRef, { addedBy: user?.uid, createdAt: serverTimestamp() });
-        setNewStaffUsername('');
-        toast({ title: 'Staff Added', description: `Username "${username}" can now access the dashboard staff portal.`});
-    }
-
-    const handleRemoveStaff = async (username: string) => {
-        if (!firestore || !accountId || !auctionId) return;
-        const staffDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff', username);
-        await deleteDoc(staffDocRef);
-        toast({ title: 'Staff Removed', description: `Username "${username}" has been revoked.`});
-    }
     
     const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
       <>
@@ -1099,11 +1100,24 @@ export default function AuctionDetailsPage() {
                       <Card>
                         <CardHeader>
                             <CardTitle className="text-xl">Staff Management</CardTitle>
-                            <CardDescription>Manage on-site staff access for this auction.</CardDescription>
+                            <CardDescription>Manage on-site staff access using a shared PIN.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                            <div className="space-y-2">
-                                <Label>Staff Login Link (PIN-based)</Label>
+                                <Label htmlFor="staff-pin">Staff Login PIN</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        id="staff-pin"
+                                        placeholder="Enter a 4-8 digit PIN"
+                                        value={staffPinInput}
+                                        onChange={(e) => setStaffPinInput(e.target.value)}
+                                    />
+                                    <Button onClick={handleSavePin}>Save PIN</Button>
+                                </div>
+                                <FormDescription>Staff can use this PIN to log in via the public staff portal.</FormDescription>
+                           </div>
+                           <div className="space-y-2">
+                                <Label>Public Staff Login Link</Label>
                                 <div className="flex w-full items-center space-x-2">
                                   <Input
                                       id="staff-login-url"
@@ -1115,47 +1129,6 @@ export default function AuctionDetailsPage() {
                                       Copy Link
                                   </Button>
                               </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Add Staff Username (For Manager Shadow Login)</Label>
-                                <div className="flex items-center gap-2">
-                                    <Input 
-                                        placeholder="New staff username"
-                                        value={newStaffUsername}
-                                        onChange={(e) => setNewStaffUsername(e.target.value)}
-                                    />
-                                    <Button onClick={handleAddStaff}>Add Staff</Button>
-                                </div>
-                                <div className="mt-4 rounded-md border">
-                                    {isLoadingStaff ? (
-                                        <div className="p-4 text-center text-sm text-muted-foreground">Loading staff...</div>
-                                    ) : (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Username</TableHead>
-                                                    <TableHead className="text-right">Actions</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {staffData && staffData.length > 0 ? staffData.map((staff: {id: string}) => (
-                                                    <TableRow key={staff.id}>
-                                                        <TableCell className="font-medium">{staff.id}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveStaff(staff.id)}>
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )) : (
-                                                    <TableRow>
-                                                        <TableCell colSpan={2} className="text-center text-muted-foreground">No staff usernames added yet.</TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                </div>
                             </div>
                         </CardContent>
                       </Card>

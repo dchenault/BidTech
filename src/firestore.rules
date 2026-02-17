@@ -119,8 +119,7 @@ service cloud.firestore {
         }
 
         function isAuthorizedStaff() {
-          // This function checks if the requesting user has an active, session document.
-          // This works for both anonymous PIN users and managers in a shadow session.
+          // This function checks if the requesting user has an active session document.
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
@@ -134,28 +133,19 @@ service cloud.firestore {
 
         // -- SUBCOLLECTION RULES --
         
-        // Rules for the 'staff' subcollection itself
-        // Note: The documents in this collection have two purposes:
-        // 1. A list of valid usernames (created by admins).
-        // 2. Active session markers (keyed by UID, created by staff/managers).
-        match /staff/{staffDocId} {
-          // An owner/manager can add or remove staff *usernames*.
-          allow create, delete: if isOwnerOrManager();
-          
-          // An anonymous user can create their own session marker *if they have the PIN*.
-          allow create: if isSignedIn() && request.auth.uid == staffDocId &&
+        // Rules for the 'staff' subcollection. Docs in here are temporary session markers.
+        match /staff/{staffUserId} {
+          // Allow an anonymous user to create their own session doc if they provide the correct PIN
+          allow create: if isSignedIn() && request.auth.uid == staffUserId &&
                          request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
           
-          // A manager can create their own session marker (for a shadow login).
-          allow create: if isOwnerOrManager() && request.auth.uid == staffDocId;
-          
-          // Staff can read their own session doc and owners/managers can list all staff/sessions.
-          allow read, list: if isOwnerOrManager() || (isSignedIn() && request.auth.uid == staffDocId);
-          
-          // A staff member can delete their own session doc to log out.
-          allow delete: if isSignedIn() && request.auth.uid == staffDocId;
-          
-          // No one can update a staff doc.
+          // Allow the user who created the session, or an auction owner/manager, to read or delete it.
+          allow read, delete: if (isSignedIn() && request.auth.uid == staffUserId) || isOwnerOrManager();
+
+          // Owners/managers can list active staff sessions.
+          allow list: if isOwnerOrManager();
+
+          // No one can update a session document.
           allow update: if false;
         }
 
