@@ -165,8 +165,8 @@ export default function PublicStaffAuctionPage() {
       onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons'),
         (snap) => setRegisteredPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as RegisteredPatron)))
       ),
-      // CRITICAL: Aligned path for Patrons to match your Manager view
-      onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'patrons'),
+      // CRITICAL: Fetching patrons from the account-level collection
+      onSnapshot(collection(firestore, 'accounts', accountId, 'patrons'),
         (snap) => setPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as Patron)))
       ),
     ];
@@ -561,7 +561,6 @@ export default function PublicStaffAuctionPage() {
                 <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
-                <TableCell className="hidden lg:table-cell">{formatCurrency(item.estimatedValue)}</TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
                 <TableCell>
