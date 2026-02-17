@@ -85,6 +85,7 @@ export default function PublicStaffAuctionPage() {
   // --- Authorization & State Management ---
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [staffName, setStaffName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
   
   const [auction, setAuction] = useState<Auction | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -118,14 +119,15 @@ export default function PublicStaffAuctionPage() {
 
   // --- Hydration-Safe Authorization Check ---
   useEffect(() => {
-    const staffName = localStorage.getItem('staffName');
+    const staffNameFromStorage = localStorage.getItem('staffName');
+    setDisplayName(staffNameFromStorage || 'Staff');
     const sessionAccountId = localStorage.getItem('staffAccountId');
     const sessionAuctionId = localStorage.getItem('activeAuctionId');
     const isSession = localStorage.getItem('isStaffSession') === 'true';
     
-    if (staffName && isSession && sessionAccountId === accountId && sessionAuctionId === auctionId) {
+    if (staffNameFromStorage && isSession && sessionAccountId === accountId && sessionAuctionId === auctionId) {
         setIsAuthorized(true);
-        setStaffName(staffName);
+        setStaffName(staffNameFromStorage);
     } else {
         setIsAuthorized(false);
     }
@@ -636,11 +638,15 @@ export default function PublicStaffAuctionPage() {
       <div className="print:hidden">
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-y-4">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">{auction.name}</h1>
-                <p className="text-muted-foreground">{auction.description}</p>
-            </div>
-             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <div>
+                  <h1 className="text-3xl font-bold tracking-tight">{auction.name}</h1>
+                  <p className="text-muted-foreground">{auction.description}</p>
+              </div>
+               <div className="flex flex-col items-end gap-2 text-right">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Logged in as: <span className="font-semibold text-foreground">{displayName}</span>
+                </p>
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <Button size="sm" variant={auction.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
                         {auction.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
                         {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
@@ -650,6 +656,7 @@ export default function PublicStaffAuctionPage() {
                     {(auction.type === 'Silent' || auction.type === 'Hybrid') && (<Button size="sm" variant="outline" onClick={() => setIsAddLotDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Lot</Button>)}
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
+              </div>
             </div>
 
             <Tabs defaultValue="items">
