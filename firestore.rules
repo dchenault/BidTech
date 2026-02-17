@@ -113,13 +113,12 @@ service cloud.firestore {
         function isOwnerOrManager() {
           // An "owner" is the account admin. A "manager" is in the authorizedManagers map.
           let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-          let isManager = isSignedIn() && request.auth.token.email != null && (request.auth.token.email in auction.data.authorizedManagers);
+          let isManager = isSignedIn() && request.auth.uid in auction.data.managers;
           return isAccountAdmin(accountId) || isManager;
         }
 
-        // NOTE: The current public staff login flow is insecure because it does not create an authenticated session.
-        // This function will always return false for staff members, preventing them from accessing data.
-        // A more robust solution involves anonymous authentication on the client-side login page.
+        // This function assumes the client performs an anonymous sign-in for staff.
+        // It checks if the anonymous user's UID is recorded in the staff subcollection.
         function isAuthorizedStaff() {
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
@@ -135,14 +134,15 @@ service cloud.firestore {
         // -- SUBCOLLECTION RULES --
         
         // Rules for the 'staff' subcollection. This is the "Staff Handshake" rule.
+        // A manager can add/remove usernames. The public can read to check for a valid username.
         match /staff/{staffUsername} {
-          // Allow public reads to check for a valid username.
           allow get: if true; 
-          
-          // Only managers can create, list, or delete staff usernames.
           allow list, create, delete: if isOwnerOrManager();
           
-          // Nobody can update a staff username document from the client.
+          // Allow a user to create their own staff session document after anonymous sign-in.
+          allow create: if isSignedIn() && staffUsername == request.auth.uid;
+          
+          // Nobody can update a staff username document from the client after creation.
           allow update: if false;
         }
 
