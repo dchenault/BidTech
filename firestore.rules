@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -118,8 +117,10 @@ service cloud.firestore {
           return isAccountAdmin(accountId) || isManager;
         }
 
+        // NOTE: The current public staff login flow is insecure because it does not create an authenticated session.
+        // This function will always return false for staff members, preventing them from accessing data.
+        // A more robust solution involves anonymous authentication on the client-side login page.
         function isAuthorizedStaff() {
-          // This function checks if the requesting user has an active, PIN-verified staff session.
           return isSignedIn() &&
                  exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
         }
@@ -133,12 +134,15 @@ service cloud.firestore {
 
         // -- SUBCOLLECTION RULES --
         
-        // Rules for the 'staff' subcollection itself
-        match /staff/{staffUserId} {
+        // Rules for the 'staff' subcollection. This is the "Staff Handshake" rule.
+        match /staff/{staffUsername} {
+          // Allow public reads to check for a valid username.
+          allow get: if true; 
+          
+          // Only managers can create, list, or delete staff usernames.
           allow list, create, delete: if isOwnerOrManager();
-          allow create: if isSignedIn() && request.auth.uid == staffUserId &&
-                         request.resource.data.staffPin == get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)).data.staffPin;
-          allow read, delete: if isSignedIn() && request.auth.uid == staffUserId;
+          
+          // Nobody can update a staff username document from the client.
           allow update: if false;
         }
 
