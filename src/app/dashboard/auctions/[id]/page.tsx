@@ -1087,7 +1087,7 @@ export default function AuctionDetailsPage() {
                       <Card>
                         <CardHeader>
                             <CardTitle className="text-xl">Staff Management</CardTitle>
-                            <CardDescription>Manage usernames for staff who need access to this auction's dashboard.</CardDescription>
+                            <CardDescription>Manage on-site staff access for this auction.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                            <div className="space-y-2">

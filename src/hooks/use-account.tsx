@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { createContext, useContext, useMemo, ReactNode, useState, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { User as UserProfile } from '@/lib/types';
@@ -27,24 +28,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const userAccountId = useMemo(() => userProfile?.activeAccountId || null, [userProfile]);
   const isUserPathLoading = isAuthLoading || isProfileLoading;
   
-  // --- Path 2: Staff Session ---
-  const [staffAccountId, setStaffAccountId] = useState<string | null>(null);
-  
-  useEffect(() => {
-    // This effect runs only on the client.
-    if (isStaffSession) {
-      const storedAccountId = localStorage.getItem('staffAccountId');
-      setStaffAccountId(storedAccountId);
-    } else {
-      setStaffAccountId(null);
-    }
+  // --- Path 2: Staff Session (Optimized) ---
+  const staffAccountId = useMemo(() => {
+    // This runs on the client. On server, it's null.
+    if (typeof window === 'undefined' || !isStaffSession) return null;
+    return localStorage.getItem('staffAccountId');
   }, [isStaffSession]);
   
   // --- Combine Paths ---
   const accountId = isStaffSession ? staffAccountId : userAccountId;
   
-  // The provider is only "loading" if it's NOT a staff session and the regular user path is still resolving.
-  // For a staff session, the accountId is available synchronously from localStorage.
   const isLoading = !isStaffSession && isUserPathLoading;
 
   return (
