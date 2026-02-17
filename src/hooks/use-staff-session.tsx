@@ -15,7 +15,7 @@ const StaffSessionContext = createContext<StaffSessionContextType | undefined>(u
 
 
 export function StaffSessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState({ isStaffSession: false, staffName: null });
+  const [session, setSession] = useState<{ isStaffSession: boolean; staffName: string | null }>({ isStaffSession: false, staffName: null });
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
   const firestore = useFirestore();
