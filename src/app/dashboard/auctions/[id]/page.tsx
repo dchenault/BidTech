@@ -70,7 +70,6 @@ import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStaffSession } from '@/hooks/use-staff-session';
 import { Label } from '@/components/ui/label';
-import { FormDescription } from '@/components/ui/form';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -1114,7 +1113,7 @@ export default function AuctionDetailsPage() {
                                     />
                                     <Button onClick={handleSavePin}>Save PIN</Button>
                                 </div>
-                                <FormDescription>Staff can use this PIN to log in via the public staff portal.</FormDescription>
+                                <p className="text-sm text-muted-foreground">Staff can use this PIN to log in via the public staff portal.</p>
                            </div>
                            <div className="space-y-2">
                                 <Label>Public Staff Login Link</Label>
