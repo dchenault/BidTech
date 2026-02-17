@@ -44,7 +44,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, LotFormValues, Auction, Account, Donor } from '@/lib/types';
+import type { Item, Patron, Category, RegisteredPatron, Lot, Auction, Account, Donor } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
@@ -361,7 +361,7 @@ export default function PublicStaffAuctionPage() {
     setSelectedItem(null);
   };
 
-  const handleItemAdd = async (newItemData: ItemFormValues) => {
+  const handleItemAdd = async (newItemData: any) => {
     if (!firestore || !accountId || !storage) throw new Error('Cannot add item: missing context.');
     try {
         const finalImageUrl = newItemData.imageUrl && newItemData.imageUrl.startsWith('data:') 
@@ -407,7 +407,7 @@ export default function PublicStaffAuctionPage() {
     }
   };
 
-  const handleItemUpdate = async (updatedItemData: ItemFormValues) => {
+  const handleItemUpdate = async (updatedItemData: any) => {
     if (!selectedItem || !firestore || !accountId || !storage) return;
     try {
         const finalImageUrl = updatedItemData.imageUrl && updatedItemData.imageUrl.startsWith('data:')
@@ -468,7 +468,7 @@ export default function PublicStaffAuctionPage() {
     }
   };
 
-  const handleAddCategory = async (values: CategoryFormValues) => {
+  const handleAddCategory = async (values: any) => {
     if (!firestore || !accountId || !auctionId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     await updateDoc(auctionDocRef, { categories: arrayUnion({ ...values, id: `cat-${Date.now()}` }) });
@@ -486,7 +486,7 @@ export default function PublicStaffAuctionPage() {
     }
   }
 
-  const addPatron = async (patronData: PatronFormValues): Promise<Patron | void> => {
+  const addPatron = async (patronData: any): Promise<Patron | void> => {
     if (!firestore || !accountId) return;
     const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
     const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0 };
@@ -515,7 +515,7 @@ export default function PublicStaffAuctionPage() {
     
     // --- More handlers that need to be re-implemented... this is a lot. ---
     const handleConfirmDeleteCategory = async () => { /* ... */ };
-    const handleUpdateCategory = (values: CategoryFormValues) => { /* ... */ };
+    const handleUpdateCategory = (values: any) => { /* ... */ };
     const handleAddLot = (values: { name: string, closingDate?: Date }) => { /* ... */ };
     const handleUpdateLot = (values: { name: string, closingDate?: Date }) => { /* ... */ };
     const handleConfirmDeleteLot = () => { /* ... */ };
