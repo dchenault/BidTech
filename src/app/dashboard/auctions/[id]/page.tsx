@@ -75,6 +75,7 @@ export default function AuctionDetailsPage() {
   const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
+  const [debugStaffName, setDebugStaffName] = useState<string | null>(null);
   const { searchQuery, setSearchQuery } = useSearch();
   const { accountId, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
@@ -110,6 +111,20 @@ export default function AuctionDetailsPage() {
   const auction = getAuction(auctionId);
   const { items, isLoadingItems } = getAuctionItems(auctionId);
   const { lots, isLoadingLots } = getAuctionLots(auctionId);
+
+  useEffect(() => {
+    const staffNameFromStorage = localStorage.getItem('staffName');
+    setDebugStaffName(staffNameFromStorage);
+    if (staffNameFromStorage) {
+      console.log('Staff session detected, forcing render');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (items) {
+      console.log('Items updated:', items.length);
+    }
+  }, [items]);
 
   const staffRef = useMemoFirebase(
     () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'staff') : null),
@@ -816,6 +831,20 @@ export default function AuctionDetailsPage() {
 
   return (
     <>
+      <div
+        style={{
+          backgroundColor: 'red',
+          color: 'white',
+          padding: '10px',
+          marginBottom: '10px',
+          borderRadius: '5px',
+          textAlign: 'center',
+          fontWeight: 'bold',
+        }}
+      >
+        DEBUG: User: {user ? user.email : 'None'} | Staff:{' '}
+        {debugStaffName || 'None'}
+      </div>
       <div className="print:hidden">
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-y-4">
