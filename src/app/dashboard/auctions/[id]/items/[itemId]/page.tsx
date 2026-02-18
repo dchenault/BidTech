@@ -278,6 +278,7 @@ export default function ItemDetailsPage() {
         categories={auction.categories || []}
         lots={lots || []}
         auctionType={auction.type}
+        accountId={accountId!}
       />
     </>
   );
