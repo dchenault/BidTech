@@ -53,7 +53,6 @@ import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
-import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
 import { AuctionCatalog } from '@/components/auction-catalog';
 import { Input } from '@/components/ui/input';
@@ -62,7 +61,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStorage } from '@/firebase/provider';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
@@ -111,9 +109,6 @@ export default function PublicStaffAuctionPage() {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
-  const [isAddLotDialogOpen, setIsAddLotDialogOpen] = useState(false);
-  const [lotToEdit, setLotToEdit] = useState<Lot | null>(null);
-  const [lotToDelete, setLotToDelete] = useState<Lot | null>(null);
   const [newStaffUsername, setNewStaffUsername] = useState("");
   const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
@@ -516,10 +511,6 @@ export default function PublicStaffAuctionPage() {
     // ... More handlers
     const handleConfirmDeleteCategory = async () => { /* ... */ };
     const handleUpdateCategory = (values: any) => { /* ... */ };
-    const handleAddLot = (values: { name: string, closingDate?: Date }) => { /* ... */ };
-    const handleUpdateLot = (values: { name: string, closingDate?: Date }) => { /* ... */ };
-    const handleConfirmDeleteLot = () => { /* ... */ };
-    const handleAddStaff = async () => { /* ... */ };
     const handleDeleteStaff = async () => { /* ... */ };
 
     
@@ -649,7 +640,6 @@ export default function PublicStaffAuctionPage() {
                     </Button>
                      {auction.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
                     <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}><Download className="mr-2 h-4 w-4" />Export Catalog</Button>
-                    {(auction.type === 'Silent' || auction.type === 'Hybrid') && (<Button size="sm" variant="outline" onClick={() => setIsAddLotDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Lot</Button>)}
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
               </div>
