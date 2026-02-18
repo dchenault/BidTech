@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, collection } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { ItemFormValues, Category, Lot, Auction, Donor, CategoryFormValues } from "@/lib/types";
 import { itemFormSchema } from "@/lib/types";
-import { useDonors } from "@/hooks/use-donors";
-import { useFirestore } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
@@ -56,10 +55,16 @@ export function AddItemForm({
   const { toast } = useToast();
   const params = useParams();
   const auctionId = typeof params.id === 'string' ? params.id : '';
-  const { donors, isLoading: isLoadingDonors } = useDonors();
   const firestore = useFirestore();
   const [isAddDonorOpen, setIsAddDonorOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+
+  const donorsRef = useMemoFirebase(
+    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'donors') : null),
+    [firestore, accountId]
+  );
+  const { data: donorsData, isLoading: isLoadingDonors } = useCollection<Donor>(donorsRef);
+  const donors = donorsData || [];
 
   const form = useForm<ItemFormValues>({
     resolver: zodResolver(itemFormSchema),

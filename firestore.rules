@@ -32,8 +32,9 @@ service cloud.firestore {
     match /accounts/{accountId}/patrons/{patronId} {
       allow read, write: if true;
     }
+
     match /accounts/{accountId}/donors/{donorId} {
-      allow read: if true;
+      allow read, write: if true; 
     }
 
     // 5. THE OWNER/ADMIN RULES (Google Auth Required)
