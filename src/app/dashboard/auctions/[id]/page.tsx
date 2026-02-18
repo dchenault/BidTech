@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -202,23 +203,41 @@ export default function AuctionDetailsPage() {
   }, [sortedAndSearchedItems]);
 
 
-  const registeredPatronsWithDetails: (Patron & { registeredPatronDocId: string; biddingNumber: number; })[] = useMemo(() => {
-    if (!registeredPatronsData || isLoadingPatrons) return [];
-  
+  const registeredPatronsWithDetails: (Patron & { 
+      registeredPatronDocId: string; 
+      biddingNumber: number;
+      itemsWonInAuction: number;
+      amountDueInAuction: number;
+      paymentStatus: 'Paid' | 'Unpaid' | 'N/A';
+  })[] = useMemo(() => {
+    if (!registeredPatronsData || isLoadingPatrons || isLoadingItems) return [];
+    
     return registeredPatronsData
-      .map((rp: RegisteredPatron) => {
-        const patronDetails = patrons.find((p: Patron) => p.id === rp.patronId);
+      .map(rp => {
+        const patronDetails = patrons.find(p => p.id === rp.patronId);
         if (!patronDetails) return null;
-  
+        
+        const wonItems = items.filter(i => i.winnerId === rp.patronId && !i.sku.toString().startsWith('DON-'));
+        const unpaidItems = wonItems.filter(i => !i.paid);
+        const amountDue = unpaidItems.reduce((sum, i) => sum + (i.winningBid || 0), 0);
+        
+        let paymentStatus: 'Paid' | 'Unpaid' | 'N/A' = 'N/A';
+        if (wonItems.length > 0) {
+            paymentStatus = unpaidItems.length === 0 ? 'Paid' : 'Unpaid';
+        }
+
         return {
           ...patronDetails,
           accountId: patronDetails.accountId,
           registeredPatronDocId: rp.id,
           biddingNumber: rp.bidderNumber,
+          itemsWonInAuction: wonItems.length,
+          amountDueInAuction: amountDue,
+          paymentStatus: paymentStatus,
         };
       })
-      .filter((p: (Patron & { registeredPatronDocId: string; biddingNumber: number; }) | null): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
-  }, [registeredPatronsData, patrons, isLoadingPatrons]);
+      .filter((p): p is any => p !== null);
+  }, [registeredPatronsData, patrons, items, isLoadingPatrons, isLoadingItems]);
 
 
   const filteredRegisteredPatrons = useMemo(() => {
@@ -985,13 +1004,14 @@ export default function AuctionDetailsPage() {
                         <TableRow>
                             <TableHead>#</TableHead>
                             <TableHead>Name</TableHead>
-                            <TableHead className="hidden md:table-cell">Email</TableHead>
-                            <TableHead className="hidden lg:table-cell">Phone</TableHead>
+                            <TableHead className="hidden md:table-cell text-center">Items Won</TableHead>
+                            <TableHead className="hidden lg:table-cell text-right">Amount Due</TableHead>
+                            <TableHead className="hidden lg:table-cell text-center">Payment Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {filteredRegisteredPatrons.map((patron: Patron & { registeredPatronDocId: string, biddingNumber: number }) => (
+                        {filteredRegisteredPatrons.map((patron: any) => (
                             <TableRow 
                                 key={patron.id}
                                 onClick={() => router.push(`/dashboard/patrons/${patron.id}`)}
@@ -1001,8 +1021,13 @@ export default function AuctionDetailsPage() {
                             <TableCell className="font-medium">
                                 {patron.firstName} {patron.lastName}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">{patron.email}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{patron.phone}</TableCell>
+                            <TableCell className="hidden md:table-cell text-center">{patron.itemsWonInAuction}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-right">{formatCurrency(patron.amountDueInAuction)}</TableCell>
+                             <TableCell className="hidden lg:table-cell text-center">
+                                <Badge variant={patron.paymentStatus === 'Paid' ? 'secondary' : patron.paymentStatus === 'Unpaid' ? 'destructive' : 'outline'} className="capitalize">
+                                    {patron.paymentStatus}
+                                </Badge>
+                            </TableCell>
                             <TableCell className="text-right">
                                 <Button 
                                     variant="ghost" 

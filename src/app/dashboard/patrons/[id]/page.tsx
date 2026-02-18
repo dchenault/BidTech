@@ -226,7 +226,7 @@ export default function PatronDetailsPage() {
     try {
         await addDonationToAuction(auctionId, patron, amount, true);
         
-        const newDonation = {
+        const newDonation: WonItem = {
           id: `temp-donation-${Date.now()}`,
           sku: `DON-${Date.now()}`,
           name: "Donation",
