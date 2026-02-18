@@ -23,6 +23,14 @@ service cloud.firestore {
       // Unlock all data INSIDE the auction (lots, staff, registered_patrons, etc.)
       match /{allSubcollections=**} {
         allow read, write: if true; 
+
+    allow update: if 
+      // Option 1: User is a Manager (The standard way)
+      isManager() || 
+      // Option 2: Staff Handshake (The bypass)
+      // This specifically allows updating ONLY the categories array for staff
+      (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['categories']));
+
       }
     }
 

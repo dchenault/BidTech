@@ -50,7 +50,7 @@ import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -488,9 +488,55 @@ export default function PublicStaffAuctionPage() {
   const handleAddCategory = async (values: any) => {
     if (!firestore || !accountId || !auctionId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-    await updateDoc(auctionDocRef, { categories: arrayUnion({ ...values, id: `cat-${Date.now()}` }) });
+    const newCategory = { ...values, id: `cat-${Date.now()}` };
+    await updateDoc(auctionDocRef, { categories: arrayUnion(newCategory) });
     setIsAddCategoryDialogOpen(false);
-  }
+    toast({ title: 'Category Added' });
+  };
+  
+  const handleOpenEditCategoryDialog = (category: Category) => {
+    setSelectedCategory(category);
+    setIsEditCategoryDialogOpen(true);
+  };
+  
+  const handleUpdateCategory = async (values: any) => {
+      if (!auction || !firestore || !accountId || !selectedCategory) return;
+      const oldCategory = auction.categories.find(c => c.id === selectedCategory.id);
+      if (oldCategory) {
+          const updatedCategory = { ...oldCategory, name: values.name };
+          const batch = writeBatch(firestore);
+          const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+          batch.update(auctionDocRef, { categories: arrayRemove(oldCategory) });
+          batch.update(auctionDocRef, { categories: arrayUnion(updatedCategory) });
+          await batch.commit();
+          toast({ title: 'Category Updated' });
+      }
+      setIsEditCategoryDialogOpen(false);
+      setSelectedCategory(null);
+  };
+  
+  const handleConfirmDeleteCategory = async () => {
+      if (!categoryToDelete || !firestore || !accountId || !auctionId) return;
+  
+      const isCategoryInUse = items.some(item => item.categoryId === categoryToDelete.id);
+  
+      if (isCategoryInUse) {
+          toast({
+              variant: 'destructive',
+              title: 'Cannot Delete Category',
+              description: `"${categoryToDelete.name}" is in use by one or more items. Please reassign them first.`,
+          });
+          setCategoryToDelete(null);
+          return;
+      }
+  
+      const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+      await updateDoc(auctionDocRef, { categories: arrayRemove(categoryToDelete) });
+      
+      toast({ title: 'Category Deleted' });
+      setCategoryToDelete(null);
+  };
+
 
   const handleAddDonation = async (amount: number, patron: Patron) => {
     if (!patron.id) return;
@@ -531,8 +577,6 @@ export default function PublicStaffAuctionPage() {
     };
     
     // ... More handlers
-    const handleConfirmDeleteCategory = async () => { /* ... */ };
-    const handleUpdateCategory = (values: any) => { /* ... */ };
     const handleDeleteStaff = async () => { /* ... */ };
 
     
@@ -740,10 +784,47 @@ export default function PublicStaffAuctionPage() {
                 </CardContent>
                 </Card>
             </TabsContent>
-              <TabsContent value="settings"><div className="grid gap-6">
-                      <Card><CardHeader> ... </CardHeader><CardContent> ... </CardContent></Card>
-                      {/* Settings content omitted for brevity, but would be here */}
-              </div></TabsContent>
+            <TabsContent value="settings">
+                  <div className="grid gap-6">
+                      <Card>
+                          <CardHeader className="flex flex-row items-center justify-between">
+                              <div>
+                                  <CardTitle className="text-xl">Item Categories</CardTitle>
+                                  <CardDescription>Manage the categories for items in this auction.</CardDescription>
+                              </div>
+                              <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
+                                  <PlusCircle className="mr-2 h-4 w-4" /> Add Category
+                              </Button>
+                          </CardHeader>
+                          <CardContent>
+                              <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                  <TableHead>Category Name</TableHead>
+                                  <TableHead className="w-[150px] text-right">Actions</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {auction.categories?.map((category: Category) => (
+                                  <TableRow key={category.id}>
+                                      <TableCell className="font-medium">{category.name}</TableCell>
+                                      <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="sr-only">Delete Category</span>
+                                        </Button>
+                                      </TableCell>
+                                  </TableRow>
+                                  ))}
+                              </TableBody>
+                              </Table>
+                          </CardContent>
+                      </Card>
+                  </div>
+              </TabsContent>
             </Tabs>
         </div>
       </div>
@@ -753,11 +834,43 @@ export default function PublicStaffAuctionPage() {
       <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />
       {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => setIsWinningBidDialogOpen(false)} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
       {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />)}
+      
       <EditCategoryDialog isOpen={isAddCategoryDialogOpen} onClose={() => setIsAddCategoryDialogOpen(false)} onSubmit={handleAddCategory} title="Add New Category" description="Create a new category for items." submitButtonText="Add Category"/>
-      {/* ... Other dialogs ... */}
+      
+      {selectedCategory && (
+        <EditCategoryDialog
+          isOpen={isEditCategoryDialogOpen}
+          onClose={() => setIsEditCategoryDialogOpen(false)}
+          onSubmit={handleUpdateCategory}
+          category={selectedCategory}
+          title="Edit Category"
+          description="Update the name of this category."
+          submitButtonText="Update Category"
+        />
+      )}
+
       <RegisterPatronDialog isOpen={isRegisterPatronDialogOpen} onClose={() => setIsRegisterPatronDialogOpen(false)} allPatrons={patrons} registeredPatrons={registeredPatronsWithDetails} onRegister={handleRegisterPatron} onAddNewPatron={addPatron} isLoadingPatrons={isLoading}/>
       <AddAuctionDonationDialog isOpen={isAddDonationDialogOpen} onClose={() => setIsAddDonationDialogOpen(false)} patrons={registeredPatronsWithDetails} onSubmit={handleAddDonation}/>
+      
       <AlertDialog open={!!itemToDelete} onOpenChange={(isOpen) => !isOpen && setItemToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete "{itemToDelete?.name}".</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      
+      <AlertDialog open={!!categoryToDelete} onOpenChange={(isOpen) => !isOpen && setCategoryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the category "{categoryToDelete?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteCategory} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ExportCatalogDialog isOpen={isExportCatalogDialogOpen} onClose={() => setIsExportCatalogDialogOpen(false)} items={items} lots={lots} onSubmit={(orderedItems) => handleExportCatalog(orderedItems, lots)} isLoading={isLoading}/>
     </>
   );
