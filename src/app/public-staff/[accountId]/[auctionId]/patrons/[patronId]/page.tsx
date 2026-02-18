@@ -21,16 +21,20 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
-import { Mail, Phone, Home, DollarSign, Award, Printer, CreditCard, Loader2, Frown, ChevronLeft } from 'lucide-react';
-import type { Item, Auction, PaymentMethod, Patron, RegisteredPatron } from '@/lib/types';
+import { Mail, Phone, Home, DollarSign, Award, Printer, CreditCard, Loader2, Frown, ChevronLeft, Pencil, HeartHandshake } from 'lucide-react';
+import type { Item, Auction, PaymentMethod, Patron, RegisteredPatron, Account, PatronFormValues } from '@/lib/types';
 import { useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { exportPatronReceiptToHTML } from '@/lib/export';
 import { useToast } from '@/hooks/use-toast';
-import { doc, writeBatch, collection, collectionGroup, query, where, getDoc, getDocs, limit, updateDoc } from 'firebase/firestore';
+import { doc, writeBatch, collection, collectionGroup, query, where, getDoc, getDocs, limit, updateDoc, runTransaction } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { EditPatronDialog } from '@/components/edit-patron-dialog';
+import { AddDonationDialog } from '@/components/add-donation-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface WonItem extends Item {
   auctionName: string;
@@ -64,6 +68,10 @@ export default function PublicStaffPatronDetailsPage() {
   });
   const [itemsToPay, setItemsToPay] = useState<Item[]>([]);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+
 
   useEffect(() => {
     const staffName = localStorage.getItem('staffName');
@@ -106,6 +114,8 @@ export default function PublicStaffPatronDetailsPage() {
           id: doc.id,
           auctionName: fetchedAuction.name,
         } as WonItem));
+        
+        setNotes(fetchedPatron.notes || '');
 
         setPageData({
           patron: fetchedPatron,
@@ -139,6 +149,92 @@ export default function PublicStaffPatronDetailsPage() {
     setItemsToPay(items);
     setIsPaymentDialogOpen(true);
   };
+  
+    const handleSaveNotes = async () => {
+        if (!firestore || !accountId || !patronId) return;
+        const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
+        try {
+            await updateDoc(patronRef, { notes });
+            toast({
+                title: 'Notes Saved',
+                description: 'Your notes for this patron have been updated.',
+            });
+        } catch (e) {
+            toast({
+                variant: 'destructive',
+                title: 'Error Saving Notes',
+            });
+        }
+    };
+
+    const handlePatronUpdated = async (values: PatronFormValues) => {
+        if (!firestore || !accountId || !patronId) return;
+        const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
+        try {
+            await updateDoc(patronRef, values);
+            setPageData(prev => ({
+                ...prev,
+                patron: prev.patron ? { ...prev.patron, ...values } : null
+            }));
+            toast({ title: 'Patron Updated' });
+            setIsEditDialogOpen(false);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Error Updating Patron' });
+        }
+    };
+    
+    const handleAddDonation = async (amount: number, selectedAuctionId: string) => {
+        if (!firestore || !accountId || !patron) return;
+    
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const accountRef = doc(firestore, 'accounts', accountId);
+                const accountSnap = await transaction.get(accountRef);
+                if (!accountSnap.exists()) throw new Error("Account not found");
+                const accountData = accountSnap.data() as Account;
+    
+                const newSku = `DON-${(accountData.lastItemSku || 999) + 1}`;
+    
+                const donationItem: Omit<Item, 'id'> = {
+                    name: "Donation",
+                    description: `Cash donation of ${amount}`,
+                    sku: newSku,
+                    estimatedValue: amount,
+                    winningBid: amount,
+                    winnerId: patron.id,
+                    winner: patron,
+                    auctionId: selectedAuctionId,
+                    accountId: accountId,
+                    category: { id: "cat-donation", name: "Donation" },
+                    categoryId: "cat-donation",
+                    paid: true, 
+                    paymentMethod: 'Cash',
+                };
+    
+                const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', selectedAuctionId);
+                const itemsColRef = collection(auctionDocRef, 'items');
+                const newItemRef = doc(itemsColRef);
+    
+                transaction.set(newItemRef, donationItem);
+                transaction.update(accountRef, { lastItemSku: (accountData.lastItemSku || 999) + 1 });
+            });
+    
+            if (selectedAuctionId === auctionId) {
+                const newDonation: WonItem = {
+                  id: `temp-donation-${Date.now()}`,
+                  sku: `DON-${Date.now()}`, name: "Donation", description: `Cash donation of ${amount}`, estimatedValue: amount, winningBid: amount, winnerId: patron.id, winner: patron,
+                  auctionId: selectedAuctionId, accountId: accountId, category: { id: "cat-donation", name: "Donation" }, categoryId: "cat-donation", paid: true, paymentMethod: 'Cash', auctionName: auction?.name || 'Unknown',
+                };
+                setPageData(prev => ({...prev, wonItems: [...prev.wonItems, newDonation]}));
+            }
+            
+            toast({ title: 'Donation Recorded' });
+            setIsDonationDialogOpen(false);
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Error', description: e.message });
+        }
+    };
+
 
   const handleMarkAsPaid = async (paymentMethod: PaymentMethod) => {
     if (!firestore || itemsToPay.length === 0) return;
@@ -218,6 +314,7 @@ export default function PublicStaffPatronDetailsPage() {
   }
   
   return (
+    <>
     <div className="grid gap-6">
        <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" className="h-7 w-7" asChild>
@@ -234,8 +331,12 @@ export default function PublicStaffPatronDetailsPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-6">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{`${patron.firstName} ${patron.lastName}`}</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                </Button>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{patron.email}</span></div>
@@ -252,13 +353,40 @@ export default function PublicStaffPatronDetailsPage() {
               <div className="flex justify-between font-semibold"><span className="text-lg">Total Due</span><span className="text-lg">{formatCurrency(totalSpent)}</span></div>
             </CardContent>
           </Card>
+            <Card>
+                <CardHeader>
+                <CardTitle>Patron Notes</CardTitle>
+                <CardDescription>
+                    Internal notes for this patron. Not visible to them.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                <Label htmlFor="notes" className="sr-only">Notes</Label>
+                <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add any relevant notes here..."
+                    className="min-h-[150px]"
+                />
+                </CardContent>
+                <CardFooter>
+                <Button onClick={handleSaveNotes} className="ml-auto">Save Notes</Button>
+                </CardFooter>
+            </Card>
         </div>
 
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Contributions in this Auction</CardTitle>
+                <div>
+                    <CardTitle>Contributions in this Auction</CardTitle>
+                </div>
               <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsDonationDialogOpen(true)}>
+                    <HeartHandshake className="mr-2 h-4 w-4" />
+                    Add Donation
+                </Button>
                 <Button size="sm" onClick={() => openPaymentDialog(unpaidItems)} disabled={unpaidItems.length === 0}><CreditCard className="mr-2 h-4 w-4" />Pay All Unpaid ({unpaidItems.length})</Button>
                 <Button variant="outline" size="sm" onClick={handlePrintReceipt} disabled={paidItems.length === 0}><Printer className="mr-2 h-4 w-4" />Print Receipt</Button>
               </div>
@@ -283,7 +411,25 @@ export default function PublicStaffPatronDetailsPage() {
           </Card>
         </div>
       </div>
+
       <MarkAsPaidDialog isOpen={isPaymentDialogOpen} onClose={() => setIsPaymentDialogOpen(false)} onSubmit={handleMarkAsPaid} itemCount={itemsToPay.length} />
+      
+      <EditPatronDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        patron={patron}
+        onSuccess={handlePatronUpdated}
+      />
+      
+      <AddDonationDialog
+        isOpen={isDonationDialogOpen}
+        onClose={() => setIsDonationDialogOpen(false)}
+        auctions={[auction]}
+        onSubmit={handleAddDonation}
+        isLoading={isInitialLoad}
+      />
     </div>
+    </>
   );
 }
+
