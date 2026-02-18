@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -19,6 +18,7 @@ interface AddItemDialogProps {
   categories: Category[];
   lots: Lot[];
   auctionType: Auction['type'];
+  accountId: string;
 }
 
 export function AddItemDialog({
@@ -27,7 +27,8 @@ export function AddItemDialog({
   onSubmit,
   categories,
   lots,
-  auctionType
+  auctionType,
+  accountId,
 }: AddItemDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -60,11 +61,10 @@ export function AddItemDialog({
             lots={lots}
             auctionType={auctionType}
             isSubmitting={isSubmitting}
+            accountId={accountId}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-
-    

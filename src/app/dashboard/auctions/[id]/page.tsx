@@ -1194,6 +1194,7 @@ export default function AuctionDetailsPage() {
         categories={auction.categories || []}
         lots={lots || []}
         auctionType={auction.type}
+        accountId={accountId!}
         />
 
       {selectedItem && (
@@ -1218,6 +1219,7 @@ export default function AuctionDetailsPage() {
             categories={auction.categories || []}
             lots={lots || []}
             auctionType={auction.type}
+            accountId={accountId!}
         />
       )}
 

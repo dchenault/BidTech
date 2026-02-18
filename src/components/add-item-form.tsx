@@ -1,10 +1,10 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { ItemFormValues, Category, Lot, Auction, Donor, CategoryFormValues } from "@/lib/types";
 import { itemFormSchema } from "@/lib/types";
 import { useDonors } from "@/hooks/use-donors";
-import { useAuctions } from "@/hooks/use-auctions";
+import { useFirestore } from "@/firebase";
 import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
@@ -43,6 +43,7 @@ export function AddItemForm({
   auctionType,
   isSubmitting,
   submitButtonText = "Add Item",
+  accountId,
 }: {
   onSuccess: (data: ItemFormValues) => void;
   categories: Category[];
@@ -50,12 +51,13 @@ export function AddItemForm({
   auctionType: Auction['type'];
   isSubmitting: boolean;
   submitButtonText?: string;
+  accountId: string;
 }) {
   const { toast } = useToast();
   const params = useParams();
   const auctionId = typeof params.id === 'string' ? params.id : '';
   const { donors, isLoading: isLoadingDonors } = useDonors();
-  const { addCategoryToAuction } = useAuctions();
+  const firestore = useFirestore();
   const [isAddDonorOpen, setIsAddDonorOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
@@ -95,8 +97,11 @@ export function AddItemForm({
   }
 
   const handleCategoryAdded = (values: CategoryFormValues) => {
-    if (!auctionId) return;
-    addCategoryToAuction(auctionId, { name: values.name });
+    if (!auctionId || !accountId || !firestore) return;
+    const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+    updateDoc(auctionDocRef, {
+        categories: arrayUnion({ ...values, id: `cat-${Date.now()}` })
+    });
     toast({ title: "Category Added", description: `You can now select "${values.name}" from the list.`});
     setIsAddCategoryOpen(false);
   }
@@ -293,6 +298,7 @@ export function AddItemForm({
         isOpen={isAddDonorOpen}
         onClose={() => setIsAddDonorOpen(false)}
         onSuccess={handleDonorAdded}
+        accountId={accountId}
       />
       <EditCategoryDialog
         isOpen={isAddCategoryOpen}

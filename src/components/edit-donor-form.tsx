@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,15 +18,18 @@ import { Input } from "@/components/ui/input";
 import type { Donor, DonorFormValues } from "@/lib/types";
 import { donorFormSchema } from "@/lib/types";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Loader2 } from "lucide-react";
 
 export function EditDonorForm({
   onSuccess,
   donor,
-  submitButtonText = "Save Donor"
+  submitButtonText = "Save Donor",
+  isSubmitting,
 }: {
   onSuccess?: (data: DonorFormValues) => void;
   donor?: Donor | null;
   submitButtonText?: string;
+  isSubmitting?: boolean;
 }) {
   
   const defaultValues = useMemo<DonorFormValues>(() => donor ? {
@@ -214,7 +216,10 @@ export function EditDonorForm({
             </div>
         </div>
 
-        <Button type="submit">{submitButtonText}</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isSubmitting ? 'Saving...' : submitButtonText}
+        </Button>
       </form>
     </Form>
   );

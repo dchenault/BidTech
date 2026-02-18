@@ -135,16 +135,15 @@ export default function PublicStaffAuctionPage() {
 
   // --- Direct Data Fetching ---
   useEffect(() => {
-    // We only exit if we've confirmed NO authorization AND there's no Google User
-    if (isAuthorized === false && !user && !isUserLoading) {
+    if (!mounted) return;
+
+    if (!isAuthorized) {
       setIsLoading(false);
       return;
     }
   
-    // START FETCHING if we have a staff session OR a Google user
     if (!firestore || !accountId || !auctionId) return;
-    if (!isAuthorized && !user && isUserLoading) return; // Wait only if still loading auth
-  
+
     setIsLoading(true);
   
     const unsubscribers = [
@@ -160,7 +159,6 @@ export default function PublicStaffAuctionPage() {
       onSnapshot(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons'),
         (snap) => setRegisteredPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as RegisteredPatron)))
       ),
-      // CRITICAL: Fetching patrons from the account-level collection
       onSnapshot(collection(firestore, 'accounts', accountId, 'patrons'),
         (snap) => setPatrons(snap.docs.map(d => ({ id: d.id, ...d.data() } as Patron)))
       ),
@@ -168,7 +166,7 @@ export default function PublicStaffAuctionPage() {
   
     setIsLoading(false);
     return () => unsubscribers.forEach(unsub => unsub());
-  }, [isAuthorized, firestore, accountId, auctionId, user, isUserLoading]);
+  }, [isAuthorized, firestore, accountId, auctionId, mounted]);
   
   // --- Re-implemented Actions ---
   const updateAuction = useCallback(async (updatedAuctionData: Partial<Auction>) => {
@@ -269,20 +267,44 @@ export default function PublicStaffAuctionPage() {
   }, [sortedAndSearchedItems]);
 
 
-  const registeredPatronsWithDetails: (Patron & { registeredPatronDocId: string; biddingNumber: number; })[] = useMemo(() => {
+  const registeredPatronsWithDetails: (Patron & { 
+      registeredPatronDocId: string; 
+      biddingNumber: number;
+      itemsWonInAuction: number;
+      amountDueInAuction: number;
+      paymentStatus: 'Paid' | 'Unpaid' | 'N/A';
+  })[] = useMemo(() => {
     return registeredPatrons
       .map((rp: RegisteredPatron) => {
         const patronDetails = patrons.find((p: Patron) => p.id === rp.patronId);
         if (!patronDetails) return null;
-        return { ...patronDetails, accountId: patronDetails.accountId, registeredPatronDocId: rp.id, biddingNumber: rp.bidderNumber };
+        
+        const wonItems = items.filter(i => i.winnerId === rp.patronId && !i.sku.toString().startsWith('DON-'));
+        const unpaidItems = wonItems.filter(i => !i.paid);
+        const amountDue = unpaidItems.reduce((sum, i) => sum + (i.winningBid || 0), 0);
+        
+        let paymentStatus: 'Paid' | 'Unpaid' | 'N/A' = 'N/A';
+        if (wonItems.length > 0) {
+            paymentStatus = unpaidItems.length === 0 ? 'Paid' : 'Unpaid';
+        }
+
+        return { 
+            ...patronDetails, 
+            accountId: patronDetails.accountId, 
+            registeredPatronDocId: rp.id, 
+            biddingNumber: rp.bidderNumber,
+            itemsWonInAuction: wonItems.length,
+            amountDueInAuction: amountDue,
+            paymentStatus: paymentStatus
+        };
       })
-      .filter((p): p is Patron & { registeredPatronDocId: string; biddingNumber: number; } => p !== null);
-  }, [registeredPatrons, patrons]);
+      .filter((p): p is any => p !== null);
+  }, [registeredPatrons, patrons, items]);
 
 
   const filteredRegisteredPatrons = useMemo(() => {
     if (!searchQuery) return registeredPatronsWithDetails;
-    return registeredPatronsWithDetails.filter((p: Patron & {biddingNumber: number}) =>
+    return registeredPatronsWithDetails.filter((p: any) =>
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.biddingNumber?.toString().includes(searchQuery)
@@ -496,7 +518,7 @@ export default function PublicStaffAuctionPage() {
     setIsRegisterPatronDialogOpen(false);
   };
   
-    const handleUnregisterPatron = async (patron: Patron & { registeredPatronDocId: string }) => {
+    const handleUnregisterPatron = async (patron: any) => {
         if (!firestore || !accountId || !auctionId) return;
         const itemsWithWinnerQuery = query(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items'), where('winnerId', '==', patron.id));
         const wonItemsSnapshot = await getDocs(itemsWithWinnerQuery);
@@ -663,7 +685,7 @@ export default function PublicStaffAuctionPage() {
                               <Table><TableHeader><TableRow><TableHead>Patron</TableHead><TableHead>Amount</TableHead><TableHead>SKU</TableHead></TableRow></TableHeader>
                                   <TableBody>
                                       {searchedDonations.map((donation: Item) => (
-                                          <TableRow key={donation.id} className={cn(donation.winner?.id && "cursor-pointer")}>
+                                          <TableRow key={donation.id} onClick={() => donation.winner?.id && router.push(`/public-staff/${accountId}/${auctionId}/patrons/${donation.winner.id}`)} className={cn(donation.winner?.id && "cursor-pointer")}>
                                               <TableCell>
                                                   <div className="flex items-center gap-3">
                                                       <Avatar className="hidden h-9 w-9 sm:flex"><AvatarImage src={donation.winner?.avatarUrl} alt="Avatar" /><AvatarFallback>{donation.winner?.firstName?.charAt(0)}{donation.winner?.lastName?.charAt(0)}</AvatarFallback></Avatar>
@@ -692,9 +714,9 @@ export default function PublicStaffAuctionPage() {
                     <div className="relative pb-4"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input type="search" placeholder="Search patrons..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>
                     {filteredRegisteredPatrons.length > 0 ? (
                     <Table>
-                        <TableHeader><TableRow><TableHead>#</TableHead><TableHead>Name</TableHead><TableHead className="hidden md:table-cell">Email</TableHead><TableHead className="hidden lg:table-cell">Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>#</TableHead><TableHead>Name</TableHead><TableHead className="hidden md:table-cell text-center">Items Won</TableHead><TableHead className="hidden lg:table-cell text-right">Amount Due</TableHead><TableHead className="hidden lg:table-cell text-center">Payment Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
-                        {filteredRegisteredPatrons.map((patron: Patron & { registeredPatronDocId: string, biddingNumber: number }) => (
+                        {filteredRegisteredPatrons.map((patron: any) => (
                             <TableRow 
                                 key={patron.id}
                                 onClick={() => router.push(`/public-staff/${accountId}/${auctionId}/patrons/${patron.id}`)}
@@ -702,8 +724,13 @@ export default function PublicStaffAuctionPage() {
                             >
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
                             <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell>
-                            <TableCell className="hidden md:table-cell">{patron.email}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{patron.phone}</TableCell>
+                            <TableCell className="hidden md:table-cell text-center">{patron.itemsWonInAuction}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-right">{formatCurrency(patron.amountDueInAuction)}</TableCell>
+                             <TableCell className="hidden lg:table-cell text-center">
+                                <Badge variant={patron.paymentStatus === 'Paid' ? 'secondary' : patron.paymentStatus === 'Unpaid' ? 'destructive' : 'outline'} className="capitalize">
+                                    {patron.paymentStatus}
+                                </Badge>
+                            </TableCell>
                             <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleUnregisterPatron(patron); }}><Trash2 className="h-4 w-4" /><span className="sr-only">Remove</span></Button></TableCell>
                             </TableRow>
                         ))}
@@ -723,9 +750,9 @@ export default function PublicStaffAuctionPage() {
       <div className="hidden print:block">{auction && <AuctionCatalog auction={{...auction, items, lots}} />}</div>
 
       {/* DIALOGS */}
-      <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type}/>
+      <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />
       {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => setIsWinningBidDialogOpen(false)} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
-      {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type}/>)}
+      {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />)}
       <EditCategoryDialog isOpen={isAddCategoryDialogOpen} onClose={() => setIsAddCategoryDialogOpen(false)} onSubmit={handleAddCategory} title="Add New Category" description="Create a new category for items." submitButtonText="Add Category"/>
       {/* ... Other dialogs ... */}
       <RegisterPatronDialog isOpen={isRegisterPatronDialogOpen} onClose={() => setIsRegisterPatronDialogOpen(false)} allPatrons={patrons} registeredPatrons={registeredPatronsWithDetails} onRegister={handleRegisterPatron} onAddNewPatron={addPatron} isLoadingPatrons={isLoading}/>

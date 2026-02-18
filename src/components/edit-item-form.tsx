@@ -1,10 +1,10 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Item, ItemFormValues, Category, Lot, Auction, Donor, CategoryFormValues } from "@/lib/types";
 import { itemFormSchema } from "@/lib/types";
 import { useDonors } from "@/hooks/use-donors";
-import { useAuctions } from "@/hooks/use-auctions";
+import { useFirestore } from "@/firebase";
 import { Combobox } from "./ui/combobox";
 import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
@@ -45,6 +45,7 @@ export function EditItemForm({
   auctionType,
   isSubmitting,
   submitButtonText = "Update Item",
+  accountId,
 }: {
   onSuccess: (data: ItemFormValues) => void;
   item: Item | null;
@@ -53,12 +54,20 @@ export function EditItemForm({
   auctionType: Auction['type'];
   isSubmitting: boolean;
   submitButtonText?: string;
+  accountId: string;
 }) {
   const { toast } = useToast();
   const params = useParams();
-  const auctionId = typeof params.id === 'string' ? params.id : '';
+  const firestore = useFirestore();
+  
+  const getAuctionId = () => {
+    if (params.id && typeof params.id === 'string') return params.id;
+    if (params.auctionId && typeof params.auctionId === 'string') return params.auctionId;
+    return '';
+  }
+  const auctionId = getAuctionId();
+
   const { donors, isLoading: isLoadingDonors } = useDonors();
-  const { addCategoryToAuction } = useAuctions();
   const [isAddDonorOpen, setIsAddDonorOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
@@ -112,7 +121,6 @@ export function EditItemForm({
         submissionValues.lotId = undefined;
       }
 
-      // FIX: Await the parent's update logic to ensure state sync
       await onSuccess(submissionValues);
     } catch (error) {
       console.error("Update failed in EditItemForm:", error);
@@ -131,8 +139,11 @@ export function EditItemForm({
   }
 
   const handleCategoryAdded = (values: CategoryFormValues) => {
-    if (!auctionId) return;
-    addCategoryToAuction(auctionId, { name: values.name });
+    if (!auctionId || !accountId || !firestore) return;
+    const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
+    updateDoc(auctionDocRef, {
+        categories: arrayUnion({ ...values, id: `cat-${Date.now()}` })
+    });
     toast({ title: "Category Added", description: `You can now select "${values.name}" from the list.`});
     setIsAddCategoryOpen(false);
   }
@@ -329,6 +340,7 @@ export function EditItemForm({
         isOpen={isAddDonorOpen}
         onClose={() => setIsAddDonorOpen(false)}
         onSuccess={handleDonorAdded}
+        accountId={accountId}
       />
        <EditCategoryDialog
         isOpen={isAddCategoryOpen}

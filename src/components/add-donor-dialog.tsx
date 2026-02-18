@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react";
@@ -11,32 +10,47 @@ import {
 } from "@/components/ui/dialog";
 import type { Donor, DonorFormValues } from "@/lib/types";
 import { EditDonorForm } from "./edit-donor-form";
-import { useDonors } from "@/hooks/use-donors";
 import { useToast } from "@/hooks/use-toast";
+import { useFirestore } from "@/firebase";
+import { collection, addDoc } from "firebase/firestore";
 
 interface AddDonorDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (newDonor: Donor) => void;
+  accountId: string;
 }
 
-export function AddDonorDialog({ isOpen, onClose, onSuccess }: AddDonorDialogProps) {
-  const { addDonor } = useDonors();
+export function AddDonorDialog({ isOpen, onClose, onSuccess, accountId }: AddDonorDialogProps) {
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [formKey, setFormKey] = useState(Date.now());
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSuccess = async (values: DonorFormValues) => {
+    if (!firestore || !accountId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot add donor: database connection not available.",
+      });
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      const newDonor = await addDonor(values);
-      if (newDonor) {
-        onSuccess(newDonor as Donor);
-        toast({
-          title: "Donor Added!",
-          description: `The details for ${values.name} have been successfully added.`,
-        });
-      }
+      const donorsRef = collection(firestore, 'accounts', accountId, 'donors');
+      const newDonorData: Omit<Donor, 'id'> = { ...values, accountId: accountId };
+      const docRef = await addDoc(donorsRef, newDonorData);
+      
+      const newDonor = { id: docRef.id, ...newDonorData };
+      onSuccess(newDonor);
+      
+      toast({
+        title: "Donor Added!",
+        description: `The details for ${values.name} have been successfully added.`,
+      });
+
       onClose();
-      setFormKey(Date.now()); // Reset form for next time
     } catch (error) {
        toast({
         variant: "destructive",
@@ -44,6 +58,8 @@ export function AddDonorDialog({ isOpen, onClose, onSuccess }: AddDonorDialogPro
         description: "Could not save the new donor. Please try again.",
       });
       console.error("Error adding donor from dialog:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -66,6 +82,7 @@ export function AddDonorDialog({ isOpen, onClose, onSuccess }: AddDonorDialogPro
             key={formKey}
             onSuccess={handleSuccess}
             submitButtonText="Add Donor"
+            isSubmitting={isSubmitting}
           />
         </div>
       </DialogContent>
