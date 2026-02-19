@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Auction, Item } from '@/lib/types';
@@ -83,7 +82,7 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
 
   return (
     <div className="p-4 bg-white text-black text-xs">
-      <header className="mb-4 text-center">
+      <header className="mb-4 text-center print-header-container">
         <h1 className="text-4xl font-bold">{auction.name}</h1>
         <p className="text-lg text-gray-600">{auction.description}</p>
         <p className="text-md text-gray-500">
@@ -93,7 +92,7 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
 
       <main>
         {Object.keys(liveItemsByCategory).length > 0 && (
-          <section>
+          <section className="items-section">
             <h2 className="section-header">Live Auction Items</h2>
             <table className="catalog-table">
               {Object.entries(liveItemsByCategory).map(([categoryName, items]) =>
@@ -104,7 +103,7 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
         )}
 
         {Object.keys(silentItemsByLotThenCategory).length > 0 && (
-          <section className="page-break">
+          <section className="page-break items-section">
             <h2 className="section-header">Silent Auction Items</h2>
             {Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => (
               <div key={lotName} className="lot-group">
@@ -185,6 +184,20 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
             .notes-cell {
                 width: 25%;
                 border-left: 1px solid #e5e7eb;
+            }
+            @media print {
+                .print-header-container { 
+                    margin-bottom: 0;
+                    padding-bottom: 0;
+                }
+                .items-section {
+                    page-break-before: avoid;
+                    margin-top: 10px;
+                }
+                .thumbnail {
+                    height: 48px !important;
+                    width: 48px !important;
+                }
             }
         `}</style>
     </div>
