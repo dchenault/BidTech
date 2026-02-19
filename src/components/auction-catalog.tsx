@@ -63,18 +63,31 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
       silentItemsByLotThenCategory: {} as { [key: string]: { [key: string]: Item[] } }
     });
 
+    const formattedStartDate = (() => {
+        if (!auction.startDate) return '';
+        // Handle Firestore Timestamp or string/Date
+        const date = typeof (auction.startDate as any).toDate === 'function' 
+            ? (auction.startDate as any).toDate() 
+            : new Date(auction.startDate);
+
+        if (isNaN(date.getTime())) return ''; // Invalid date
+        
+        return date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+    })();
+
+
   return (
     <div className="p-4 bg-white text-black text-xs">
       <header className="mb-4 text-center">
         <h1 className="text-4xl font-bold">{auction.name}</h1>
         <p className="text-lg text-gray-600">{auction.description}</p>
         <p className="text-md text-gray-500">
-          {new Date(auction.startDate).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
+            {formattedStartDate}
         </p>
       </header>
 

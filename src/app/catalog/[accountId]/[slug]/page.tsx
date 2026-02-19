@@ -222,6 +222,28 @@ export default function PublicCatalogPage() {
     }
     return null;
   }
+
+  const getFormattedDate = (dateInput: any, options: Intl.DateTimeFormatOptions) => {
+    if (!dateInput) return '';
+    try {
+        const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-US', options);
+    } catch (e) {
+        return '';
+    }
+  };
+
+  const getFormattedDateTime = (dateInput: any) => {
+    if (!dateInput) return '';
+    try {
+        const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    } catch (e) {
+        return '';
+    }
+  };
   
   const renderLiveItems = () => (
       <Card>
@@ -247,7 +269,7 @@ export default function PublicCatalogPage() {
                         <CardTitle>{lot.name}</CardTitle>
                         {lot.closingDate && (
                             <CardDescription>
-                                Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                Closes: {getFormattedDateTime(lot.closingDate)}
                             </CardDescription>
                         )}
                         <CardDescription>{lotItems.length} item(s) in this lot.</CardDescription>
@@ -291,7 +313,7 @@ export default function PublicCatalogPage() {
             <div className="text-center space-y-2">
                 <h1 className="text-4xl font-bold tracking-tight">{auction?.name}</h1>
                 <p className="text-lg text-muted-foreground max-w-3xl mx-auto">{auction?.description}</p>
-                <p className="text-sm text-muted-foreground">Auction Date: {new Date(auction?.startDate || '').toLocaleDateString()}</p>
+                <p className="text-sm text-muted-foreground">Auction Date: {getFormattedDate(auction?.startDate, {})}</p>
             </div>
             
             <div className="relative">

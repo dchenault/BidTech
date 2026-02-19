@@ -242,6 +242,20 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
             liveItemsByCategory: {} as { [key: string]: Item[] },
             silentItemsByLotThenCategory: {} as { [key: string]: { [key: string]: Item[] } }
         });
+    
+    const safeFormatDate = (dateInput: any, options: Intl.DateTimeFormatOptions) => {
+        if (!dateInput) return '';
+        const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-US', options);
+    };
+
+    const safeFormatDateTime = (dateInput: any) => {
+        if (!dateInput) return '';
+        const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    };
 
 
   const styles = `
@@ -305,7 +319,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         silentItemsHtml += '<h2 class="section-header page-break">Silent Auction Items</h2>';
         silentItemsHtml += Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => {
           const lot = Array.from(lotsById.values()).find(l => l.name === lotName);
-          const closingDateHtml = lot?.closingDate ? `<p class="lot-closing-date">Closes: ${new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '';
+          const closingDateHtml = lot?.closingDate ? `<p class="lot-closing-date">Closes: ${safeFormatDateTime(lot.closingDate)}</p>` : '';
           return `
             <div class="lot-group">
                 <h3>Lot: ${lotName}</h3>
@@ -333,7 +347,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         <header>
           <h1>${auction.name}</h1>
           <p>${auction.description}</p>
-          <p>${new Date(auction.startDate).toLocaleDateString('en-US', {
+          <p>${safeFormatDate(auction.startDate, {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
           })}</p>
         </header>
