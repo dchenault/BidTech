@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2, Check } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2, Check } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -350,7 +350,6 @@ export default function PublicStaffAuctionPage() {
     setSortConfig({ key, direction });
   };
   
-  const handleToggleAuctionStatus = () => updateAuction({ status: auction.status === 'completed' ? 'active' : 'completed' });
   const handleExportCatalog = (orderedItems: Item[], finalLots: Lot[]) => exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
   
   const handleShareCatalog = () => {
@@ -710,10 +709,6 @@ export default function PublicStaffAuctionPage() {
                   Logged in as: <span className="font-semibold text-foreground">{displayName}</span>
                 </p>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <Button size="sm" variant={auction.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
-                        {auction.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
-                        {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
-                    </Button>
                      {auction.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
                     <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}><Download className="mr-2 h-4 w-4" />Export Catalog</Button>
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
