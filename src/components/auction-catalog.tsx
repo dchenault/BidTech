@@ -63,13 +63,13 @@ export function AuctionCatalog({ auction }: AuctionCatalogProps) {
     });
 
     const formattedStartDate = (() => {
-        if (!auction.startDate) return '';
+        if (!auction.startDate) return 'Date TBD';
         // Handle Firestore Timestamp or string/Date
         const date = typeof (auction.startDate as any).toDate === 'function' 
             ? (auction.startDate as any).toDate() 
             : new Date(auction.startDate);
 
-        if (isNaN(date.getTime())) return ''; // Invalid date
+        if (isNaN(date.getTime())) return 'Date TBD'; // Invalid date
         
         return date.toLocaleDateString('en-US', {
             weekday: 'long',
