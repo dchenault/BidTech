@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Item, Patron } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,7 +34,7 @@ interface EnterWinningBidDialogProps {
   isOpen: boolean;
   onClose: () => void;
   item: Item | null;
-  patrons: Patron[];
+  patrons: (Patron & { biddingNumber?: number })[];
   onSubmit: (winningBid: number, winner: Patron) => void;
 }
 
@@ -40,14 +47,17 @@ export function EnterWinningBidDialog({
 }: EnterWinningBidDialogProps) {
   const [bidAmount, setBidAmount] = useState<number | string>("");
   const [winnerId, setWinnerId] = useState<string | undefined>(undefined);
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    if (item) {
-      setBidAmount(item.winningBid || "");
-      setWinnerId(item.winner?.id);
+    if (isOpen) {
+      setBidAmount(item?.winningBid || "");
+      setWinnerId(item?.winnerId);
+      setSearchQuery("");
     }
-  }, [item]);
+  }, [isOpen, item]);
 
   const handleSubmit = () => {
     const bid = typeof bidAmount === 'string' ? parseFloat(bidAmount) : bidAmount;
@@ -90,6 +100,24 @@ export function EnterWinningBidDialog({
   
   if (!item) return null;
 
+  const filteredPatrons = useMemo(() => {
+    if (!searchQuery) {
+      return patrons;
+    }
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return patrons.filter(p => 
+      p.biddingNumber?.toString().includes(lowercasedQuery) ||
+      `${p.firstName} ${p.lastName}`.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [patrons, searchQuery]);
+
+  const selectedPatronLabel = useMemo(() => {
+    if (!winnerId) return "Select a patron...";
+    const patron = patrons.find(p => p.id === winnerId);
+    if (!patron) return "Select a patron...";
+    return `[#${patron.biddingNumber}] ${patron.firstName} ${patron.lastName}`;
+  }, [winnerId, patrons]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -114,28 +142,60 @@ export function EnterWinningBidDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="winner">
+            <Label>
               Winner
             </Label>
-            <Select onValueChange={setWinnerId} value={winnerId} required>
-              <SelectTrigger id="winner" className="w-full">
-                <SelectValue placeholder="Select a patron" />
-              </SelectTrigger>
-              <SelectContent>
-                {patrons.map((patron) => (
-                  <SelectItem key={patron.id} value={patron.id}>
-                    {patron.firstName} {patron.lastName} (Bidder #: {patron.biddingNumber})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-full justify-between"
+                >
+                  <span className="truncate">{selectedPatronLabel}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput
+                    placeholder="Search by name or bidder #..."
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                    autoFocus
+                  />
+                  <CommandList>
+                    <CommandEmpty>No patron found.</CommandEmpty>
+                    {filteredPatrons.map((patron) => (
+                      <CommandItem
+                        key={patron.id}
+                        value={`${patron.firstName} ${patron.lastName} ${patron.biddingNumber}`}
+                        onSelect={() => {
+                          setWinnerId(patron.id);
+                          setOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            winnerId === patron.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        [#${patron.biddingNumber}] {patron.firstName} {patron.lastName}
+                      </CommandItem>
+                    ))}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Save Winning Bid</Button>
+          <Button onClick={handleSubmit} disabled={!winnerId}>Save Winning Bid</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
