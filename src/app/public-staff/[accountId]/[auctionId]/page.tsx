@@ -45,7 +45,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import type { Item, Patron, Category, RegisteredPatron, Lot, Auction, Account, Donor } from '@/lib/types';
+import type { Item, Patron, Category, RegisteredPatron, Lot, Auction, Account, Donor, CategoryFormValues } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
@@ -485,7 +485,7 @@ export default function PublicStaffAuctionPage() {
     }
   };
 
-  const handleAddCategory = async (values: any) => {
+  const handleAddCategory = async (values: CategoryFormValues) => {
     if (!firestore || !accountId || !auctionId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     const newCategory = { ...values, id: `cat-${Date.now()}` };
@@ -499,7 +499,7 @@ export default function PublicStaffAuctionPage() {
     setIsEditCategoryDialogOpen(true);
   };
   
-  const handleUpdateCategory = async (values: any) => {
+  const handleUpdateCategory = async (values: CategoryFormValues) => {
       if (!auction || !firestore || !accountId || !selectedCategory) return;
       const oldCategory = auction.categories.find(c => c.id === selectedCategory.id);
       if (oldCategory) {
@@ -552,7 +552,7 @@ export default function PublicStaffAuctionPage() {
   const addPatron = async (patronData: any): Promise<Patron | void> => {
     if (!firestore || !accountId) return;
     const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
-    const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0, createdInAuction: auctionId };
+    const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0 };
     const docRef = await addDoc(patronsRef, newPatron);
     return { id: docRef.id, ...newPatron };
   };
@@ -604,7 +604,7 @@ export default function PublicStaffAuctionPage() {
                 <TableHead className="hidden lg:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
                 </TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
+                <TableHead className="text-right">Action</TableHead>
             </TableRow>
             </TableHeader>
             <TableBody>
@@ -620,15 +620,17 @@ export default function PublicStaffAuctionPage() {
                 <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
-                <TableCell>
-                    <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>Enter Winning Bid</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                    </DropdownMenu>
+                <TableCell className="text-right">
+                  <Button 
+                    size="sm" 
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      handleOpenWinningBidDialog(item); 
+                    }}
+                  >
+                    Enter Winning Bid
+                  </Button>
                 </TableCell>
                 </TableRow>
             ))}
