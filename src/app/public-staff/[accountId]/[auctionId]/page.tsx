@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2, Check } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -623,13 +623,21 @@ export default function PublicStaffAuctionPage() {
                 <TableCell className="text-right">
                   <Button 
                     size="sm" 
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
+                    variant={item.winningBid ? "outline" : "default"}
+                    className={cn(
+                      "font-bold shadow-sm transition-colors",
+                      !item.winningBid ? "bg-green-600 hover:bg-green-700 text-white" : "text-muted-foreground border-dashed"
+                    )}
                     onClick={(e) => { 
                       e.stopPropagation(); 
                       handleOpenWinningBidDialog(item); 
                     }}
                   >
-                    Enter Winning Bid
+                    {item.winningBid ? (
+                      <><Check className="mr-2 h-4 w-4" /> Edit Bid</>
+                    ) : (
+                      "Enter Winning Bid"
+                    )}
                   </Button>
                 </TableCell>
                 </TableRow>
