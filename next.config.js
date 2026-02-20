@@ -3,6 +3,7 @@
 const nextConfig = {
   reactStrictMode: false,
   experimental: {
+    forceSwcTransforms: true,
     serverActions: {
       bodySizeLimit: '2mb',
     },
