@@ -1,19 +1,27 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { ClientLayout } from '@/components/client-layout';
 import { Loader2, Gavel } from 'lucide-react';
 import { useStaffSession } from '@/hooks/use-staff-session';
+import { useAccount } from '@/hooks/use-account';
+import { useRoleSync } from '@/hooks/use-role-sync';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { isStaffSession, isSessionLoading } = useStaffSession();
+  const { accountId, isLoading: isAccountLoading } = useAccount();
+
+  // New hook to sync roles on load
+  useRoleSync(accountId);
+
+  const isLoading = isSessionLoading || (isUserLoading && !isStaffSession) || isAccountLoading;
 
   // This is the unified loading state. We wait until we know for sure if it's
   // a staff session or until the regular user's auth state has been resolved.
-  if (isSessionLoading || (isUserLoading && !isStaffSession)) {
+  if (isLoading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary">

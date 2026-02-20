@@ -8,10 +8,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Gift, Users, Package, FilePieChart } from 'lucide-react';
-import { useState } from 'react';
+import { Upload, FileText, Gift, Users, Package, FilePieChart, Trash2, PlusCircle, Loader2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
 import { useDonors } from '@/hooks/use-donors';
@@ -26,10 +26,14 @@ import {
   exportDonationsToCSV,
   exportAllDonationsToCSV,
 } from '@/lib/export';
-import type { Item } from '@/lib/types';
+import type { Item, User as UserProfile } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
+import { Input } from '@/components/ui/input';
+import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { z } from 'zod';
 
 type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations';
 
@@ -45,6 +49,71 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const { accountId } = useAccount();
   const { toast } = useToast();
+
+  // --- START: New Admin Management Logic ---
+  const { user } = useUser();
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [adminToRemove, setAdminToRemove] = useState<string | null>(null);
+
+  const userProfileRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user]
+  );
+  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
+  const isAdmin = useMemo(() => !!(accountId && userProfile?.accounts?.[accountId] === 'admin'), [userProfile, accountId]);
+
+  const adminsRef = useMemoFirebase(
+    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'admins') : null),
+    [firestore, accountId]
+  );
+  const { data: adminsData, isLoading: isLoadingAdmins } = useCollection(adminsRef);
+  const admins = useMemo(() => adminsData?.map(adminDoc => adminDoc.id) || [], [adminsData]);
+
+  const handleAddAdmin = async () => {
+    const emailValidation = z.string().email().safeParse(newAdminEmail);
+    if (!emailValidation.success) {
+      toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
+      return;
+    }
+    const validatedEmail = emailValidation.data.toLowerCase();
+
+    if (!firestore || !accountId) return;
+    if (admins.includes(validatedEmail)) {
+        toast({ variant: 'destructive', title: 'Admin Exists', description: 'This user is already an admin.' });
+        return;
+    }
+
+    setIsAddingAdmin(true);
+    try {
+      const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', validatedEmail);
+      await setDoc(adminDocRef, { addedBy: user?.email, addedAt: new Date() });
+      toast({ title: 'Admin Added', description: `${validatedEmail} has been added as an admin.` });
+      setNewAdminEmail('');
+    } catch (error) {
+      console.error('Error adding admin:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not add admin.' });
+    } finally {
+      setIsAddingAdmin(false);
+    }
+  };
+  
+  const handleRemoveAdmin = async () => {
+    if (!firestore || !accountId || !adminToRemove) return;
+    try {
+        const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', adminToRemove);
+        await deleteDoc(adminDocRef);
+        // Note: This only removes them from the simple admin list. It does not demote them from their user profile.
+        // The role sync logic will prevent them from getting the role back on next login, but won't remove it if they are already logged in.
+        // A Cloud Function would be needed for a more robust demotion.
+        toast({ title: 'Admin Removed', description: `${adminToRemove} is no longer an admin.` });
+        setAdminToRemove(null);
+    } catch (error) {
+        console.error('Error removing admin:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not remove admin.' });
+    }
+  };
+  // --- END: New Admin Management Logic ---
 
   const handleOpenExportDialog = (type: ExportType, title: string) => {
     setExportDialog({ isOpen: true, type, title });
@@ -175,6 +244,52 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin Management</CardTitle>
+            <CardDescription>
+              Add or remove users who can manage account settings and billing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex w-full max-w-sm items-center space-x-2">
+              <Input
+                type="email"
+                placeholder="new.admin@example.com"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                disabled={isAddingAdmin}
+              />
+              <Button onClick={handleAddAdmin} disabled={isAddingAdmin}>
+                {isAddingAdmin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                Add Admin
+              </Button>
+            </div>
+            <div className="rounded-md border">
+                {isLoadingAdmins ? (
+                    <p className="p-4 text-sm text-muted-foreground">Loading admins...</p>
+                ) : admins.length > 0 ? (
+                    <ul className="divide-y">
+                        {admins.map(email => (
+                            <li key={email} className="flex items-center justify-between p-3">
+                                <span className="text-sm font-medium">{email}</span>
+                                {email.toLowerCase() !== user?.email?.toLowerCase() && (
+                                    <Button variant="ghost" size="icon" onClick={() => setAdminToRemove(email)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="p-4 text-center text-sm text-muted-foreground">No other admins have been added.</p>
+                )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       <Card>
         <CardHeader>
@@ -219,6 +334,22 @@ export default function SettingsPage() {
         title="Import Donors from CSV"
         description="Upload a CSV file with donor data. The column headers must include: name, and type ('Individual' or 'Business'). Optional columns: email, phone, street, city, state, zip, and contactPerson."
     />
+     <AlertDialog open={!!adminToRemove} onOpenChange={(isOpen) => !isOpen && setAdminToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove admin permissions for <strong>{adminToRemove}</strong>. They will no longer be able to manage account settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveAdmin} className="bg-destructive hover:bg-destructive/90">
+              Remove Admin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -99,6 +99,16 @@ service cloud.firestore {
 
       // --- Subcollections of an Account ---
       
+      // NEW: Simple admin list based on email.
+      match /admins/{email} {
+        // Any signed-in user can check if their own email is on the list.
+        // This is used for the just-in-time role sync on login.
+        allow get: if isSignedIn() && request.auth.token.email.lower() == email;
+        
+        // Only an existing account admin can read the full list or add/remove other admins.
+        allow list, create, delete: if isAccountAdmin(accountId);
+      }
+      
       match /patrons/{patronId} {
           // Allow full account members full write access.
           allow read, write: if isAccountMember(accountId);
@@ -119,7 +129,7 @@ service cloud.firestore {
         function isOwnerOrManager() {
           // An "owner" is the account admin. A "manager" is in the authorizedManagers map.
           let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-          let isManager = isSignedIn() && request.auth.uid in auction.data.managers;
+          let isManager = isSignedIn() && auction.data.managers != null && request.auth.uid in auction.data.managers;
           return isAccountAdmin(accountId) || isManager;
         }
 
