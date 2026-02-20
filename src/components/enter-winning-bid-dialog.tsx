@@ -106,7 +106,7 @@ export function EnterWinningBidDialog({
     }
     const lowercasedQuery = searchQuery.toLowerCase();
     return patrons.filter(p => 
-      p.biddingNumber?.toString().includes(lowercasedQuery) ||
+      p.biddingNumber?.toString().includes(searchQuery) ||
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(lowercasedQuery)
     );
   }, [patrons, searchQuery]);

@@ -248,9 +248,9 @@ export default function PatronsPage() {
                     </TableCell>
                     <TableCell>{patron.email}</TableCell>
                     <TableCell className="hidden md:table-cell">{patron.phone}</TableCell>
-                    <TableCell className="hidden md:table-cell text-right">{patron.itemsWon || 0}</TableCell>
+                    <TableCell className="hidden md:table-cell text-right">{patron.itemsWon}</TableCell>
                     <TableCell className="hidden sm:table-cell text-right">
-                        {formatCurrency(patron.totalSpent || 0)}
+                        {formatCurrency(patron.totalSpent)}
                     </TableCell>
                     <TableCell>
                         <DropdownMenu>
