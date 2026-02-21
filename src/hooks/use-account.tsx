@@ -40,8 +40,24 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       return staffAccountId;
     }
     
-    // If it's a regular user, the account ID comes from their profile.
-    return userProfile?.activeAccountId || null;
+    // If it's a regular user, try to get the active account ID first.
+    if (userProfile?.activeAccountId) {
+      return userProfile.activeAccountId;
+    }
+    
+    // Fallback for invited users who might not have an activeAccountId set yet.
+    // If they have accounts, pick one to be the active one.
+    if (userProfile?.accounts && Object.keys(userProfile.accounts).length > 0) {
+        // Prioritize an 'admin' account if available.
+        const adminAccount = Object.entries(userProfile.accounts).find(([, role]) => role === 'admin');
+        if (adminAccount) {
+            return adminAccount[0]; // Return the accountId of the admin role
+        }
+        // Otherwise, just return the first account they have access to.
+        return Object.keys(userProfile.accounts)[0];
+    }
+    
+    return null;
   }, [isSessionLoading, isStaffSession, staffAccountId, userProfile]);
   
   const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading));
