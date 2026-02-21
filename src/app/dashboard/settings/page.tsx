@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -87,7 +88,11 @@ export default function SettingsPage() {
     setIsAddingAdmin(true);
     try {
       const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', validatedEmail);
-      await setDoc(adminDocRef, { addedBy: user?.email, addedAt: new Date() });
+      await setDoc(adminDocRef, {
+        email: validatedEmail,
+        addedBy: user?.email,
+        addedAt: new Date()
+      });
       toast({ title: 'Admin Added', description: `${validatedEmail} has been added as an admin.` });
       setNewAdminEmail('');
     } catch (error) {

@@ -1,68 +1,183 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // 1. GLOBAL SETTINGS
-    // Deny everything by default to ensure no accidental leaks.
+    // By default, deny all reads and writes
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // 2. THE COLLECTION GROUP BYPASS
-    // This allows searching for won items across ALL auctions for a single patron.
-    // Crucial for the "Patron Detail" page to show their invoice.
-    match /{path=**}/items/{itemId} {
-      allow read, update: if true; 
-    }
-
-    // 3. THE PUBLIC STAFF & CATALOG BYPASS (Highest Priority)
-    // Allows specific auction data to be managed without a Google login.
-    match /accounts/{accountId}/auctions/{auctionId} {
-      allow get: if true;
-      
-      // Unlock all data INSIDE the auction (lots, staff, registered_patrons, etc.)
-      match /{allSubcollections=**} {
-        allow read, write: if true; 
-
-    allow update: if 
-      // Option 1: User is a Manager (The standard way)
-      isManager() || 
-      // Option 2: Staff Handshake (The bypass)
-      // This specifically allows updating ONLY the categories array for staff
-      (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['categories']));
-
-      }
-    }
-
-    // 4. THE "ORPHAN" DATA BYPASS
-    // Patrons and Donors are stored at the Account level. Staff need access
-    // to link them to items or register them for the auction.
-    match /accounts/{accountId}/patrons/{patronId} {
-      allow read, write: if true;
-    }
-
-    match /accounts/{accountId}/donors/{donorId} {
-      allow read, write: if true; 
-    }
-
-    // 5. THE OWNER/ADMIN RULES (Google Auth Required)
-    // Protects individual user profile data.
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Protects Account-level settings (billing, admin roles).
-    match /accounts/{accountId} {
-      allow read, write: if request.auth != null; 
-    }
-
-    match /patrons/{patronId} {
-      allow read, write: if true;
+    // ========= HELPER FUNCTIONS =========
+    function isSignedIn() {
+      return request.auth != null;
     }
     
-    // UPDATED: Allow staff to create/edit donors
-    match /donors/{donorId} {
-      allow read, write: if true;
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAccountAdmin(accountId) {
+      // Use the user's profile document to check for admin role.
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && 
+             (userProfile.data.accounts[accountId] == 'admin');
+    }
+
+    function isAccountMember(accountId) {
+      // Use the user's profile document to check for any role in the account.
+      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userProfile.data.accounts[accountId] != null;
+    }
+    
+    function isInvitedUser(invitation) {
+      // The client already saves the invitation email as lowercase.
+      return isSignedIn() &&
+             request.auth.token.email != null &&
+             invitation.email != null &&
+             request.auth.token.email.lower() == invitation.email;
+    }
+
+    // ========= COLLECTION GROUP RULES =========
+    
+    // This rule allows members of an account to read any item within that account
+    // using a collection group query. This is essential for features like calculating
+    // a patron's total spending across all auctions. Write access is still
+    // handled by the more specific, stricter rules nested under auctions.
+    match /{path=**}/items/{itemId} {
+      allow read: if isAccountMember(resource.data.accountId);
+    }
+
+    // This rule allows a newly signed-in user to check if they've been made an admin
+    // of any account, so they can be associated with it automatically.
+    match /{path=**}/admins/{adminEmail} {
+        allow list: if isSignedIn() && request.auth.token.email.lower() == request.query.where.email.lower();
+    }
+
+
+    // ========= ROOT COLLECTIONS =========
+    
+    // The `users` collection stores a profile for every authenticated user.
+    match /users/{userId} {
+      // A user can create their own profile.
+      allow create: if isUser(userId);
+      
+      // A user can read their own profile.
+      allow read: if isUser(userId);
+
+      // A user can update their own profile.
+      allow update: if isUser(userId);
+      
+      // No one can list all users or delete profiles from the client.
+      allow list, delete: if false;
+    }
+  
+    // The `invitations` collection stores invites for users to manage auctions.
+    match /invitations/{inviteId} {
+      // An admin of the target account can create or delete invites.
+      allow create: if isAccountAdmin(request.resource.data.accountId);
+      allow delete: if isAccountAdmin(resource.data.accountId);
+      
+      // An admin can read their own invites. The invited user can read their own invite once logged in.
+      allow get: if isAccountAdmin(resource.data.accountId) || isInvitedUser(resource.data);
+      
+      // An admin can list the invites for their account via a query.
+      allow list: if isSignedIn() && request.query.accountId != null && isAccountAdmin(request.query.accountId);
+                   
+      // The invited user can update their own invite to accept it.
+      allow update: if isInvitedUser(resource.data);
+    }
+    
+    // `accounts` holds all tenant data. Access is controlled by the user's profile.
+    match /accounts/{accountId} {
+      // A user can create their own account document. This happens in the same
+      // batch as user profile creation, so we check the incoming request data.
+      allow create: if isUser(request.resource.data.adminUserId) && request.resource.data.id == accountId;
+
+      // Only a member of the account can read the account document.
+      allow read: if isAccountMember(accountId);
+      
+      // Only the admin of the account can update or delete it.
+      allow update, delete: if isAccountAdmin(accountId);
+
+      // Disallow listing all accounts for security.
+      allow list: if false;
+
+      // --- Subcollections of an Account ---
+      
+      // NEW: Simple admin list based on email.
+      match /admins/{email} {
+        // Any signed-in user can check if their own email is on the list.
+        // This is used for the just-in-time role sync on login.
+        allow get: if isSignedIn() && request.auth.token.email.lower() == email;
+        
+        // Only an existing account admin can read the full list or add/remove other admins.
+        allow list, create, delete: if isAccountAdmin(accountId);
+      }
+      
+      match /patrons/{patronId} {
+          // Allow full account members full write access.
+          allow read, write: if isAccountMember(accountId);
+          
+          // Allow anonymous users (staff) to read, create, and update patrons.
+          // This is a security concession for the staff portal. Deletion remains restricted.
+          allow create, read, update: if isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+      }
+
+      match /donors/{donorId} {
+          allow read, write: if isAccountMember(accountId);
+      }
+      
+      // Auctions have more granular rules for managers and staff.
+      match /auctions/{auctionId} {
+        
+        // -- HELPER FUNCTIONS FOR AUCTION SCOPE --
+        function isOwnerOrManager() {
+          // An "owner" is the account admin. A "manager" is in the authorizedManagers map.
+          let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
+          let isManager = isSignedIn() && auction.data.managers != null && request.auth.uid in auction.data.managers;
+          return isAccountAdmin(accountId) || isManager;
+        }
+
+        function isAuthorizedStaff() {
+          return isSignedIn() &&
+                 exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
+        }
+
+        // -- PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF --
+        // Public catalogs need this, staff login also needs it to get auction details.
+        allow get: if true; 
+        allow list: if isAccountMember(accountId);
+        allow create: if isAccountMember(accountId);
+        allow update: if isOwnerOrManager();
+        allow delete: if isAccountAdmin(accountId); // Only the account admin can delete the auction
+
+        // -- SUBCOLLECTION RULES --
+        
+        // Rules for the 'staff' subcollection. This is the "Staff Handshake" rule.
+        // A manager can add/remove usernames. The public can read to check for a valid username.
+        match /staff/{staffId} {
+          // Allow anyone to check if a username exists (the ID is the username).
+          // Allow a manager to create/delete a username.
+          allow get: if true; 
+          allow list, create, delete: if isOwnerOrManager();
+          
+          // Allow a newly authenticated ANONYMOUS user to create their own session document.
+          // In this case, the {staffId} is the anonymous UID.
+          allow create: if isSignedIn() && staffId == request.auth.uid;
+          
+          // Nobody can update a staff username document from the client after creation.
+          allow update: if false;
+        }
+
+        // Rules for all other data subcollections (items, patrons, registered_patrons, etc.)
+        match /{subcollection}/{docId} {
+            allow read, list: if isOwnerOrManager() || isAuthorizedStaff();
+            allow create, update: if isOwnerOrManager() || isAuthorizedStaff();
+            // IMPORTANT: Only Owners and Managers can delete data. Staff cannot.
+            allow delete: if isOwnerOrManager();
+        }
+      }
     }
   }
 }
