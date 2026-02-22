@@ -10,7 +10,8 @@ import { doc, getDoc, collectionGroup, query, where, getDocs, writeBatch } from 
 /**
  * Hook that runs on authenticated layouts to handle one-time setup for new users.
  * This hook is critical for correctly associating a new user with an existing account
- * if they were invited as an admin, or creating a new personal account for them if not.
+ * if they were invited as an admin. It no longer creates accounts automatically for users
+ * who just log in without an invite.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -21,7 +22,7 @@ export function useUserSetup() {
 
   const performUserSetup = useCallback(async () => {
     // Exit if auth isn't resolved, there's no user, or no firestore connection.
-    if (isAuthLoading || !user || !firestore) {
+    if (isAuthLoading || !user || !firestore || !user.email) {
       return;
     }
 
@@ -47,7 +48,7 @@ export function useUserSetup() {
       // Check if the user's email is listed as an admin in ANY account.
       const adminsQuery = query(
         collectionGroup(firestore, 'admins'),
-        where('email', '==', user.email?.toLowerCase())
+        where('email', '==', user.email.toLowerCase())
       );
       const adminDocsSnap = await getDocs(adminsQuery);
 
@@ -80,17 +81,13 @@ export function useUserSetup() {
           title: 'Welcome!',
           description: "You've been granted admin access.",
         });
-      } else {
-        // --- Path B: Standard new user signup ---
-        // User is not an admin, so run the standard new account creation flow.
-        await setupNewUser(firestore, user);
-        toast({
-          title: 'Welcome!',
-          description: 'Your account has been created successfully.',
-        });
       }
-
-      // Mark setup as complete for this session to prevent re-running.
+      // --- Path B: No automatic account creation ---
+      // If the user is not found in any admin list and has no profile, we do nothing.
+      // The dashboard layout will catch this state and show a "Waiting for Account" page.
+      // Account creation is now an explicit action on the /signup page.
+      
+      // Mark setup check as complete for this session to prevent re-running.
       sessionStorage.setItem(`user-setup-complete-${user.uid}`, 'true');
 
     } catch (error) {

@@ -6,21 +6,21 @@ import { ClientLayout } from '@/components/client-layout';
 import { Loader2, Gavel } from 'lucide-react';
 import { useStaffSession } from '@/hooks/use-staff-session';
 import { useAccount } from '@/hooks/use-account';
-import { useRoleSync } from '@/hooks/use-role-sync';
+import { useUserSetup } from '@/hooks/use-user-setup';
+import { WaitingForAccountPage } from '@/components/waiting-for-account';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const { isStaffSession, isSessionLoading } = useStaffSession();
+  const { isStaffSession, isSessionLoading: isStaffSessionLoading } = useStaffSession();
+  
+  // These two hooks work together. useUserSetup ensures the user's profile
+  // is created if they just signed up. useAccount reads that profile.
+  const { isSetupLoading } = useUserSetup();
   const { accountId, isLoading: isAccountLoading } = useAccount();
 
-  // New hook to sync roles on load
-  useRoleSync(accountId);
+  const isLoading = isStaffSessionLoading || isUserLoading || isSetupLoading || isAccountLoading;
 
-  const isLoading = isSessionLoading || (isUserLoading && !isStaffSession) || isAccountLoading;
-
-  // This is the unified loading state. We wait until we know for sure if it's
-  // a staff session or until the regular user's auth state has been resolved.
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background">
@@ -33,15 +33,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
   
-  // This is the unified Auth Guard.
-  // If all loading is complete and we have neither a regular user nor a staff session, redirect to login.
+  // Auth Guard 1: Not logged in at all.
   if (!user && !isStaffSession) {
     router.push('/login');
-    return null; // Render nothing while redirecting.
+    return null;
   }
-
-  // If we pass the guard, render the standard layout. The ClientLayout component
-  // itself will correctly handle hiding the sidebar for staff sessions.
+  
+  // Auth Guard 2: Logged in, but has no associated account.
+  if (user && !accountId && !isStaffSession) {
+    return <WaitingForAccountPage />;
+  }
+  
   return (
     <ClientLayout>
       {children}

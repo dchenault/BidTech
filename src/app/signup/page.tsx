@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Gavel, Loader2 } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import {
   createUserWithEmailAndPassword,
   updateProfile,
@@ -31,10 +31,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signupSchema, type SignupValues } from '@/lib/types';
 import Link from 'next/link';
+import { setupNewUser } from '@/firebase/user-setup';
 
 export default function SignupPage() {
   const router = useRouter();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -49,25 +51,36 @@ export default function SignupPage() {
   });
 
   const handleEmailSignup = async (values: SignupValues) => {
-    if (!auth) {
+    if (!auth || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: 'Firebase Auth is not available.',
+        description: 'Firebase services are not available.',
       });
       return;
     }
     setIsLoading(true);
     try {
+      // Step 1: Create the user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         values.email,
         values.password
       );
-      // After creating the user, update their profile with the name
-      await updateProfile(userCredential.user, {
+      
+      const authUser = userCredential.user;
+
+      // Step 2: Update their Auth profile with the name
+      await updateProfile(authUser, {
         displayName: values.name,
       });
+      
+      // Step 3: Explicitly create their new account and user profile in Firestore
+      await setupNewUser(firestore, authUser);
+
+      // The onAuthStateChanged listener will handle the redirect to /dashboard
+      // so we don't need to do it here.
+
     } catch (error: any) {
       toast({
         variant: 'destructive',
