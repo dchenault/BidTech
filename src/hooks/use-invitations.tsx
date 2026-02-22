@@ -51,9 +51,18 @@ export function useInvitations() {
         };
       const docRef = await addDoc(rootInvitationsRef, newInvitation);
       
-      toast({
-        title: 'Invitation Link Ready!',
-        description: `A unique link has been generated for ${values.email}.`
+      const inviteLink = `${window.location.origin}/invite/${docRef.id}`;
+      navigator.clipboard.writeText(inviteLink).then(() => {
+        toast({
+          title: 'Invitation Link Copied!',
+          description: `The unique link for ${values.email} has been copied to your clipboard.`,
+        });
+      }).catch(() => {
+        toast({
+          title: 'Invitation Link Ready',
+          description: `Please manually copy this link: ${inviteLink}`,
+          duration: 10000,
+        });
       });
 
       return docRef.id;
