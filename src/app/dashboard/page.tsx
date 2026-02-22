@@ -16,6 +16,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recha
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/hooks/use-account';
+import { useRouter } from 'next/navigation';
 import {
   Select,
   SelectContent,
@@ -26,13 +27,20 @@ import {
 
 
 export default function DashboardPage() {
+    const router = useRouter();
     const firestore = useFirestore();
-    const { accountId } = useAccount();
+    const { accountId, role, isLoading: isAccountLoading } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
     const [allItems, setAllItems] = useState<Item[]>([]);
     const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
     const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (!isAccountLoading && role === 'manager') {
+            router.replace('/dashboard/my-auctions');
+        }
+    }, [isAccountLoading, role, router]);
 
     useEffect(() => {
         if (firestore && accountId && auctions.length > 0) {
@@ -103,9 +111,9 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     }, [auctions]);
 
-    const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingAllItems;
+    const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingAllItems || isAccountLoading;
 
-    if (isLoading) {
+    if (isLoading || role === 'manager') {
         return (
             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (

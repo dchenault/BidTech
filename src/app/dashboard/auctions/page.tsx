@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -55,28 +56,31 @@ import { useAccount } from '@/hooks/use-account';
 export default function AuctionsPage() {
   const router = useRouter();
   const { auctions, addAuction, updateAuction, isLoading: isLoadingAuctions } = useAuctions();
-  const { role, assignedAuctions, isLoading: isLoadingAccount } = useAccount();
+  const { role, isLoading: isLoadingAccount } = useAccount();
   const isLoading = isLoadingAuctions || isLoadingAccount;
 
   const { searchQuery, setSearchQuery } = useSearch();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAuction, setEditingAuction] = useState<Auction | null>(null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+      if (!isLoadingAccount && role === 'manager') {
+          router.replace('/dashboard/my-auctions');
+      }
+  }, [isLoadingAccount, role, router]);
+
 
   const filteredAuctions = useMemo(() => {
     if (!auctions) return [];
-
-    const relevantAuctions = role === 'manager'
-      ? auctions.filter(auction => assignedAuctions.includes(auction.id))
-      : auctions;
     
-    if (!searchQuery) return relevantAuctions;
+    if (!searchQuery) return auctions;
 
-    return relevantAuctions.filter(auction => 
+    return auctions.filter(auction => 
       auction.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (auction.description && auction.description.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [auctions, searchQuery, role, assignedAuctions]);
+  }, [auctions, searchQuery]);
 
   const handleAuctionCreated = (newAuctionData: FormValues) => {
     addAuction(newAuctionData);
@@ -186,6 +190,14 @@ export default function AuctionsPage() {
       </TableBody>
     </Table>
   );
+
+  if (isLoading || role === 'manager') {
+      return (
+          <div className="flex justify-center items-center h-64">
+             <p className="text-muted-foreground">Loading auctions...</p>
+          </div>
+      );
+  }
 
   return (
     <>
