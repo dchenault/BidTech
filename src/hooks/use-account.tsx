@@ -2,13 +2,15 @@
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import type { User as UserProfile } from '@/lib/types';
+import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, query, where } from 'firebase/firestore';
+import type { User as UserProfile, Invitation } from '@/lib/types';
 import { useStaffSession } from './use-staff-session';
 
 interface AccountContextType {
   accountId: string | null;
+  role: 'admin' | 'manager' | null;
+  assignedAuctions: string[];
   isLoading: boolean;
 }
 
@@ -19,51 +21,63 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const { isStaffSession, staffAccountId, isSessionLoading } = useStaffSession();
   const firestore = useFirestore();
 
-  // --- Path 1: Regular User ---
-  // Only create this ref if we're certain it's NOT a staff session to prevent unnecessary reads.
+  // Path 1: Regular User Profile
   const userProfileRef = useMemoFirebase(
     () => (!isSessionLoading && !isStaffSession && firestore && user ? doc(firestore, 'users', user.uid) : null),
     [isSessionLoading, isStaffSession, firestore, user]
   );
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
   
-  // --- Combine Paths ---
-  // Memoize the final accountId to ensure it's stable and only recalculates when dependencies change.
+  // Determine active accountId
   const accountId = useMemo(() => {
-    // If we're still determining the session type, we don't have an ID yet.
-    if (isSessionLoading) {
-      return null;
-    }
+    if (isSessionLoading) return null;
+    if (isStaffSession) return staffAccountId;
+    if (userProfile?.activeAccountId) return userProfile.activeAccountId;
     
-    // If it's a staff session, use the account ID from the hook's state.
-    if (isStaffSession) {
-      return staffAccountId;
-    }
-    
-    // If it's a regular user, try to get the active account ID first.
-    if (userProfile?.activeAccountId) {
-      return userProfile.activeAccountId;
-    }
-    
-    // Fallback for invited users who might not have an activeAccountId set yet.
-    // If they have accounts, pick one to be the active one.
     if (userProfile?.accounts && Object.keys(userProfile.accounts).length > 0) {
-        // Prioritize an 'admin' account if available.
         const adminAccount = Object.entries(userProfile.accounts).find(([, role]) => role === 'admin');
-        if (adminAccount) {
-            return adminAccount[0]; // Return the accountId of the admin role
-        }
-        // Otherwise, just return the first account they have access to.
+        if (adminAccount) return adminAccount[0];
         return Object.keys(userProfile.accounts)[0];
     }
     
     return null;
   }, [isSessionLoading, isStaffSession, staffAccountId, userProfile]);
-  
-  const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading));
+
+  // Determine user's role in the active account
+  const role = useMemo(() => {
+    if (!userProfile || !accountId || isStaffSession) return null;
+    return (userProfile.accounts?.[accountId] as 'admin' | 'manager') || null;
+  }, [userProfile, accountId, isStaffSession]);
+
+  // For managers, find which auctions they are explicitly assigned to.
+  const managerAuctionsQuery = useMemoFirebase(
+    () => (firestore && user && accountId && role === 'manager'
+      ? query(
+          collection(firestore, 'invitations'),
+          where('accountId', '==', accountId),
+          where('acceptedBy', '==', user.uid),
+          where('status', '==', 'accepted')
+        )
+      : null),
+    [firestore, user, accountId, role]
+  );
+  const { data: assignedInvitations, isLoading: isLoadingInvites } = useCollection<Invitation>(managerAuctionsQuery);
+
+  const assignedAuctions = useMemo(() => {
+    if (role === 'admin') return []; // Admins have implicit access to all.
+    if (role === 'manager' && assignedInvitations) {
+      return assignedInvitations.map(inv => inv.auctionId);
+    }
+    return [];
+  }, [role, assignedInvitations]);
+
+  // Combine loading states
+  const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading || (role === 'manager' && isLoadingInvites)));
+
+  const value = { accountId, role, assignedAuctions, isLoading };
 
   return (
-    <AccountContext.Provider value={{ accountId, isLoading }}>
+    <AccountContext.Provider value={value}>
       {children}
     </AccountContext.Provider>
   );

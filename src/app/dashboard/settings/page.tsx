@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Upload, FileText, Gift, Users, Package, FilePieChart, Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
-import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
 import { useDonors } from '@/hooks/use-donors';
@@ -27,7 +27,7 @@ import {
   exportDonationsToCSV,
   exportAllDonationsToCSV,
 } from '@/lib/export';
-import type { Item, User as UserProfile, Invitation, InviteManagerFormValues } from '@/lib/types';
+import type { Item, Invitation, InviteManagerFormValues } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
@@ -54,10 +54,12 @@ export default function SettingsPage() {
   const { patrons, isLoading: isLoadingPatrons, importPatronsFromCSV } = usePatrons();
   const { donors, isLoading: isLoadingDonors, importDonorsFromCSV } = useDonors();
   const firestore = useFirestore();
-  const { accountId } = useAccount();
   const { toast } = useToast();
 
   const { user } = useUser();
+  const { accountId, role } = useAccount();
+  const isAdmin = role === 'admin';
+
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
   const [adminToRemove, setAdminToRemove] = useState<string | null>(null);
@@ -85,13 +87,6 @@ export default function SettingsPage() {
   };
   // --- End Manager Invitation Logic ---
 
-
-  const userProfileRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
-  const isAdmin = useMemo(() => !!(accountId && userProfile?.accounts?.[accountId] === 'admin'), [userProfile, accountId]);
 
   const adminsRef = useMemoFirebase(
     () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'admins') : null),
@@ -175,13 +170,13 @@ export default function SettingsPage() {
                     exportDonorsToCSV(auctionDonors, `donors_${getAuctionName(auctionId).replace(/\s+/g, '_').toLowerCase()}.csv`);
                 } break;
             case 'items':
-                if (type === 'full') exportAllItemsToCSV(allItems);
+                if (type === 'full') exportAllItemsToCSV(allItems as (Item & { auctionName?: string })[]);
                 else if (auctionId) {
                     const items = await fetchAuctionItems(firestore, accountId, auctionId);
                     exportItemsToCSV(items, getAuctionName(auctionId));
                 } break;
             case 'reports':
-                if (type === 'full') exportAllWinningBidsToCSV(allItems);
+                if (type === 'full') exportAllWinningBidsToCSV(allItems as (Item & { auctionName?: string })[]);
                 else if (auctionId) {
                     const items = await fetchAuctionItems(firestore, accountId, auctionId);
                     exportWinningBidsToCSV(items, getAuctionName(auctionId));
@@ -193,7 +188,7 @@ export default function SettingsPage() {
                     exportAuctionPatronsToCSV(auctionPatrons, getAuctionName(auctionId));
                 } break;
             case 'donations':
-                 if (type === 'full') exportAllDonationsToCSV(allItems);
+                 if (type === 'full') exportAllDonationsToCSV(allItems as (Item & { auctionName?: string })[]);
                  else if (auctionId) {
                     const items = await fetchAuctionItems(firestore, accountId, auctionId);
                     exportDonationsToCSV(items, getAuctionName(auctionId));
