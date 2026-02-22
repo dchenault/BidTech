@@ -49,23 +49,34 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { useToast } from '@/hooks/use-toast';
 import { useSearch } from '@/hooks/use-search';
 import { Input } from '@/components/ui/input';
+import { useAccount } from '@/hooks/use-account';
 
 
 export default function AuctionsPage() {
   const router = useRouter();
-  const { auctions, addAuction, updateAuction, isLoading } = useAuctions();
+  const { auctions, addAuction, updateAuction, isLoading: isLoadingAuctions } = useAuctions();
+  const { role, assignedAuctions, isLoading: isLoadingAccount } = useAccount();
+  const isLoading = isLoadingAuctions || isLoadingAccount;
+
   const { searchQuery, setSearchQuery } = useSearch();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAuction, setEditingAuction] = useState<Auction | null>(null);
   const { toast } = useToast();
 
   const filteredAuctions = useMemo(() => {
-    if (!searchQuery) return auctions;
-    return auctions.filter(auction => 
+    if (!auctions) return [];
+
+    const relevantAuctions = role === 'manager'
+      ? auctions.filter(auction => assignedAuctions.includes(auction.id))
+      : auctions;
+    
+    if (!searchQuery) return relevantAuctions;
+
+    return relevantAuctions.filter(auction => 
       auction.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (auction.description && auction.description.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [auctions, searchQuery]);
+  }, [auctions, searchQuery, role, assignedAuctions]);
 
   const handleAuctionCreated = (newAuctionData: FormValues) => {
     addAuction(newAuctionData);

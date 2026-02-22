@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -11,17 +10,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useAccount } from '@/hooks/use-account';
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/auctions', label: 'Auctions', icon: Gavel },
-  { href: '/dashboard/patrons', label: 'Patrons', icon: Users },
-  { href: '/dashboard/donors', label: 'Donors', icon: Gift },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+const allNavItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
+  { href: '/dashboard/auctions', label: 'Auctions', icon: Gavel, adminOnly: false },
+  { href: '/dashboard/patrons', label: 'Patrons', icon: Users, adminOnly: true },
+  { href: '/dashboard/donors', label: 'Donors', icon: Gift, adminOnly: true },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export function MainNav({ className, isCollapsed }: { className?: string; isCollapsed: boolean }) {
   const pathname = usePathname();
+  const { role } = useAccount();
+
+  const navItems = allNavItems.filter(item => {
+    if (item.adminOnly) {
+      return role === 'admin';
+    }
+    return true;
+  });
 
   return (
     <TooltipProvider>
