@@ -7,7 +7,7 @@ import {
   addDoc,
   query,
   where,
-  deleteField,
+  arrayRemove,
 } from 'firebase/firestore';
 import {
   useFirestore,
@@ -32,7 +32,6 @@ export function useInvitations() {
     [firestore, accountId]
   );
   
-  // useCollection now fetches only the relevant invitations.
   const { data: invitations, isLoading } = useCollection<Invitation>(invitationsQueryRef);
 
 
@@ -45,9 +44,9 @@ export function useInvitations() {
         const newInvitation = {
             ...values,
             email: values.email.toLowerCase(),
-            role: 'manager',
+            role: 'staff',
             status: 'pending',
-            accountId: accountId, // The inviting account
+            accountId: accountId,
         };
       const docRef = await addDoc(rootInvitationsRef, newInvitation);
       
@@ -90,21 +89,18 @@ export function useInvitations() {
       const invitationRef = doc(firestore, 'invitations', invitationId);
       batch.delete(invitationRef);
       
-      // If the user had accepted, remove them from the auction's managers
-      // and from their own user profile's account list.
       if (acceptedByUid) {
-        const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-        batch.update(auctionRef, { [`managers.${acceptedByUid}`]: deleteField() });
-
-        const userRef = doc(firestore, 'users', acceptedByUid);
-        batch.update(userRef, { [`accounts.${accountId}`]: deleteField() });
+        const membershipRef = doc(firestore, 'accounts', accountId, 'memberships', acceptedByUid);
+        batch.update(membershipRef, {
+            assignedAuctions: arrayRemove(auctionId)
+        });
       }
       
       await batch.commit();
       
       toast({
         title: 'Access Revoked',
-        description: 'The manager\'s access has been successfully removed.',
+        description: 'The user\'s access to that auction has been successfully removed.',
       });
       
     } catch(error) {

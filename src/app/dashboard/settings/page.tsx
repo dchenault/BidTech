@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Upload, FileText, Gift, Users, Package, FilePieChart, Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
 import { useDonors } from '@/hooks/use-donors';
@@ -31,11 +31,8 @@ import type { Item, Invitation, InviteManagerFormValues } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
-import { Input } from '@/components/ui/input';
-import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { z } from 'zod';
 import { useInvitations } from '@/hooks/use-invitations';
 import { InviteManagerForm } from '@/components/invite-manager-form';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -51,20 +48,14 @@ export default function SettingsPage() {
   const [exportDialog, setExportDialog] = useState<{ isOpen: boolean; type: ExportType; title: string; } | null>(null);
   
   const { auctions, isLoading: isLoadingAuctions, fetchAllItems } = useAuctions();
-  const { patrons, isLoading: isLoadingPatrons, importPatronsFromCSV } = usePatrons();
-  const { donors, isLoading: isLoadingDonors, importDonorsFromCSV } = useDonors();
+  const { patrons, importPatronsFromCSV } = usePatrons();
+  const { donors, importDonorsFromCSV } = useDonors();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const { user } = useUser();
   const { accountId, role } = useAccount();
   const isAdmin = role === 'admin';
 
-  const [newAdminEmail, setNewAdminEmail] = useState('');
-  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
-  const [adminToRemove, setAdminToRemove] = useState<string | null>(null);
-
-  // --- Manager Invitation State & Logic ---
   const { invitations, isLoading: isLoadingInvitations, sendInvitation, revokeInvitation } = useInvitations();
   const [isInviteManagerOpen, setIsInviteManagerOpen] = useState(false);
   const [invitationToRevoke, setInvitationToRevoke] = useState<Invitation | null>(null);
@@ -74,9 +65,9 @@ export default function SettingsPage() {
   }, [auctions]);
 
   const handleSendInvitation = async (values: InviteManagerFormValues) => {
-    const inviteId = await sendInvitation(values); // This hook now handles toasts
+    const inviteId = await sendInvitation(values); 
     if (inviteId) {
-        setIsInviteManagerOpen(false); // Close dialog on success
+        setIsInviteManagerOpen(false);
     }
   };
 
@@ -85,61 +76,7 @@ export default function SettingsPage() {
     await revokeInvitation(invitationToRevoke.id, invitationToRevoke.auctionId, invitationToRevoke.acceptedBy);
     setInvitationToRevoke(null);
   };
-  // --- End Manager Invitation Logic ---
-
-
-  const adminsRef = useMemoFirebase(
-    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'admins') : null),
-    [firestore, accountId]
-  );
-  const { data: adminsData, isLoading: isLoadingAdmins } = useCollection(adminsRef);
-  const admins = useMemo(() => adminsData?.map(adminDoc => adminDoc.id) || [], [adminsData]);
-
-  const handleAddAdmin = async () => {
-    const emailValidation = z.string().email().safeParse(newAdminEmail);
-    if (!emailValidation.success) {
-      toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
-      return;
-    }
-    const validatedEmail = emailValidation.data.toLowerCase();
-
-    if (!firestore || !accountId) return;
-    if (admins.includes(validatedEmail)) {
-        toast({ variant: 'destructive', title: 'Admin Exists', description: 'This user is already an admin.' });
-        return;
-    }
-
-    setIsAddingAdmin(true);
-    try {
-      const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', validatedEmail);
-      await setDoc(adminDocRef, {
-        email: validatedEmail,
-        addedBy: user?.email,
-        addedAt: new Date()
-      });
-      toast({ title: 'Admin Added', description: `${validatedEmail} has been added as an admin.` });
-      setNewAdminEmail('');
-    } catch (error) {
-      console.error('Error adding admin:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not add admin.' });
-    } finally {
-      setIsAddingAdmin(false);
-    }
-  };
   
-  const handleRemoveAdmin = async () => {
-    if (!firestore || !accountId || !adminToRemove) return;
-    try {
-        const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', adminToRemove);
-        await deleteDoc(adminDocRef);
-        toast({ title: 'Admin Removed', description: `${adminToRemove} is no longer an admin.` });
-        setAdminToRemove(null);
-    } catch (error) {
-        console.error('Error removing admin:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not remove admin.' });
-    }
-  };
-
   const handleOpenExportDialog = (type: any, title: string) => {
     setExportDialog({ isOpen: true, type, title });
   };
@@ -258,65 +195,21 @@ export default function SettingsPage() {
       {isAdmin && (
         <>
           <Card>
-            <CardHeader>
-              <CardTitle>Admin Management</CardTitle>
-              <CardDescription>
-                Add or remove users who can manage account settings and billing.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex w-full max-w-sm items-center space-x-2">
-                <Input
-                  type="email"
-                  placeholder="new.admin@example.com"
-                  value={newAdminEmail}
-                  onChange={(e) => setNewAdminEmail(e.target.value)}
-                  disabled={isAddingAdmin}
-                />
-                <Button onClick={handleAddAdmin} disabled={isAddingAdmin}>
-                  {isAddingAdmin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                  Add Admin
-                </Button>
-              </div>
-              <div className="rounded-md border">
-                  {isLoadingAdmins ? (
-                      <p className="p-4 text-sm text-muted-foreground">Loading admins...</p>
-                  ) : admins.length > 0 ? (
-                      <ul className="divide-y">
-                          {admins.map(email => (
-                              <li key={email} className="flex items-center justify-between p-3">
-                                  <span className="text-sm font-medium">{email}</span>
-                                  {email.toLowerCase() !== user?.email?.toLowerCase() && (
-                                      <Button variant="ghost" size="icon" onClick={() => setAdminToRemove(email)}>
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                  )}
-                              </li>
-                          ))}
-                      </ul>
-                  ) : (
-                      <p className="p-4 text-center text-sm text-muted-foreground">No other admins have been added.</p>
-                  )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                      <CardTitle>Manager Access</CardTitle>
-                      <CardDescription>Invite and manage users who can help run specific auctions.</CardDescription>
+                      <CardTitle>Team Management</CardTitle>
+                      <CardDescription>Invite and manage staff who can help run specific auctions.</CardDescription>
                   </div>
                   <Dialog open={isInviteManagerOpen} onOpenChange={setIsInviteManagerOpen}>
                       <DialogTrigger asChild>
-                          <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Invite Manager</Button>
+                          <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Invite Staff</Button>
                       </DialogTrigger>
                       <DialogContent>
                           <DialogHeader>
-                              <DialogTitle>Invite a Manager</DialogTitle>
+                              <DialogTitle>Invite a Staff Member</DialogTitle>
                               <DialogDescription>
-                                  Enter an email and choose an auction to grant access to. A unique link will be generated and copied to your clipboard.
+                                  Enter an email and choose an auction to grant access to. A unique link will be generated.
                               </DialogDescription>
                           </DialogHeader>
                           <InviteManagerForm auctions={auctions} onSubmit={handleSendInvitation} />
@@ -361,18 +254,6 @@ export default function SettingsPage() {
           </Card>
         </>
       )}
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing</CardTitle>
-          <CardDescription>
-            Manage your subscription and payment details. (Placeholder)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p>Stripe integration for billing management is planned for a future update.</p>
-        </CardContent>
-      </Card>
     </div>
 
     {exportDialog && (
@@ -405,22 +286,6 @@ export default function SettingsPage() {
         title="Import Donors from CSV"
         description="Upload a CSV file with donor data. The column headers must include: name, and type ('Individual' or 'Business'). Optional columns: email, phone, street, city, state, zip, and contactPerson."
     />
-     <AlertDialog open={!!adminToRemove} onOpenChange={(isOpen) => !isOpen && setAdminToRemove(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove admin permissions for <strong>{adminToRemove}</strong>. They will no longer be able to manage account settings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveAdmin} className="bg-destructive hover:bg-destructive/90">
-              Remove Admin
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={!!invitationToRevoke} onOpenChange={(isOpen) => !isOpen && setInvitationToRevoke(null)}>
         <AlertDialogContent>

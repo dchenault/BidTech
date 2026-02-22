@@ -65,7 +65,7 @@ export default function AuctionsPage() {
   const { toast } = useToast();
   
   useEffect(() => {
-      if (!isLoadingAccount && role === 'manager') {
+      if (!isLoadingAccount && role === 'staff') {
           router.replace('/dashboard/my-auctions');
       }
   }, [isLoadingAccount, role, router]);
@@ -191,7 +191,7 @@ export default function AuctionsPage() {
     </Table>
   );
 
-  if (isLoading || role === 'manager') {
+  if (isLoading || role === 'staff') {
       return (
           <div className="flex justify-center items-center h-64">
              <p className="text-muted-foreground">Loading auctions...</p>

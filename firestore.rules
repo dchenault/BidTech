@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -18,7 +19,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // New RBAC Helper: Gets the membership document for the current user
+    // New RBAC Helper: Gets the membership document for the current user in a specific account
     function getMembership(accId) {
       return get(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)).data;
     }
@@ -27,79 +28,72 @@ service cloud.firestore {
     function hasRole(accId, role) {
       return isSignedIn() && getMembership(accId).role == role;
     }
-
-    // Checks if a staff member is explicitly assigned to a specific auction
+    
+    // Checks if a staff member has access to a specific auction
     function isAssignedToAuction(accId, auctionId) {
       return hasRole(accId, 'staff') && 
-             auctionId in getMembership(accId).assignedAuctions;
-    }
-
-    // ========= COLLECTION GROUP RULES =========
-    
-    // Allows Admins to see item data across the whole account.
-    // Restricted for staff (they should only see items via the specific auction path).
-    match /{path=**}/items/{itemId} {
-      allow read: if hasRole(resource.data.accountId, 'admin');
+             (auctionId in getMembership(accId).assignedAuctions);
     }
 
     // ========= ROOT COLLECTIONS =========
     
     match /users/{userId} {
-      allow read, write: if isUser(userId);
+      // A user can create, read, and update their own profile.
+      allow read, create, update: if isUser(userId);
     }
   
+    // Invitations are temporary and grant access
+    match /invitations/{inviteId} {
+      // An admin can create, list, and delete invitations for their account.
+      allow create, delete: if hasRole(request.resource.data.accountId, 'admin');
+      allow list: if hasRole(request.query.accountId, 'admin');
+      
+      // The invited user can read their own invite to accept it.
+      allow get: if getMembership(resource.data.accountId) != null || (isSignedIn() && request.auth.token.email == resource.data.email);
+      
+      // The invited user can update their invite to mark it as 'accepted'.
+      allow update: if isSignedIn() && request.auth.token.email == resource.data.email;
+    }
+
     match /accounts/{accountId} {
-      // Allow creation during onboarding
-      allow create: if isSignedIn() && request.resource.data.id == accountId;
+      // An authenticated user can create an account if they set themselves as the admin.
+      allow create: if isUser(request.resource.data.adminUserId);
       
-      // Only Admins can see the main account document (settings/billing)
-      allow read, update, delete: if hasRole(accountId, 'admin');
+      // Only admins of an account can read or update its top-level details.
+      allow read, update: if hasRole(accountId, 'admin');
 
-      // --- SUBCOLLECTIONS ---
-
-      // Memberships: Only Admins can manage the team
+      // --- Subcollections of an Account ---
+      
+      // Membership documents define roles.
       match /memberships/{userId} {
+        // Admins can manage all memberships.
         allow read, write: if hasRole(accountId, 'admin');
-        // Allow users to read their own membership to determine their role
-        allow read: if isUser(userId);
+        // A user can read their own membership to know their role.
+        allow get: if isUser(userId);
       }
       
-      // Master Patrons: Only Admins can see the global list. 
-      // Staff can create/read/edit but only if they are assigned to an active auction.
+      // Patrons and Donors can be managed by any team member.
       match /patrons/{patronId} {
-          allow read, write: if hasRole(accountId, 'admin');
-          allow create, read, update: if hasRole(accountId, 'staff'); 
-          allow delete: if hasRole(accountId, 'admin');
+        allow read, write: if hasRole(accountId, 'admin') || hasRole(accountId, 'staff');
       }
-
-      // Master Donors: Only Admins can see the global list.
       match /donors/{donorId} {
-          allow read, write: if hasRole(accountId, 'admin');
-          allow create, read, update: if hasRole(accountId, 'staff');
-          allow delete: if hasRole(accountId, 'admin');
+        allow read, write: if hasRole(accountId, 'admin') || hasRole(accountId, 'staff');
       }
-      
-      match /auctions/{auctionId} {
-        // Auction Visibility: 
-        // 1. Admins see all. 
-        // 2. Staff see only assigned auctions.
-        // 3. Public get access (for catalogs).
-        allow get: if true; 
-        allow list: if hasRole(accountId, 'admin') || hasRole(accountId, 'staff');
-        
-        // Management: Only Admins can create/delete or close auctions.
-        allow create, delete: if hasRole(accountId, 'admin');
-        allow update: if hasRole(accountId, 'admin');
 
-        // --- AUCTION DATA (items, registered_patrons, etc.) ---
+      // Auctions and their subcollections have more granular rules.
+      match /auctions/{auctionId} {
+        // Public catalogs can be read by anyone. Staff and Admins can list.
+        allow get: if resource.data.isPublic == true;
+        allow list, get: if hasRole(accountId, 'admin') || hasRole(accountId, 'staff');
+        
+        // Only admins can create/delete/update the main auction document.
+        allow create, update, delete: if hasRole(accountId, 'admin');
+        
+        // Rules for items, lots, etc. inside an auction.
         match /{subcollection}/{docId} {
-            // Read access: Admin or Assigned Staff
-            allow read, list: if hasRole(accountId, 'admin') || isAssignedToAuction(accountId, auctionId);
-            
-            // Write access: Admin or Assigned Staff
-            allow create, update: if hasRole(accountId, 'admin') || isAssignedToAuction(accountId, auctionId);
-            
-            // Delete: STRICTLY Admins only
+            // Admins or staff assigned to this specific auction can read and write data.
+            allow read, write: if hasRole(accountId, 'admin') || isAssignedToAuction(accountId, auctionId);
+            // Deletion is restricted to admins only.
             allow delete: if hasRole(accountId, 'admin');
         }
       }

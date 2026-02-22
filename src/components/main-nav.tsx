@@ -37,8 +37,7 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
       <nav className={cn('flex flex-col gap-2', className)}>
         {navItems.map((item) => {
           let finalHref = item.href;
-          // For managers, the main "Auctions" link should go to their dedicated page.
-          if (item.href === '/dashboard/auctions' && role === 'manager') {
+          if (item.href === '/dashboard/auctions' && role === 'staff') {
             finalHref = '/dashboard/my-auctions';
           }
           const isActive = pathname.startsWith(finalHref) && (finalHref === '/dashboard' ? pathname === finalHref : true);

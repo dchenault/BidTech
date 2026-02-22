@@ -2,14 +2,14 @@
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
-import type { User as UserProfile, Invitation } from '@/lib/types';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import type { User as UserProfile } from '@/lib/types';
 import { useStaffSession } from './use-staff-session';
 
 interface AccountContextType {
   accountId: string | null;
-  role: 'admin' | 'manager' | null;
+  role: 'admin' | 'staff' | null;
   assignedAuctions: string[];
   isLoading: boolean;
 }
@@ -21,58 +21,34 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const { isStaffSession, staffAccountId, isSessionLoading } = useStaffSession();
   const firestore = useFirestore();
 
-  // Path 1: Regular User Profile
+  // Step 1: Keep fetching user profile to determine active account
   const userProfileRef = useMemoFirebase(
     () => (!isSessionLoading && !isStaffSession && firestore && user ? doc(firestore, 'users', user.uid) : null),
     [isSessionLoading, isStaffSession, firestore, user]
   );
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
-  
-  // Determine active accountId
+
   const accountId = useMemo(() => {
     if (isSessionLoading) return null;
     if (isStaffSession) return staffAccountId;
-    if (userProfile?.activeAccountId) return userProfile.activeAccountId;
-    
-    if (userProfile?.accounts && Object.keys(userProfile.accounts).length > 0) {
-        const adminAccount = Object.entries(userProfile.accounts).find(([, role]) => role === 'admin');
-        if (adminAccount) return adminAccount[0];
-        return Object.keys(userProfile.accounts)[0];
-    }
-    
-    return null;
+    return userProfile?.activeAccountId || null;
   }, [isSessionLoading, isStaffSession, staffAccountId, userProfile]);
 
-  // Determine user's role in the active account
-  const role = useMemo(() => {
-    if (!userProfile || !accountId || isStaffSession) return null;
-    return (userProfile.accounts?.[accountId] as 'admin' | 'manager') || null;
-  }, [userProfile, accountId, isStaffSession]);
-
-  // For managers, find which auctions they are explicitly assigned to.
-  const managerAuctionsQuery = useMemoFirebase(
-    () => (firestore && user && accountId && role === 'manager'
-      ? query(
-          collection(firestore, 'invitations'),
-          where('accountId', '==', accountId),
-          where('acceptedBy', '==', user.uid),
-          where('status', '==', 'accepted')
-        )
-      : null),
-    [firestore, user, accountId, role]
+  // Step 2: Fetch membership data for the active account
+  const membershipRef = useMemoFirebase(
+    () => (firestore && user && accountId ? doc(firestore, 'accounts', accountId, 'memberships', user.uid) : null),
+    [firestore, user, accountId]
   );
-  const { data: assignedInvitations, isLoading: isLoadingInvites } = useCollection<Invitation>(managerAuctionsQuery);
+  const { data: membershipData, isLoading: isMembershipLoading } = useDoc<{ role: 'admin' | 'staff', assignedAuctions: string[] }>(membershipRef);
 
+  const role = membershipData?.role || null;
   const assignedAuctions = useMemo(() => {
-    if (role === 'admin') return []; // Admins have implicit access to all.
-    if (role === 'manager' && assignedInvitations) {
-      return assignedInvitations.map(inv => inv.auctionId);
-    }
-    return [];
-  }, [role, assignedInvitations]);
+    if (role === 'admin') return []; // Admins have implicit access to all, return empty array for consistency.
+    return membershipData?.assignedAuctions || [];
+  }, [role, membershipData]);
 
-  // Combine loading states
-  const isLoading = isSessionLoading || (!isStaffSession && (isAuthLoading || isProfileLoading || (role === 'manager' && isLoadingInvites)));
+  // Step 3: Combine loading states
+  const isLoading = isSessionLoading || isAuthLoading || isProfileLoading || (!!user && !!accountId && isMembershipLoading);
 
   const value = { accountId, role, assignedAuctions, isLoading };
 

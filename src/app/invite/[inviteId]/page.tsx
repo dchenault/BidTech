@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch, setDoc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,31 +30,17 @@ export default function InvitePage() {
   const [inviteData, setInviteData] = useState<Invitation | null>(null);
 
   const processInvitation = useCallback(async () => {
-    if (!firestore || !inviteId || !auth) {
-      return;
-    }
-
-    if (isUserLoading) {
-      setStatus('loading');
-      return;
-    }
-
-    if (!user) {
-      setStatus('requires_login');
-      return;
-    }
+    if (!firestore || !inviteId || !auth) return;
+    if (isUserLoading) { setStatus('loading'); return; }
+    if (!user) { setStatus('requires_login'); return; }
     
     setStatus('processing');
 
     try {
-      // Step 1: Fetch the invitation document.
-      // A user can only read an invite if their email matches (per security rules).
       const inviteRef = doc(firestore, 'invitations', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
-      if (!inviteSnap.exists()) {
-        throw new Error('This invitation is invalid or has been revoked.');
-      }
+      if (!inviteSnap.exists()) throw new Error('This invitation is invalid or has been revoked.');
       
       const fetchedInviteData = inviteSnap.data() as Invitation;
       setInviteData(fetchedInviteData);
@@ -69,36 +55,43 @@ export default function InvitePage() {
         throw new Error(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
       }
       
-      // Step 2: Ensure user profile exists. If not, create it.
-      const userRef = doc(firestore, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (!userSnap.exists()) {
-        // User is brand new to the app. Create their profile and personal account.
-        await setupNewUser(firestore, user);
+      const batch = writeBatch(firestore);
+
+      // Step 1: Create/update the membership document
+      const membershipRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'memberships', user.uid);
+      const membershipSnap = await getDoc(membershipRef);
+
+      if (membershipSnap.exists()) {
+        batch.update(membershipRef, { assignedAuctions: arrayUnion(fetchedInviteData.auctionId) });
+      } else {
+        const newMembership = {
+          role: 'staff', email: user.email, name: user.displayName, assignedAuctions: [fetchedInviteData.auctionId]
+        };
+        batch.set(membershipRef, newMembership);
       }
       
-      // Step 3: Add membership to the invited account AND set it as the active account.
-      // This is a single, self-contained update to the user's own profile, which is allowed by rules.
-      await updateDoc(userRef, { 
-        [`accounts.${fetchedInviteData.accountId}`]: 'manager',
-        activeAccountId: fetchedInviteData.accountId,
-      });
+      // Step 2: Ensure user profile exists & set active account
+      const userRef = doc(firestore, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+          batch.update(userRef, { activeAccountId: fetchedInviteData.accountId });
+      } else {
+          batch.set(userRef, { 
+              name: user.displayName || 'New User',
+              email: user.email || '',
+              avatarUrl: user.photoURL || '',
+              accounts: {}, // The membership doc is the source of truth, this is legacy
+              activeAccountId: fetchedInviteData.accountId 
+          });
+      }
 
-      // Step 4: Now that membership is established, update the auction's manager list.
-      // This is a separate write, which relies on the previous write completing successfully.
-      const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
-      await updateDoc(auctionRef, { [`managers.${user.uid}`]: true });
+      // Step 3: Mark invitation as accepted
+      batch.update(inviteRef, { status: 'accepted', acceptedBy: user.uid });
 
-      // Step 5: Finally, mark the invitation as accepted.
-      const updatedInviteRef = doc(firestore, 'invitations', inviteId);
-      await updateDoc(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
+      await batch.commit();
 
       setStatus('success');
-      toast({
-        title: 'Invitation Accepted!',
-        description: "You've been granted access to the auction. Welcome aboard!",
-      });
+      toast({ title: 'Invitation Accepted!', description: "You've been granted access. Welcome aboard!" });
       router.push(`/dashboard`);
 
     } catch (e: any) {
@@ -109,7 +102,6 @@ export default function InvitePage() {
   }, [user, isUserLoading, firestore, inviteId, router, toast, auth]);
 
   useEffect(() => {
-    // This effect will run whenever the user's auth state is resolved or changes.
     processInvitation();
   }, [processInvitation]);
 
@@ -150,16 +142,6 @@ export default function InvitePage() {
                     {isAuthCallLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign In with Google
                 </Button>
-                <Link href="/login" passHref>
-                    <Button variant="outline" className="w-full" size="lg" disabled={isAuthCallLoading}>
-                        Sign In with Email
-                    </Button>
-                </Link>
-                 <Link href="/signup" passHref>
-                    <Button variant="link" className="w-full">
-                        Don't have an account? Sign up
-                    </Button>
-                </Link>
             </CardContent>
             </>
         );
