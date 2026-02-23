@@ -14,7 +14,7 @@ import {
   useCollection,
   useMemoFirebase,
 } from '@/firebase';
-import type { Invitation, InviteManagerFormValues } from '@/lib/types';
+import type { Invitation, InviteStaffFormValues } from '@/lib/types';
 import { useToast } from './use-toast';
 import { useAccount } from './use-account';
 
@@ -35,7 +35,7 @@ export function useInvitations() {
   const { data: invitations, isLoading } = useCollection<Invitation>(invitationsQueryRef);
 
 
-  const sendInvitation = async (values: InviteManagerFormValues): Promise<string | undefined> => {
+  const sendInvitation = async (values: InviteStaffFormValues): Promise<string | undefined> => {
     if (!firestore || !accountId) return undefined;
 
     const rootInvitationsRef = collection(firestore, 'invitations');

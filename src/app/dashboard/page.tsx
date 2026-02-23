@@ -37,7 +37,7 @@ export default function DashboardPage() {
     const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
-        if (!isAccountLoading && role === 'manager') {
+        if (!isAccountLoading && role === 'staff') {
             router.replace('/dashboard/my-auctions');
         }
     }, [isAccountLoading, role, router]);
@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
     const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingAllItems || isAccountLoading;
 
-    if (isLoading || role === 'manager') {
+    if (isLoading || role === 'staff') {
         return (
             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (

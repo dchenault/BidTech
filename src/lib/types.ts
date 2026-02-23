@@ -6,8 +6,8 @@ export type User = {
   name: string;
   email: string;
   avatarUrl: string;
-  // A user can be an admin of one account and a manager of others.
-  accounts: { [accountId: string]: 'admin' | 'manager' };
+  // A user can be an admin of one account and a staff of others.
+  accounts: { [accountId: string]: 'admin' | 'staff' };
   // The account the user is currently viewing.
   activeAccountId: string;
   role?: string;
@@ -240,9 +240,9 @@ export const donorFormSchema = z.object({
 export type DonorFormValues = z.infer<typeof donorFormSchema>;
 
 
-export const inviteManagerSchema = z.object({
+export const inviteStaffSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   auctionId: z.string({ required_error: 'Please select an auction.' }),
 });
 
-export type InviteManagerFormValues = z.infer<typeof inviteManagerSchema>;
+export type InviteStaffFormValues = z.infer<typeof inviteStaffSchema>;

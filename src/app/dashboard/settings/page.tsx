@@ -27,7 +27,7 @@ import {
   exportDonationsToCSV,
   exportAllDonationsToCSV,
 } from '@/lib/export';
-import type { Item, Invitation, InviteManagerFormValues } from '@/lib/types';
+import type { Item, Invitation, InviteStaffFormValues } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
@@ -64,7 +64,7 @@ export default function SettingsPage() {
     return new Map(auctions.map(a => [a.id, a.name]));
   }, [auctions]);
 
-  const handleSendInvitation = async (values: InviteManagerFormValues) => {
+  const handleSendInvitation = async (values: InviteStaffFormValues) => {
     const inviteId = await sendInvitation(values); 
     if (inviteId) {
         setIsInviteManagerOpen(false);

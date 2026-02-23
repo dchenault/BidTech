@@ -20,17 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Auction, InviteManagerFormValues } from "@/lib/types";
-import { inviteManagerSchema } from "@/lib/types";
+import type { Auction, InviteStaffFormValues } from "@/lib/types";
+import { inviteStaffSchema } from "@/lib/types";
 
-interface InviteManagerFormProps {
+interface InviteStaffFormProps {
   auctions: Auction[];
-  onSubmit: (values: InviteManagerFormValues) => void;
+  onSubmit: (values: InviteStaffFormValues) => void;
 }
 
-export function InviteManagerForm({ auctions, onSubmit }: InviteManagerFormProps) {
-  const form = useForm<InviteManagerFormValues>({
-    resolver: zodResolver(inviteManagerSchema),
+export function InviteManagerForm({ auctions, onSubmit }: InviteStaffFormProps) {
+  const form = useForm<InviteStaffFormValues>({
+    resolver: zodResolver(inviteStaffSchema),
     defaultValues: {
       email: "",
       auctionId: undefined,
