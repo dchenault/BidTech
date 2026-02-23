@@ -1,10 +1,9 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, type Firestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
@@ -23,10 +22,24 @@ export function initializeFirebase(): { firebaseApp: FirebaseApp, auth: Auth, fi
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
+  const firestore = getFirestore(firebaseApp);
+
+  // Enable multi-tab persistence (async)
+  if (typeof window !== 'undefined') {
+    enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
+      if (err.code == 'failed-precondition') {
+        // This shouldn't happen with multi-tab unless the browser is very old
+        console.warn('Firestore persistence failed: Failed precondition');
+      } else if (err.code == 'unimplemented') {
+        console.warn('Firestore persistence failed: Browser does not support IndexedDB');
+      }
+    });
+  }
+  
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp),
+    firestore: firestore,
     storage: getStorage(firebaseApp),
   };
 }
