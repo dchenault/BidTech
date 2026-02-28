@@ -1,10 +1,9 @@
-
 import { doc, writeBatch, type Firestore, getDoc } from 'firebase/firestore';
 import type { User as AuthUser } from 'firebase/auth';
-import type { Account, User as UserProfile } from '@/lib/types';
+import type { Account, User as UserProfile, Membership } from '@/lib/types';
 
 /**
- * Creates the necessary Firestore documents (account and user profile) for a brand new user.
+ * Creates the necessary Firestore documents (account, user profile, and admin membership) for a brand new user.
  * This is intended to be a one-time setup operation, callable from any part of the app.
  * @param firestore The Firestore instance.
  * @param user The Firebase Auth user object for the new user.
@@ -23,11 +22,12 @@ export async function setupNewUser(firestore: Firestore, user: AuthUser): Promis
     return;
   }
 
-  // Create the user's profile and their personal account in one atomic batch.
+  // Create the user's profile, their personal account, and their admin membership in one atomic batch.
   const batch = writeBatch(firestore);
 
-  // Define the new account document. The account ID is the user's UID.
   const newAccountId = user.uid;
+  
+  // 1. Create Account Document
   const accountRef = doc(firestore, 'accounts', newAccountId);
   const newAccount: Account = {
     id: newAccountId,
@@ -37,17 +37,30 @@ export async function setupNewUser(firestore: Firestore, user: AuthUser): Promis
   };
   batch.set(accountRef, newAccount);
 
-  // Define the new user profile document in the root /users collection.
+  // 2. Create User Profile
   const newUser: Omit<UserProfile, 'id'> = {
     name: user.displayName || 'New User',
     email: user.email || '',
     avatarUrl: user.photoURL || '',
     accounts: {
-      [newAccountId]: 'admin', // User is the admin of their own new account
+      [newAccountId]: 'admin',
     },
-    activeAccountId: newAccountId, // Their new account is active by default
+    activeAccountId: newAccountId,
   };
   batch.set(userRef, newUser);
+
+  // 3. Create initial Membership record (to satisfy RBAC checks immediately)
+  const membershipRef = doc(firestore, 'accounts', newAccountId, 'memberships', user.uid);
+  const newMembership: Membership = {
+    id: user.uid,
+    userId: user.uid,
+    accountId: newAccountId,
+    role: 'admin',
+    email: user.email || '',
+    assignedAuctions: [],
+    status: 'active',
+  };
+  batch.set(membershipRef, newMembership);
 
   await batch.commit();
 }

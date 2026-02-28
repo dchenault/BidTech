@@ -36,36 +36,52 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // 2. Self-healing logic: If no membership exists but the user is the owner of an account.
   useEffect(() => {
     const heal = async () => {
+      // Don't run if still waiting for core auth or memberships query to settle
       if (!firestore || !user || isMembershipsLoading || isStaffSession || isSelfHealing) return;
-      if (memberships && memberships.length > 0) return;
+      
+      // Determine if healing is needed.
+      // We heal if memberships is empty OR if we are specifically trying to access a URL account ID 
+      // that we are the owner of but don't have a membership record for yet.
+      const currentMembershipForUrl = urlAccountId ? memberships?.find(m => m.accountId === urlAccountId) : null;
+      const needsHeal = !memberships || memberships.length === 0 || (urlAccountId && !currentMembershipForUrl);
+
+      if (!needsHeal) return;
 
       setIsSelfHealing(true);
       try {
-        const accountRef = doc(firestore, 'accounts', user.uid);
+        // Strategy: Check either the specific account from URL or the user's default personal account (ID matches UID).
+        const targetAccountId = urlAccountId || user.uid;
+        const accountRef = doc(firestore, 'accounts', targetAccountId);
         const accountSnap = await getDoc(accountRef);
         
         if (accountSnap.exists()) {
           const accountData = accountSnap.data() as Account;
+          // If the user is the designated owner of this account, they MUST have a membership record.
           if (accountData.adminUserId === user.uid) {
-            const membershipRef = doc(firestore, 'accounts', user.uid, 'memberships', user.uid);
-            await setDoc(membershipRef, {
-              userId: user.uid,
-              accountId: user.uid,
-              role: 'admin',
-              email: user.email || '',
-              assignedAuctions: []
-            });
-            console.log("Membership self-healed for account owner.");
+            const membershipRef = doc(firestore, 'accounts', targetAccountId, 'memberships', user.uid);
+            
+            // Double check existence to avoid redundant writes if the query was just lagging.
+            const mSnap = await getDoc(membershipRef);
+            if (!mSnap.exists()) {
+                await setDoc(membershipRef, {
+                    userId: user.uid,
+                    accountId: targetAccountId,
+                    role: 'admin',
+                    email: user.email || '',
+                    assignedAuctions: []
+                });
+                console.log(`Self-healed Admin membership for account: ${targetAccountId}`);
+            }
           }
         }
       } catch (e) {
-        console.error("Membership healing failed:", e);
+        console.error("Membership self-healing failed:", e);
       } finally {
         setIsSelfHealing(false);
       }
     };
     heal();
-  }, [firestore, user, isMembershipsLoading, memberships, isStaffSession, isSelfHealing]);
+  }, [firestore, user, isMembershipsLoading, memberships, isStaffSession, isSelfHealing, urlAccountId]);
 
   // 3. Resolve active membership
   const activeMembership = useMemo(() => {
@@ -79,10 +95,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   // 4. Compute final context value
   const value = useMemo((): AccountContextType => {
+    // High-priority global loading (App setup)
     if (isSessionLoading) {
       return { accountId: null, role: null, assignedAuctions: [], isLoading: true };
     }
 
+    // Anonymous Staff portal logic
     if (isStaffSession) {
       const staffAuctionId = typeof window !== 'undefined' ? localStorage.getItem('activeAuctionId') : null;
       return {
@@ -93,7 +111,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const isLoading = isAuthLoading || isMembershipsLoading || isSelfHealing;
+    // Standard User loading state.
+    // If memberships query finishes (isMembershipsLoading: false) and self-healing finishes, 
+    // isLoading becomes false, allowing the app to proceed even with empty results.
+    const isLoading = isAuthLoading || (!!user && isMembershipsLoading) || isSelfHealing;
 
     return {
       accountId: activeMembership?.accountId || null,
@@ -101,7 +122,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       assignedAuctions: activeMembership?.assignedAuctions || [],
       isLoading
     };
-  }, [isSessionLoading, isStaffSession, staffAccountId, activeMembership, isAuthLoading, isMembershipsLoading, isSelfHealing]);
+  }, [isSessionLoading, isStaffSession, staffAccountId, activeMembership, isAuthLoading, isMembershipsLoading, isSelfHealing, user]);
 
   return (
     <AccountContext.Provider value={value}>
