@@ -44,60 +44,85 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       
       try {
         const urlAccountId = searchParams.get('account');
+        
+        // --- STEP 1: Try Direct Fetch ---
+        // If we have an account ID in the URL, try to get the membership record directly.
+        // This is much more reliable and permission-safe than a discovery query.
         if (urlAccountId) {
-            console.log('Searching for membership at:', 'accounts/' + urlAccountId + '/memberships/' + user.uid);
+          console.log('RBAC: Attempting direct membership fetch for account:', urlAccountId);
+          const directRef = doc(firestore, 'accounts', urlAccountId, 'memberships', user.uid);
+          try {
+            const directSnap = await getDoc(directRef);
+            if (directSnap.exists()) {
+              console.log('RBAC: Direct membership hit.');
+              const activeMembership = { id: directSnap.id, ...directSnap.data() } as Membership;
+              setMemberships([activeMembership]);
+              setIsLoading(false);
+              return; // Exit early if we found our context
+            }
+          } catch (directErr) {
+            console.warn('RBAC: Direct fetch failed or restricted, falling back to discovery.', directErr);
+          }
         }
 
-        // Step C (Discovery): Perform Discovery Query
+        // --- STEP 2: Discovery Query (Fallback) ---
+        // If direct fetch failed or we don't have a URL account ID, search for all memberships.
         console.log('RBAC Discovery: Started for UID', user.uid);
         const q = query(
           collectionGroup(firestore, 'memberships'),
           where('userId', '==', user.uid)
         );
         
-        const querySnapshot = await getDocs(q);
-        console.log('RBAC Discovery: Found docs:', querySnapshot.size);
-        
-        const foundMemberships = querySnapshot.docs.map(d => ({
-          id: d.id,
-          ...d.data()
-        } as Membership));
+        let foundMemberships: Membership[] = [];
+        try {
+          const querySnapshot = await getDocs(q);
+          console.log('RBAC Discovery: Found docs:', querySnapshot.size);
+          foundMemberships = querySnapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data()
+          } as Membership));
+        } catch (discoveryErr: any) {
+          console.error("RBAC Discovery Query Error:", discoveryErr);
+          // If we get a permission error here, we don't want to hang the app.
+          // We let it settle with whatever we have (likely empty).
+        }
         
         setMemberships(foundMemberships);
 
-        if (querySnapshot.empty) {
+        // --- STEP 3: Fallback / Self-Healing ---
+        if (foundMemberships.length === 0) {
           console.warn('RBAC Discovery: No memberships found in DB');
           
-          // Step B (Fallback): Check if user is owner of an account specified in URL or their personal UID account
           const targetId = urlAccountId || user.uid;
           const accountRef = doc(firestore, 'accounts', targetId);
-          const accountSnap = await getDoc(accountRef);
           
-          if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
-            console.log('RBAC Discovery: Owner found without membership. Self-healing...');
-            setIsSelfHealing(true);
-            const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
-            
-            const newM = {
-              userId: user.uid,
-              accountId: targetId,
-              role: 'admin' as const,
-              email: user.email || '',
-              assignedAuctions: [],
-              status: 'active' as const
-            };
-            
-            await setDoc(mRef, newM);
-            setMemberships([{ id: user.uid, ...newM }]);
-            setIsSelfHealing(false);
-          } else {
-              console.log('RBAC Discovery: User has no memberships and is not an account owner. Setting role to null.');
+          try {
+            const accountSnap = await getDoc(accountRef);
+            if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
+              console.log('RBAC Discovery: Owner found without membership. Self-healing...');
+              setIsSelfHealing(true);
+              const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
+              
+              const newM = {
+                userId: user.uid,
+                accountId: targetId,
+                role: 'admin' as const,
+                email: user.email || '',
+                assignedAuctions: [],
+                status: 'active' as const
+              };
+              
+              await setDoc(mRef, newM);
+              setMemberships([{ id: user.uid, ...newM }]);
+              setIsSelfHealing(false);
+            }
+          } catch (healingErr) {
+            console.error("RBAC Healing Error:", healingErr);
           }
         }
       } catch (err) {
-        console.error("RBAC Discovery Error:", err);
+        console.error("RBAC Critical Resolve Error:", err);
       } finally {
-        // Step D (The Fix): Crucial - force state resolution
         setIsLoading(false);
       }
     };
@@ -117,13 +142,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
     if (memberships.length > 0) {
       if (!urlAccountId) {
-        // Discovery Correction: Pick first available and sync URL
         const params = new URLSearchParams(searchParams.toString());
         params.set('account', memberships[0].accountId);
         router.replace(`${pathname}?${params.toString()}`);
       }
     } else if (pathname !== '/dashboard/select-account' && pathname !== '/login') {
-      // Access Restricted: No memberships found
       router.push('/dashboard/select-account');
     }
   }, [isLoading, memberships, searchParams, pathname, router, user, isSelfHealing]);

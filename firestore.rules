@@ -7,10 +7,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Helper to get membership data safely
     function getMembership(accId) {
       return get(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)).data;
     }
 
+    // Helper to check if a user has a specific role in an account
     function hasRole(accId, role) {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)) &&
@@ -18,49 +20,56 @@ service cloud.firestore {
     }
 
     // ========= GLOBAL RULES =========
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // User profiles (Self-service)
     match /users/{userId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     // ========= ACCOUNT RULES =========
     match /accounts/{accountId} {
-      // Admins have full control over the account and settings
+      
+      // Allow admins to read/write the account document itself
       allow read, write: if hasRole(accountId, 'admin');
 
-      // Memberships sub-collection (Team Management)
+      // Memberships sub-collection (The key to the RBAC system)
       match /memberships/{membershipId} {
-        allow read, write: if hasRole(accountId, 'admin');
-        // Users can read their own membership record
+        // REQUIRED FIX: Allow users to read their own record to identify their role
+        // This must come BEFORE the hasRole check to avoid the "Discovery Hang"
         allow read: if isSignedIn() && request.auth.uid == membershipId;
+        
+        // Only admins can manage other team members or change roles
+        allow write: if hasRole(accountId, 'admin');
       }
 
       // Auctions
       match /auctions/{auctionId} {
-        // Admins see all. Staff see only if assigned.
+        // Admins see all. Staff see only if the auction ID is in their assignment list.
         allow read: if hasRole(accountId, 'admin') || 
                       (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
         
-        // Only Admins can create/delete or modify auction settings
+        // Only Admins can create/delete or modify high-level auction settings
         allow create, delete, update: if hasRole(accountId, 'admin');
 
-        // Auction Data (Items, Bids, etc.)
+        // Auction Data (Items, Bids, Categories, etc.)
         match /{allSubcollections=**} {
           allow read, create, update: if hasRole(accountId, 'admin') || 
                                          (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
           
-          // Staff are strictly forbidden from deleting documents
+          // Staff are strictly forbidden from deleting auction documents (Items/Bids)
           allow delete: if hasRole(accountId, 'admin');
         }
       }
 
       // Global Master Data (Patrons/Donors)
+      // Note: Scoped under the Account so each organization has their own database
       match /patrons/{patronId} {
         allow read, write: if hasRole(accountId, 'admin');
-        // Staff can view/edit but not delete global records
+        // Staff can view/edit/add patrons but cannot delete the records
         allow read, create, update: if hasRole(accountId, 'staff');
       }
 
@@ -68,6 +77,12 @@ service cloud.firestore {
         allow read, write: if hasRole(accountId, 'admin');
         allow read, create, update: if hasRole(accountId, 'staff');
       }
+    }
+    
+    // Support for Collection Group Queries (Discovery)
+    // This allows the useAccount hook to find where the user belongs
+    match /{path=**}/memberships/{membershipId} {
+      allow read: if isSignedIn() && request.auth.uid == membershipId;
     }
   }
 }
