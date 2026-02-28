@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react';
-import { useUser, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
+import { useUser, useFirestore } from '@/firebase';
+import { collectionGroup, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 import type { Membership, Account } from '@/lib/types';
 import { useStaffSession } from './use-staff-session';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -24,124 +23,107 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  
-  const urlAccountId = searchParams.get('account');
 
-  // 1. Discovery Query: Fetch all memberships for this user across all accounts.
-  const membershipsQuery = useMemoFirebase(
-    () => (firestore && user && !isStaffSession ? query(collectionGroup(firestore, 'memberships'), where('userId', '==', user.uid)) : null),
-    [firestore, user, isStaffSession]
-  );
-  
-  const { data: memberships, isLoading: isMembershipsLoading } = useCollection<Membership>(membershipsQuery);
-
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSelfHealing, setIsSelfHealing] = useState(false);
-  const [hasTimeoutReached, setHasTimeoutReached] = useState(false);
 
-  // Debug Logging
   useEffect(() => {
-    if (user) {
-      console.log('RBAC Debug: Current User', user.uid);
-    }
-    if (memberships) {
-      console.log('RBAC Debug: Memberships Found', memberships.length);
-    }
-  }, [user, memberships]);
-
-  // 2. Timeout/Fallback Logic: 5 seconds to prevent infinite hang
-  useEffect(() => {
-    if (isAuthLoading || isSessionLoading || !user) return;
-    
-    const timer = setTimeout(() => {
-      if (isMembershipsLoading || isSelfHealing) {
-        setHasTimeoutReached(true);
-        console.warn("Account resolution timed out after 5s. Falling back to forced non-loading state.");
+    const resolveAccount = async () => {
+      // Step A: If !user, check for staff session or stop loading
+      if (!user) {
+        if (!isAuthLoading && !isSessionLoading) {
+          setIsLoading(false);
+        }
+        return;
       }
-    }, 5000);
 
-    return () => clearTimeout(timer);
-  }, [isAuthLoading, isSessionLoading, isMembershipsLoading, isSelfHealing, user]);
+      if (!firestore) return;
 
-  // 3. Self-healing logic for Account Owners
-  useEffect(() => {
-    const heal = async () => {
-      if (!firestore || !user || isMembershipsLoading || isStaffSession || isSelfHealing) return;
+      setIsLoading(true);
       
-      const currentMembershipForUrl = urlAccountId ? memberships?.find(m => m.accountId === urlAccountId) : null;
-      const needsHeal = !memberships || memberships.length === 0 || (urlAccountId && !currentMembershipForUrl);
-
-      if (!needsHeal) return;
-
-      setIsSelfHealing(true);
       try {
-        const targetAccountId = urlAccountId || user.uid;
-        const accountRef = doc(firestore, 'accounts', targetAccountId);
-        const accountSnap = await getDoc(accountRef);
+        const urlAccountId = searchParams.get('account');
+
+        // Step C (Discovery): Perform Discovery Query
+        console.log('RBAC Discovery: Started for UID', user.uid);
+        const q = query(
+          collectionGroup(firestore, 'memberships'),
+          where('userId', '==', user.uid)
+        );
         
-        if (accountSnap.exists()) {
-          const accountData = accountSnap.data() as Account;
-          if (accountData.adminUserId === user.uid) {
-            const membershipRef = doc(firestore, 'accounts', targetAccountId, 'memberships', user.uid);
-            const mSnap = await getDoc(membershipRef);
-            if (!mSnap.exists()) {
-                await setDoc(membershipRef, {
-                    userId: user.uid,
-                    accountId: targetAccountId,
-                    role: 'admin',
-                    email: user.email || '',
-                    assignedAuctions: [],
-                    status: 'active'
-                });
-                console.log(`Self-healed Admin membership for account: ${targetAccountId}`);
-            }
+        const querySnapshot = await getDocs(q);
+        console.log('RBAC Discovery: Found docs:', querySnapshot.size);
+        
+        const foundMemberships = querySnapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        } as Membership));
+        
+        setMemberships(foundMemberships);
+
+        if (querySnapshot.empty) {
+          console.warn('RBAC Discovery: No memberships found in DB');
+          
+          // Step B (Fallback): Check if user is owner of an account specified in URL or their personal UID account
+          const targetId = urlAccountId || user.uid;
+          const accountRef = doc(firestore, 'accounts', targetId);
+          const accountSnap = await getDoc(accountRef);
+          
+          if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
+            console.log('RBAC Discovery: Owner found without membership. Self-healing...');
+            setIsSelfHealing(true);
+            const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
+            
+            const newM = {
+              userId: user.uid,
+              accountId: targetId,
+              role: 'admin' as const,
+              email: user.email || '',
+              assignedAuctions: [],
+              status: 'active' as const
+            };
+            
+            await setDoc(mRef, newM);
+            setMemberships([{ id: user.uid, ...newM }]);
+            setIsSelfHealing(false);
           }
         }
-      } catch (e) {
-        console.error("Membership self-healing failed:", e);
+      } catch (err) {
+        console.error("RBAC Discovery Error:", err);
       } finally {
-        setIsSelfHealing(false);
+        // Step D (The Fix): Crucial - force state resolution
+        setIsLoading(false);
       }
     };
-    heal();
-  }, [firestore, user, isMembershipsLoading, memberships, isStaffSession, isSelfHealing, urlAccountId]);
 
-  // 4. Resolve active membership (Discovery Logic)
-  const activeMembership = useMemo(() => {
-    if (isStaffSession || !memberships || memberships.length === 0) return null;
-    if (urlAccountId) {
-      const found = memberships.find(m => m.accountId === urlAccountId);
-      if (found) return found;
+    if (!isAuthLoading && !isSessionLoading) {
+      resolveAccount();
     }
-    // Discovery: Default to the first found membership if none is specified in URL
-    return memberships[0];
-  }, [memberships, urlAccountId, isStaffSession]);
+  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession]);
 
-  // 5. Self-Correction & Redirection Logic
+  // Handle Redirection logic after state resolution
   useEffect(() => {
-    if (isAuthLoading || isSessionLoading || isMembershipsLoading || isSelfHealing || isStaffSession || !user) return;
+    if (isLoading || isSelfHealing || !user) return;
 
+    const urlAccountId = searchParams.get('account');
     const isDashboardArea = pathname.startsWith('/dashboard');
     if (!isDashboardArea) return;
 
-    if (activeMembership && !urlAccountId) {
-        // Discovery Correction: Automatically set the accountId to the membership's account and sync URL
+    if (memberships.length > 0) {
+      if (!urlAccountId) {
+        // Discovery Correction: Pick first available and sync URL
         const params = new URLSearchParams(searchParams.toString());
-        params.set('account', activeMembership.accountId);
+        params.set('account', memberships[0].accountId);
         router.replace(`${pathname}?${params.toString()}`);
-    } else if (!activeMembership && !isMembershipsLoading && !isSelfHealing && !isAuthLoading) {
-        // Redirection: No memberships found after all checks
-        if (pathname !== '/dashboard/select-account' && pathname !== '/login') {
-            router.push('/dashboard/select-account');
-        }
+      }
+    } else if (pathname !== '/dashboard/select-account' && pathname !== '/login') {
+      // Access Restricted: No memberships found
+      router.push('/dashboard/select-account');
     }
-  }, [activeMembership, urlAccountId, pathname, isAuthLoading, isSessionLoading, isMembershipsLoading, isSelfHealing, isStaffSession, router, searchParams, user]);
+  }, [isLoading, memberships, searchParams, pathname, router, user, isSelfHealing]);
 
-  // 6. Compute final context value
   const value = useMemo((): AccountContextType => {
-    if (isSessionLoading) {
-      return { accountId: null, role: null, assignedAuctions: [], isLoading: true };
-    }
-
     if (isStaffSession) {
       const staffAuctionId = typeof window !== 'undefined' ? localStorage.getItem('activeAuctionId') : null;
       return {
@@ -152,25 +134,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    if (hasTimeoutReached) {
-        return {
-            accountId: null,
-            role: null,
-            assignedAuctions: [],
-            isLoading: false
-        };
-    }
-
-    // Standard resolution state
-    const isLoading = isAuthLoading || (!!user && isMembershipsLoading) || isSelfHealing;
+    const urlAccountId = searchParams.get('account');
+    const activeMembership = urlAccountId 
+      ? memberships.find(m => m.accountId === urlAccountId) 
+      : memberships[0];
 
     return {
       accountId: activeMembership?.accountId || null,
       role: (activeMembership?.role as 'admin' | 'staff') || null,
       assignedAuctions: activeMembership?.assignedAuctions || [],
-      isLoading
+      isLoading: isLoading || isAuthLoading || isSessionLoading
     };
-  }, [isSessionLoading, isStaffSession, staffAccountId, activeMembership, isAuthLoading, isMembershipsLoading, isSelfHealing, user, hasTimeoutReached]);
+  }, [isStaffSession, staffAccountId, memberships, searchParams, isLoading, isAuthLoading, isSessionLoading]);
 
   return (
     <AccountContext.Provider value={value}>
