@@ -10,7 +10,7 @@ import { doc, getDoc, collectionGroup, query, where, getDocs, writeBatch } from 
 /**
  * Hook that runs on authenticated layouts to handle one-time setup for new users.
  * This hook is critical for correctly associating a new user with an existing account
- * if they were invited as an admin, or creating a new personal account for them if not.
+ * if they were invited as an admin or staff, or creating a new personal account for them if not.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -44,45 +44,51 @@ export function useUserSetup() {
         return;
       }
 
-      // Check if the user's email is listed as an admin in ANY account.
-      const adminsQuery = query(
-        collectionGroup(firestore, 'admins'),
+      // Check if the user's email is listed in ANY account's memberships.
+      const membershipsQuery = query(
+        collectionGroup(firestore, 'memberships'),
         where('email', '==', user.email?.toLowerCase())
       );
-      const adminDocsSnap = await getDocs(adminsQuery);
+      const membershipDocsSnap = await getDocs(membershipsQuery);
 
-      if (!adminDocsSnap.empty) {
-        // --- Path A: User is an admin of an existing account ---
-        const adminDoc = adminDocsSnap.docs[0];
-        const accountId = adminDoc.ref.parent.parent?.id;
+      if (!membershipDocsSnap.empty) {
+        // --- Path A: User has a pre-existing membership (Admin or Staff) ---
+        const membershipDoc = membershipDocsSnap.docs[0];
+        const accountId = membershipDoc.ref.parent.parent?.id;
+        const membershipData = membershipDoc.data();
 
         if (!accountId) {
-          throw new Error("Could not determine Account ID from admin record.");
+          throw new Error("Could not determine Account ID from membership record.");
         }
 
         const batch = writeBatch(firestore);
         
+        // 1. Update the membership document to be active and linked to the UID
+        batch.update(membershipDoc.ref, { 
+          userId: user.uid, 
+          status: 'active' 
+        });
+
+        // 2. Initialize or update the root user profile
         const userData = {
-          name: user.displayName || 'New Admin',
+          name: user.displayName || 'Team Member',
           email: user.email || '',
           avatarUrl: user.photoURL || '',
-          accounts: { [accountId]: 'admin' },
+          accounts: { [accountId]: membershipData.role },
           activeAccountId: accountId,
         };
 
-        // Use set with merge: true. This creates the document if it doesn't exist,
-        // or updates it if it does, without overwriting existing fields not in this payload.
         batch.set(userProfileRef, userData, { merge: true });
         
         await batch.commit();
 
         toast({
           title: 'Welcome!',
-          description: "You've been granted admin access.",
+          description: `You've joined the account as ${membershipData.role}.`,
         });
       } else {
         // --- Path B: Standard new user signup ---
-        // User is not an admin, so run the standard new account creation flow.
+        // User is not part of any team yet, so run the standard new account creation flow.
         await setupNewUser(firestore, user);
         toast({
           title: 'Welcome!',

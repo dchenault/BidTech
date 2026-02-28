@@ -137,11 +137,14 @@ export type RegisteredPatron = {
 
 export type Membership = {
   id: string;
-  userId: string;
+  userId?: string;
   accountId: string;
   role: 'admin' | 'staff';
   assignedAuctions: string[];
   email: string;
+  status: 'active' | 'pending';
+  invitedBy?: string;
+  invitedAt?: any;
 };
 
 export type Invitation = {
@@ -254,3 +257,11 @@ export const inviteManagerSchema = z.object({
 });
 
 export type InviteManagerFormValues = z.infer<typeof inviteManagerSchema>;
+
+export const teamMemberSchema = z.object({
+  email: z.string().email("Please enter a valid email address."),
+  role: z.enum(["admin", "staff"], { required_error: "Please select a role." }),
+  assignedAuctions: z.array(z.string()).default([]),
+});
+
+export type TeamMemberFormValues = z.infer<typeof teamMemberSchema>;

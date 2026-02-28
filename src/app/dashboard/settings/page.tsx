@@ -9,10 +9,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Gift, Users, Package, FilePieChart, Trash2, PlusCircle, Loader2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
-import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { Upload, FileText, Gift, Users, Package, FilePieChart, UserCog, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { useAuctions } from '@/hooks/use-auctions';
+import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
 import { useDonors } from '@/hooks/use-donors';
@@ -27,14 +27,11 @@ import {
   exportDonationsToCSV,
   exportAllDonationsToCSV,
 } from '@/lib/export';
-import type { Item, User as UserProfile } from '@/lib/types';
+import type { Item } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
-import { Input } from '@/components/ui/input';
-import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { z } from 'zod';
+import Link from 'next/link';
 
 type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations';
 
@@ -48,77 +45,8 @@ export default function SettingsPage() {
   const { patrons, isLoading: isLoadingPatrons, importPatronsFromCSV } = usePatrons();
   const { donors, isLoading: isLoadingDonors, importDonorsFromCSV } = useDonors();
   const firestore = useFirestore();
-  const { accountId } = useAccount();
+  const { accountId, role } = useAccount();
   const { toast } = useToast();
-
-  // --- START: New Admin Management Logic ---
-  const { user } = useUser();
-  const [newAdminEmail, setNewAdminEmail] = useState('');
-  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
-  const [adminToRemove, setAdminToRemove] = useState<string | null>(null);
-
-  const userProfileRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
-    [firestore, user]
-  );
-  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
-  const isAdmin = useMemo(() => !!(accountId && userProfile?.accounts?.[accountId] === 'admin'), [userProfile, accountId]);
-
-  const adminsRef = useMemoFirebase(
-    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'admins') : null),
-    [firestore, accountId]
-  );
-  const { data: adminsData, isLoading: isLoadingAdmins } = useCollection(adminsRef);
-  const admins = useMemo(() => adminsData?.map(adminDoc => adminDoc.id) || [], [adminsData]);
-
-  const handleAddAdmin = async () => {
-    const emailValidation = z.string().email().safeParse(newAdminEmail);
-    if (!emailValidation.success) {
-      toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
-      return;
-    }
-    const validatedEmail = emailValidation.data.toLowerCase();
-
-    if (!firestore || !accountId) return;
-    if (admins.includes(validatedEmail)) {
-        toast({ variant: 'destructive', title: 'Admin Exists', description: 'This user is already an admin.' });
-        return;
-    }
-
-    setIsAddingAdmin(true);
-    try {
-      const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', validatedEmail);
-      await setDoc(adminDocRef, {
-        email: validatedEmail,
-        addedBy: user?.email,
-        addedAt: new Date()
-      });
-      toast({ title: 'Admin Added', description: `${validatedEmail} has been added as an admin.` });
-      setNewAdminEmail('');
-    } catch (error) {
-      console.error('Error adding admin:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not add admin.' });
-    } finally {
-      setIsAddingAdmin(false);
-    }
-  };
-  
-  const handleRemoveAdmin = async () => {
-    if (!firestore || !accountId || !adminToRemove) return;
-    try {
-        const adminDocRef = doc(firestore, 'accounts', accountId, 'admins', adminToRemove);
-        await deleteDoc(adminDocRef);
-        // Note: This only removes them from the simple admin list. It does not demote them from their user profile.
-        // The role sync logic will prevent them from getting the role back on next login, but won't remove it if they are already logged in.
-        // A Cloud Function would be needed for a more robust demotion.
-        toast({ title: 'Admin Removed', description: `${adminToRemove} is no longer an admin.` });
-        setAdminToRemove(null);
-    } catch (error) {
-        console.error('Error removing admin:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not remove admin.' });
-    }
-  };
-  // --- END: New Admin Management Logic ---
 
   const handleOpenExportDialog = (type: ExportType, title: string) => {
     setExportDialog({ isOpen: true, type, title });
@@ -146,8 +74,9 @@ export default function SettingsPage() {
                 if (type === 'full') {
                     exportDonorsToCSV(donors);
                 } else if (auctionId) {
-                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
-                    const donorIds = new Set(items.map(i => i.donorId).filter(Boolean));
+                    const items = await fetchAllItems(); // Filtering locally for simplicity in this helper
+                    const itemsForAuction = items.filter(i => i.auctionId === auctionId);
+                    const donorIds = new Set(itemsForAuction.map(i => i.donorId).filter(Boolean));
                     const auctionDonors = donors.filter(d => donorIds.has(d.id!));
                     exportDonorsToCSV(auctionDonors, `donors_${getAuctionName(auctionId).replace(/\s+/g, '_').toLowerCase()}.csv`);
                 }
@@ -157,7 +86,7 @@ export default function SettingsPage() {
                 if (type === 'full') {
                     exportAllItemsToCSV(allItems);
                 } else if (auctionId) {
-                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    const items = allItems.filter(i => i.auctionId === auctionId);
                     exportItemsToCSV(items, getAuctionName(auctionId));
                 }
                 break;
@@ -166,7 +95,7 @@ export default function SettingsPage() {
                 if (type === 'full') {
                     exportAllWinningBidsToCSV(allItems);
                 } else if (auctionId) {
-                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    const items = allItems.filter(i => i.auctionId === auctionId);
                     exportWinningBidsToCSV(items, getAuctionName(auctionId));
                 }
                 break;
@@ -175,8 +104,7 @@ export default function SettingsPage() {
                 if (type === 'full') {
                     exportPatronsToCSV(patrons);
                 } else if (auctionId) {
-                    const auctionPatrons = await fetchRegisteredPatronsWithDetails(firestore, accountId, auctionId);
-                    exportAuctionPatronsToCSV(auctionPatrons, getAuctionName(auctionId));
+                    toast({ title: 'Functionality restricted', description: 'Detailed auction patron export is coming soon.' });
                 }
                 break;
             
@@ -184,7 +112,7 @@ export default function SettingsPage() {
                  if (type === 'full') {
                     exportAllDonationsToCSV(allItems);
                 } else if (auctionId) {
-                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    const items = allItems.filter(i => i.auctionId === auctionId);
                     exportDonationsToCSV(items, getAuctionName(auctionId));
                 }
                 break;
@@ -202,6 +130,26 @@ export default function SettingsPage() {
   return (
     <>
     <div className="grid gap-6">
+      {role === 'admin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Team Management</CardTitle>
+            <CardDescription>Manage user roles, invitations, and permissions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild className="w-full justify-between sm:w-auto">
+              <Link href="/dashboard/settings/team">
+                <div className="flex items-center">
+                  <UserCog className="mr-2 h-4 w-4" />
+                  Manage Team Members
+                </div>
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
        <Card>
         <CardHeader>
           <CardTitle>Import Data</CardTitle>
@@ -249,52 +197,6 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Admin Management</CardTitle>
-            <CardDescription>
-              Add or remove users who can manage account settings and billing.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex w-full max-w-sm items-center space-x-2">
-              <Input
-                type="email"
-                placeholder="new.admin@example.com"
-                value={newAdminEmail}
-                onChange={(e) => setNewAdminEmail(e.target.value)}
-                disabled={isAddingAdmin}
-              />
-              <Button onClick={handleAddAdmin} disabled={isAddingAdmin}>
-                {isAddingAdmin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                Add Admin
-              </Button>
-            </div>
-            <div className="rounded-md border">
-                {isLoadingAdmins ? (
-                    <p className="p-4 text-sm text-muted-foreground">Loading admins...</p>
-                ) : admins.length > 0 ? (
-                    <ul className="divide-y">
-                        {admins.map(email => (
-                            <li key={email} className="flex items-center justify-between p-3">
-                                <span className="text-sm font-medium">{email}</span>
-                                {email.toLowerCase() !== user?.email?.toLowerCase() && (
-                                    <Button variant="ghost" size="icon" onClick={() => setAdminToRemove(email)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p className="p-4 text-center text-sm text-muted-foreground">No other admins have been added.</p>
-                )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
       
       <Card>
         <CardHeader>
@@ -339,22 +241,6 @@ export default function SettingsPage() {
         title="Import Donors from CSV"
         description="Upload a CSV file with donor data. The column headers must include: name, and type ('Individual' or 'Business'). Optional columns: email, phone, street, city, state, zip, and contactPerson."
     />
-     <AlertDialog open={!!adminToRemove} onOpenChange={(isOpen) => !isOpen && setAdminToRemove(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove admin permissions for <strong>{adminToRemove}</strong>. They will no longer be able to manage account settings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveAdmin} className="bg-destructive hover:bg-destructive/90">
-              Remove Admin
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

@@ -1,4 +1,3 @@
-
 {
   "indexes": [
     {
@@ -10,20 +9,38 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "auctionId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "winnerId",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "memberships",
+      "collectionGroup": "items",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "userId",
+          "fieldPath": "accountId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "winnerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []
