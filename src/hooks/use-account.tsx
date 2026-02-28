@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react';
@@ -12,7 +11,7 @@ interface AccountContextType {
   accountId: string | null;
   role: 'admin' | 'staff' | null;
   assignedAuctions: string[];
-  isAccountLoading: boolean;
+  isLoading: boolean;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -25,7 +24,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const urlAccountId = searchParams.get('account');
 
   // 1. Query for all memberships for this user across all accounts.
-  // This uses collectionGroup which needs a composite index on 'userId'.
   const membershipsQuery = useMemoFirebase(
     () => (firestore && user && !isStaffSession ? query(collectionGroup(firestore, 'memberships'), where('userId', '==', user.uid)) : null),
     [firestore, user, isStaffSession]
@@ -38,21 +36,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // 2. Self-healing logic: If no membership exists but the user is the owner of an account.
   useEffect(() => {
     const heal = async () => {
-      // Wait until we are sure there are no memberships returned from the query
       if (!firestore || !user || isMembershipsLoading || isStaffSession || isSelfHealing) return;
-      
-      // If we already have memberships, no healing is required.
       if (memberships && memberships.length > 0) return;
 
       setIsSelfHealing(true);
       try {
-        // Standard personal account ID is the user UID. We check if an account with this ID exists.
         const accountRef = doc(firestore, 'accounts', user.uid);
         const accountSnap = await getDoc(accountRef);
         
         if (accountSnap.exists()) {
           const accountData = accountSnap.data() as Account;
-          // If they are the adminUserId, but lack a membership doc, create it now.
           if (accountData.adminUserId === user.uid) {
             const membershipRef = doc(firestore, 'accounts', user.uid, 'memberships', user.uid);
             await setDoc(membershipRef, {
@@ -74,34 +67,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     heal();
   }, [firestore, user, isMembershipsLoading, memberships, isStaffSession, isSelfHealing]);
 
-  // 3. Resolve active membership based on URL parameters or defaults.
+  // 3. Resolve active membership
   const activeMembership = useMemo(() => {
     if (isStaffSession || !memberships || memberships.length === 0) return null;
-
     if (urlAccountId) {
       const found = memberships.find(m => m.accountId === urlAccountId);
       if (found) return found;
     }
-
-    // Default to the first found membership if none specified in URL
     return memberships[0];
   }, [memberships, urlAccountId, isStaffSession]);
 
-  // 4. Compute the final context value.
+  // 4. Compute final context value
   const value = useMemo((): AccountContextType => {
     if (isSessionLoading) {
-      return { accountId: null, role: null, assignedAuctions: [], isAccountLoading: true };
+      return { accountId: null, role: null, assignedAuctions: [], isLoading: true };
     }
 
     if (isStaffSession) {
-      // In staff portal, we know the accountId from the URL or session.
-      // assignedAuctions is pulled from the session's active auction ID.
       const staffAuctionId = typeof window !== 'undefined' ? localStorage.getItem('activeAuctionId') : null;
       return {
         accountId: staffAccountId,
         role: 'staff',
         assignedAuctions: staffAuctionId ? [staffAuctionId] : [],
-        isAccountLoading: false
+        isLoading: false
       };
     }
 
@@ -111,7 +99,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       accountId: activeMembership?.accountId || null,
       role: (activeMembership?.role as 'admin' | 'staff') || null,
       assignedAuctions: activeMembership?.assignedAuctions || [],
-      isAccountLoading: isLoading
+      isLoading
     };
   }, [isSessionLoading, isStaffSession, staffAccountId, activeMembership, isAuthLoading, isMembershipsLoading, isSelfHealing]);
 

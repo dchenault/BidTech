@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -57,7 +56,7 @@ import { useAccount } from '@/hooks/use-account';
 
 export default function DonorsPage() {
   const router = useRouter();
-  const { role, isAccountLoading } = useAccount();
+  const { role, isLoading: isAccountLoading } = useAccount();
   const { donors, updateDonor, addDonor, deleteDonor, isLoading } = useDonors();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
@@ -112,7 +111,6 @@ export default function DonorsPage() {
   }
 
   const handleDeleteClick = (donor: Donor) => {
-    // TODO: Check if donor is linked to items before allowing deletion
     setDonorToDelete(donor);
   };
 
@@ -255,7 +253,7 @@ export default function DonorsPage() {
         </CardFooter>
       </Card>
 
-       <Dialog open={!!editingDonor} onOpenChange={(isOpen) => !isOpen && setEditingDonor(null)}>
+       <Dialog open={!!editingDonor} onOpenChange={(isOpen) => !isOpen && setEditingAuction(null)}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>Edit Donor</DialogTitle>

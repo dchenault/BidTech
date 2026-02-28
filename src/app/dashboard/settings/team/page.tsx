@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -40,7 +39,7 @@ import { useUser } from '@/firebase';
 export default function TeamManagementPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { role, isAccountLoading } = useAccount();
+  const { role, isLoading: isAccountLoading } = useAccount();
   const { members, isLoading: isLoadingTeam, addMember, removeMember } = useTeam();
   const { auctions, isLoading: isLoadingAuctions } = useAuctions();
 

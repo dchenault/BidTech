@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -32,7 +31,7 @@ import { useAccount } from '@/hooks/use-account';
 export default function DonorDetailsPage() {
     const params = useParams();
     const router = useRouter();
-    const { role, assignedAuctions, isAccountLoading } = useAccount();
+    const { role, assignedAuctions, isLoading: isAccountLoading } = useAccount();
     const donorId = typeof params.id === 'string' ? params.id : '';
 
     const { donors, isLoading: isLoadingDonors } = useDonors();

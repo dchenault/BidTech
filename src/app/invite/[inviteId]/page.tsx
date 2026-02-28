@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -48,7 +47,6 @@ export default function InvitePage() {
 
     try {
       // Step 1: Fetch the invitation document.
-      // A user can only read an invite if their email matches (per security rules).
       const inviteRef = doc(firestore, 'invitations', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
@@ -69,24 +67,21 @@ export default function InvitePage() {
         throw new Error(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
       }
       
-      // Step 2: Ensure user profile exists. If not, create it.
+      // Step 2: Ensure user profile exists.
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
       if (!userSnap.exists()) {
-        // User is brand new to the app. Create their profile and personal account.
         await setupNewUser(firestore, user);
       }
       
-      // Step 3: Add membership to the invited account AND set it as the active account.
-      // This is a single, self-contained update to the user's own profile, which is allowed by rules.
+      // Step 3: Update user profile.
       await updateDoc(userRef, { 
-        [`accounts.${fetchedInviteData.accountId}`]: 'manager',
+        [`accounts.${fetchedInviteData.accountId}`]: 'staff',
         activeAccountId: fetchedInviteData.accountId,
       });
 
-      // Step 4: Now that membership is established, update the auction's manager list.
-      // This is a separate write, which relies on the previous write completing successfully.
+      // Step 4: Update the auction's manager list.
       const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
       await updateDoc(auctionRef, { [`managers.${user.uid}`]: true });
 
@@ -109,7 +104,6 @@ export default function InvitePage() {
   }, [user, isUserLoading, firestore, inviteId, router, toast, auth]);
 
   useEffect(() => {
-    // This effect will run whenever the user's auth state is resolved or changes.
     processInvitation();
   }, [processInvitation]);
 

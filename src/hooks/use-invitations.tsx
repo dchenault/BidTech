@@ -1,4 +1,3 @@
-
 'use client';
 import {
   collection,
@@ -32,7 +31,6 @@ export function useInvitations() {
     [firestore, accountId]
   );
   
-  // useCollection now fetches only the relevant invitations.
   const { data: invitations, isLoading } = useCollection<Invitation>(invitationsQueryRef);
 
 
@@ -45,7 +43,7 @@ export function useInvitations() {
         const newInvitation = {
             ...values,
             email: values.email.toLowerCase(),
-            role: 'manager',
+            role: 'staff',
             status: 'pending',
             accountId: accountId, // The inviting account
         };
@@ -81,8 +79,6 @@ export function useInvitations() {
       const invitationRef = doc(firestore, 'invitations', invitationId);
       batch.delete(invitationRef);
       
-      // If the user had accepted, remove them from the auction's managers
-      // and from their own user profile's account list.
       if (acceptedByUid) {
         const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
         batch.update(auctionRef, { [`managers.${acceptedByUid}`]: deleteField() });
@@ -95,7 +91,7 @@ export function useInvitations() {
       
       toast({
         title: 'Access Revoked',
-        description: 'The manager\'s access has been successfully removed.',
+        description: 'The staff member\'s access has been successfully removed.',
       });
       
     } catch(error) {
@@ -103,7 +99,7 @@ export function useInvitations() {
        toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Could not revoke manager access.',
+        description: 'Could not revoke staff access.',
       });
     }
   };

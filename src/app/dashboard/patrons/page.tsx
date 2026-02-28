@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -31,7 +30,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -61,7 +59,7 @@ import { collectionGroup, query, where } from 'firebase/firestore';
 
 export default function PatronsPage() {
   const router = useRouter();
-  const { role, accountId, isAccountLoading } = useAccount();
+  const { role, accountId, isLoading: isAccountLoading } = useAccount();
   const { patrons, updatePatron, addPatron, deletePatron, isLoading: isLoadingPatrons } = usePatrons();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();

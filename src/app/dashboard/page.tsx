@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
@@ -31,7 +30,7 @@ export default function DashboardPage() {
     const firestore = useFirestore();
     const router = useRouter();
     const { user } = useUser();
-    const { accountId, role, isAccountLoading } = useAccount();
+    const { accountId, role, isLoading: isAccountLoading } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
     const [allItems, setAllItems] = useState<Item[]>([]);
@@ -305,6 +304,7 @@ export default function DashboardPage() {
                             <div className="text-2xl font-bold">{activeAuctions.length}</div>
                             <p className="text-xs text-muted-foreground">Auctions currently live</p>
                         </CardContent>
+
                     </Card>
 
                     <Card>
