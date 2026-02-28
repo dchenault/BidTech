@@ -1,4 +1,3 @@
-
 'use client';
 import {
   collection,
@@ -76,17 +75,43 @@ export function useAuctions() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { user } = useUser();
-  const { accountId } = useAccount();
+  const { accountId, role, assignedAuctions, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
 
-  const auctionsRef = useMemoFirebase(
-    () => (firestore && accountId ? collection(firestore, 'accounts', accountId, 'auctions') : null),
-    [firestore, accountId]
+  const auctionsQuery = useMemoFirebase(
+    () => {
+      if (!firestore || !accountId || !role) return null;
+      
+      const baseRef = collection(firestore, 'accounts', accountId, 'auctions');
+      
+      // Admin sees everything in the account
+      if (role === 'admin') {
+        return baseRef;
+      }
+      
+      // Staff only sees assigned auctions
+      if (role === 'staff') {
+        const validIds = (assignedAuctions || []).filter(id => id && id.trim() !== '');
+        if (validIds.length > 0) {
+          // Note: Firestore 'in' query limit is 30 items.
+          return query(baseRef, where(documentId(), 'in', validIds.slice(0, 30)));
+        }
+        // If staff has no assignments, return null to return empty results
+        return null; 
+      }
+      
+      return null;
+    },
+    [firestore, accountId, role, assignedAuctions]
   );
-  const { data: auctionsData, isLoading } = useCollection<Auction>(auctionsRef);
+
+  const { data: auctionsData, isLoading: isCollectionLoading } = useCollection<Auction>(auctionsQuery);
+
+  const isLoading = isAccountLoading || isCollectionLoading;
 
   const addAuction = useCallback(async (auctionData: FormValues) => {
-    if (!auctionsRef || !accountId) return;
+    if (!firestore || !accountId) return;
+    const auctionsRef = collection(firestore, 'accounts', accountId, 'auctions');
     const slug = generateSlug(auctionData.name);
     const newAuction: Omit<Auction, 'id'> = {
         name: auctionData.name,
@@ -103,7 +128,7 @@ export function useAuctions() {
         status: new Date(auctionData.startDate) > new Date() ? 'upcoming' : 'active',
     }
     await addDoc(auctionsRef, newAuction);
-  }, [auctionsRef, accountId]);
+  }, [firestore, accountId]);
 
   const updateAuction = useCallback(async (id: string, updatedAuctionData: Partial<Auction>) => {
     if (!firestore || !accountId) return;
@@ -129,7 +154,6 @@ export function useAuctions() {
     try {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, undefined);
     
-      // Check for SKU uniqueness BEFORE the transaction if a SKU is provided.
       if (itemData.sku && itemData.sku.trim() !== '') {
           const newSku = itemData.sku.trim();
           const itemsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
@@ -154,8 +178,6 @@ export function useAuctions() {
           let newSku: string | number;
           let shouldIncrementSku = false;
 
-          // Now, we determine the SKU inside the transaction. If it was provided, we use it.
-          // If not, we generate it atomically.
           if (itemData.sku && itemData.sku.trim() !== '') {
             newSku = itemData.sku.trim();
           } else {
@@ -225,7 +247,6 @@ export function useAuctions() {
       const finalImageUrl = await _handleImageUpload(storage, accountId, auctionId, itemData.imageUrl, item.imageUrl);
       
       const newSku = itemData.sku?.toString().trim();
-      // Check for SKU uniqueness BEFORE the transaction if the SKU has changed.
       if (newSku && newSku !== item.sku.toString()) {
           const itemsColRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items');
           const skuQuery = query(itemsColRef, where('sku', '==', newSku));
@@ -387,7 +408,6 @@ export function useAuctions() {
         return;
     }
 
-    // Check if any items are using this category
     const itemsInAuction = await fetchAuctionItems(firestore, accountId, auctionId);
     const isCategoryInUse = itemsInAuction.some(item => item.categoryId === categoryId);
 
@@ -528,7 +548,6 @@ export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, ac
   const patronIds = registeredPatrons.map(rp => rp.patronId);
   if (patronIds.length === 0) return [];
   const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
-  // Firestore 'in' queries are limited to 30 items. We need to handle more.
   const patronChunks = [];
   for (let i = 0; i < patronIds.length; i += 30) {
       patronChunks.push(patronIds.slice(i, i + 30));
