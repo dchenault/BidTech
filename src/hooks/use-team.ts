@@ -2,7 +2,7 @@
 'use client';
 
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, deleteDoc, setDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 import { useCallback } from 'react';
 import { Membership, TeamMemberFormValues } from '@/lib/types';
 import { useAccount } from './use-account';
@@ -32,9 +32,14 @@ export function useTeam() {
     const inviteToken = crypto.randomUUID();
     
     try {
+      // 1. Fetch organization name for the email template
+      const accountRef = doc(firestore, 'accounts', accountId);
+      const accountSnap = await getDoc(accountRef);
+      const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
+
+      // 2. Create membership document
       const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', sanitizedEmailId);
 
-      // 3. Prepare Membership Data
       const newMembership: Membership = {
         id: sanitizedEmailId,
         accountId,
@@ -48,9 +53,24 @@ export function useTeam() {
         inviteToken,
       };
 
-      // 4. Save to Firestore
+      // 3. Save to Firestore
       await setDoc(membershipDocRef, newMembership);
       
+      // 4. Trigger invitation email via Firebase Trigger Email extension
+      const mailRef = collection(firestore, 'mail');
+      await addDoc(mailRef, {
+        to: email,
+        accountId: accountId, // Required for security rules check
+        template: {
+          name: 'staff-invite',
+          data: {
+            orgName: orgName,
+            role: values.role,
+            inviteToken: inviteToken,
+          }
+        }
+      });
+
       toast({
         title: "Staff Member Invited",
         description: `An invitation has been sent to ${email}.`,

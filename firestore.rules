@@ -29,6 +29,22 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // Email Templates (Read-only for app verification)
+    match /email_templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if false; 
+    }
+
+    // Email Outbox (Used by Trigger Email Extension)
+    match /mail/{mailId} {
+      // Only Admins or Account Owners can trigger an outgoing email
+      // Note: We check the 'accountId' context from the request data if available
+      allow create: if isSignedIn() && 
+                    (hasRole(request.resource.data.accountId, 'admin') || 
+                     request.auth.uid == request.resource.data.accountId);
+      allow read, update, delete: if false;
+    }
+
     // ========= ACCOUNT RULES =========
     match /accounts/{accountId} {
       
@@ -41,7 +57,6 @@ service cloud.firestore {
         allow read: if isSignedIn() && request.auth.uid == membershipId;
         
         // Only admins OR the original Account Owner can manage team memberships.
-        // This ensures the owner never gets locked out of their own team settings.
         allow write: if isSignedIn() && (request.auth.uid == accountId || hasRole(accountId, 'admin'));
       }
 
@@ -59,7 +74,6 @@ service cloud.firestore {
           allow read, create, update: if hasRole(accountId, 'admin') || 
                                          (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
           
-          // Strict block on Staff deletions to protect data integrity
           allow delete: if hasRole(accountId, 'admin');
         }
       }
@@ -77,7 +91,6 @@ service cloud.firestore {
     }
     
     // Support for Collection Group Queries (Discovery)
-    // Allows the useAccount hook to find any membership belonging to the user
     match /{path=**}/memberships/{membershipId} {
       allow read: if isSignedIn() && request.auth.uid == membershipId;
     }
