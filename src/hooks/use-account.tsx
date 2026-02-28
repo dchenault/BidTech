@@ -44,6 +44,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       
       try {
         const urlAccountId = searchParams.get('account');
+        if (urlAccountId) {
+            console.log('Searching for membership at:', 'accounts/' + urlAccountId + '/memberships/' + user.uid);
+        }
 
         // Step C (Discovery): Perform Discovery Query
         console.log('RBAC Discovery: Started for UID', user.uid);
@@ -87,6 +90,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             await setDoc(mRef, newM);
             setMemberships([{ id: user.uid, ...newM }]);
             setIsSelfHealing(false);
+          } else {
+              console.log('RBAC Discovery: User has no memberships and is not an account owner. Setting role to null.');
           }
         }
       } catch (err) {
