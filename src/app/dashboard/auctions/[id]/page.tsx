@@ -509,6 +509,13 @@ export default function AuctionDetailsPage() {
             });
         }
     };
+
+    const safeFormatDateTime = (dateInput: any) => {
+      if (!dateInput) return 'N/A';
+      const date = new Date(dateInput);
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    };
     
     const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
       <>
@@ -669,7 +676,7 @@ export default function AuctionDetailsPage() {
                     <CardTitle>{lot.name}</CardTitle>
                     {lot.closingDate && (
                       <CardDescription>
-                          Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                          Closes: {safeFormatDateTime(lot.closingDate)}
                       </CardDescription>
                     )}
                     <CardDescription>
@@ -772,7 +779,7 @@ export default function AuctionDetailsPage() {
                       <CardTitle>{lot.name}</CardTitle>
                       {lot.closingDate && (
                         <CardDescription>
-                            Closes: {new Date(lot.closingDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                            Closes: {safeFormatDateTime(lot.closingDate)}
                         </CardDescription>
                       )}
                       <CardDescription>

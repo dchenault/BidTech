@@ -109,6 +109,13 @@ export default function AuctionsPage() {
     });
   };
 
+  const safeFormatDate = (dateInput: any) => {
+    if (!dateInput) return 'N/A';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString();
+  };
+
 
   const renderAuctionsTable = (auctionsToShow: typeof auctions) => (
     <Table>
@@ -153,7 +160,7 @@ export default function AuctionsPage() {
             </TableCell>
             <TableCell className="hidden md:table-cell">{auction.itemCount}</TableCell>
             <TableCell className="hidden md:table-cell">
-              {new Date(auction.startDate).toLocaleDateString()}
+              {safeFormatDate(auction.startDate)}
             </TableCell>
             <TableCell>
               <DropdownMenu>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,7 +47,7 @@ export function CreateAuctionForm({
     name: auction.name,
     description: auction.description,
     type: auction.type,
-    startDate: new Date(auction.startDate),
+    startDate: !auction.startDate || isNaN(new Date(auction.startDate).getTime()) ? new Date() : new Date(auction.startDate),
     isPublic: auction.isPublic || false,
   } : {
     name: "",
@@ -70,7 +69,7 @@ export function CreateAuctionForm({
         name: auction.name,
         description: auction.description,
         type: auction.type,
-        startDate: new Date(auction.startDate),
+        startDate: !auction.startDate || isNaN(new Date(auction.startDate).getTime()) ? new Date() : new Date(auction.startDate),
         isPublic: auction.isPublic || false,
       });
     } else {

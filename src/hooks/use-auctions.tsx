@@ -111,40 +111,58 @@ export function useAuctions() {
 
   const addAuction = useCallback(async (auctionData: FormValues) => {
     if (!firestore || !accountId) return;
-    const auctionsRef = collection(firestore, 'accounts', accountId, 'auctions');
-    const slug = generateSlug(auctionData.name);
-    const newAuction: Omit<Auction, 'id'> = {
-        name: auctionData.name,
-        description: auctionData.description,
-        type: auctionData.type,
-        startDate: auctionData.startDate,
-        isPublic: auctionData.isPublic || false,
-        slug: slug,
-        accountId: accountId,
-        itemCount: 0,
-        items: [],
-        categories: [],
-        lots: [],
-        status: new Date(auctionData.startDate) > new Date() ? 'upcoming' : 'active',
+    try {
+      const auctionsRef = collection(firestore, 'accounts', accountId, 'auctions');
+      const slug = generateSlug(auctionData.name);
+      const newAuction: Omit<Auction, 'id'> = {
+          name: auctionData.name,
+          description: auctionData.description,
+          type: auctionData.type,
+          startDate: auctionData.startDate,
+          isPublic: auctionData.isPublic || false,
+          slug: slug,
+          accountId: accountId,
+          itemCount: 0,
+          items: [],
+          categories: [],
+          lots: [],
+          status: new Date(auctionData.startDate) > new Date() ? 'upcoming' : 'active',
+      }
+      await addDoc(auctionsRef, newAuction);
+    } catch (error: any) {
+      console.error("Error adding auction:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Permission Denied',
+        description: error.message || 'You do not have permission to create auctions.'
+      });
     }
-    await addDoc(auctionsRef, newAuction);
-  }, [firestore, accountId]);
+  }, [firestore, accountId, toast]);
 
   const updateAuction = useCallback(async (id: string, updatedAuctionData: Partial<Auction>) => {
     if (!firestore || !accountId) return;
-    const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', id);
-    
-    const payload: Partial<Auction> = { ...updatedAuctionData };
-    if (updatedAuctionData.name) {
-      payload.slug = generateSlug(updatedAuctionData.name);
-    }
-     if (updatedAuctionData.startDate && typeof updatedAuctionData.startDate !== 'string') {
-      // @ts-ignore
-      payload.startDate = updatedAuctionData.startDate.toISOString();
-    }
+    try {
+      const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', id);
+      
+      const payload: Partial<Auction> = { ...updatedAuctionData };
+      if (updatedAuctionData.name) {
+        payload.slug = generateSlug(updatedAuctionData.name);
+      }
+       if (updatedAuctionData.startDate && typeof updatedAuctionData.startDate !== 'string') {
+        // @ts-ignore
+        payload.startDate = updatedAuctionData.startDate.toISOString();
+      }
 
-    await updateDoc(auctionDocRef, payload);
-  }, [firestore, accountId]);
+      await updateDoc(auctionDocRef, payload);
+    } catch (error: any) {
+      console.error("Error updating auction:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message || 'You do not have permission to edit this auction.'
+      });
+    }
+  }, [firestore, accountId, toast]);
 
   const addItemToAuction = useCallback(async (auctionId: string, itemData: ItemFormValues) => {
     if (!firestore || !accountId || !storage || !user) {

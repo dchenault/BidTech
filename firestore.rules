@@ -7,25 +7,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper to get membership data safely
+    // Combined Helper: Checks existence and role in one pass for better reliability
+    function hasRole(accId, role) {
+      let membershipPath = /databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid);
+      return isSignedIn() && 
+             exists(membershipPath) && 
+             get(membershipPath).data.role == role;
+    }
+
+    // Helper to get membership data for assignment checks
     function getMembership(accId) {
       return get(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)).data;
     }
 
-    // Helper to check if a user has a specific role in an account
-    function hasRole(accId, role) {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)) &&
-             getMembership(accId).role == role;
-    }
-
     // ========= GLOBAL RULES =========
-    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // User profiles (Self-service)
     match /users/{userId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
@@ -33,22 +32,21 @@ service cloud.firestore {
     // ========= ACCOUNT RULES =========
     match /accounts/{accountId} {
       
-      // Allow admins to read/write the account document itself
+      // Allow admins to read/write the account document (Settings/Billing)
       allow read, write: if hasRole(accountId, 'admin');
 
-      // Memberships sub-collection (The key to the RBAC system)
+      // Memberships sub-collection (Team Management)
       match /memberships/{membershipId} {
-        // REQUIRED FIX: Allow users to read their own record to identify their role
-        // This must come BEFORE the hasRole check to avoid the "Discovery Hang"
+        // Allow users to read their own record (Crucial for Discovery/Login)
         allow read: if isSignedIn() && request.auth.uid == membershipId;
         
-        // Only admins can manage other team members or change roles
+        // Only admins can manage team memberships
         allow write: if hasRole(accountId, 'admin');
       }
 
       // Auctions
       match /auctions/{auctionId} {
-        // Admins see all. Staff see only if the auction ID is in their assignment list.
+        // Admins see all. Staff see only assigned auctions.
         allow read: if hasRole(accountId, 'admin') || 
                       (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
         
@@ -60,16 +58,14 @@ service cloud.firestore {
           allow read, create, update: if hasRole(accountId, 'admin') || 
                                          (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
           
-          // Staff are strictly forbidden from deleting auction documents (Items/Bids)
+          // Strict block on Staff deletions
           allow delete: if hasRole(accountId, 'admin');
         }
       }
 
       // Global Master Data (Patrons/Donors)
-      // Note: Scoped under the Account so each organization has their own database
       match /patrons/{patronId} {
         allow read, write: if hasRole(accountId, 'admin');
-        // Staff can view/edit/add patrons but cannot delete the records
         allow read, create, update: if hasRole(accountId, 'staff');
       }
 
@@ -80,7 +76,7 @@ service cloud.firestore {
     }
     
     // Support for Collection Group Queries (Discovery)
-    // This allows the useAccount hook to find where the user belongs
+    // This must match the document name used in the sub-collection
     match /{path=**}/memberships/{membershipId} {
       allow read: if isSignedIn() && request.auth.uid == membershipId;
     }
