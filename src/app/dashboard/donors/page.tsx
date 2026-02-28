@@ -253,7 +253,7 @@ export default function DonorsPage() {
         </CardFooter>
       </Card>
 
-       <Dialog open={!!editingDonor} onOpenChange={(isOpen) => !isOpen && setEditingAuction(null)}>
+       <Dialog open={!!editingDonor} onOpenChange={(isOpen) => !isOpen && setEditingDonor(null)}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>Edit Donor</DialogTitle>
