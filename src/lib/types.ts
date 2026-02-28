@@ -142,9 +142,10 @@ export type Membership = {
   role: 'admin' | 'staff';
   assignedAuctions: string[];
   email: string;
-  status: 'active' | 'pending';
+  status: 'active' | 'pending' | 'invited';
   invitedBy?: string;
   invitedAt?: any;
+  inviteToken?: string;
 };
 
 export type Invitation = {

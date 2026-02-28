@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -114,9 +115,12 @@ export default function TeamManagementPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={member.status === 'active' ? 'outline' : 'outline'} className="capitalize gap-1">
-                      {member.status === 'pending' && <Clock className="h-3 w-3" />}
-                      {member.status}
+                    <Badge 
+                      variant={member.status === 'active' ? 'outline' : 'secondary'} 
+                      className="capitalize gap-1"
+                    >
+                      {(member.status === 'pending' || member.status === 'invited') && <Clock className="h-3 w-3" />}
+                      {member.status === 'invited' ? 'Pending' : member.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
