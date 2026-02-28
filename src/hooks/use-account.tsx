@@ -28,7 +28,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const urlAccountId = searchParams.get('account');
 
   // 1. Discovery Query: Fetch all memberships for this user across all accounts.
-  // This satisfies the "Discovery" requirement by automatically finding which accounts the user belongs to.
   const membershipsQuery = useMemoFirebase(
     () => (firestore && user && !isStaffSession ? query(collectionGroup(firestore, 'memberships'), where('userId', '==', user.uid)) : null),
     [firestore, user, isStaffSession]
@@ -38,6 +37,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const [isSelfHealing, setIsSelfHealing] = useState(false);
   const [hasTimeoutReached, setHasTimeoutReached] = useState(false);
+
+  // Debug Logging
+  useEffect(() => {
+    if (user) {
+      console.log('RBAC Debug: Current User', user.uid);
+    }
+    if (memberships) {
+      console.log('RBAC Debug: Memberships Found', memberships.length);
+    }
+  }, [user, memberships]);
 
   // 2. Timeout/Fallback Logic: 5 seconds to prevent infinite hang
   useEffect(() => {
@@ -96,46 +105,43 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     heal();
   }, [firestore, user, isMembershipsLoading, memberships, isStaffSession, isSelfHealing, urlAccountId]);
 
-  // 4. Resolve active membership
+  // 4. Resolve active membership (Discovery Logic)
   const activeMembership = useMemo(() => {
     if (isStaffSession || !memberships || memberships.length === 0) return null;
     if (urlAccountId) {
       const found = memberships.find(m => m.accountId === urlAccountId);
       if (found) return found;
     }
-    // Default to the first found membership if none is specified in URL
+    // Discovery: Default to the first found membership if none is specified in URL
     return memberships[0];
   }, [memberships, urlAccountId, isStaffSession]);
 
   // 5. Self-Correction & Redirection Logic
   useEffect(() => {
-    // Skip if still resolving or if it's a staff session
     if (isAuthLoading || isSessionLoading || isMembershipsLoading || isSelfHealing || isStaffSession || !user) return;
 
     const isDashboardArea = pathname.startsWith('/dashboard');
     if (!isDashboardArea) return;
 
     if (activeMembership && !urlAccountId) {
-        // Discovery Correction: Pick the first membership found and update the URL so the app context is preserved.
+        // Discovery Correction: Automatically set the accountId to the membership's account and sync URL
         const params = new URLSearchParams(searchParams.toString());
         params.set('account', activeMembership.accountId);
         router.replace(`${pathname}?${params.toString()}`);
-    } else if (!activeMembership && !isMembershipsLoading && !isSelfHealing && !isAuthLoading && !hasTimeoutReached) {
-        // Redirection: No memberships found after all checks, go to the selection/creation guidance page.
+    } else if (!activeMembership && !isMembershipsLoading && !isSelfHealing && !isAuthLoading) {
+        // Redirection: No memberships found after all checks
         if (pathname !== '/dashboard/select-account' && pathname !== '/login') {
             router.push('/dashboard/select-account');
         }
     }
-  }, [activeMembership, urlAccountId, pathname, isAuthLoading, isSessionLoading, isMembershipsLoading, isSelfHealing, isStaffSession, router, searchParams, user, hasTimeoutReached]);
+  }, [activeMembership, urlAccountId, pathname, isAuthLoading, isSessionLoading, isMembershipsLoading, isSelfHealing, isStaffSession, router, searchParams, user]);
 
   // 6. Compute final context value
   const value = useMemo((): AccountContextType => {
-    // High-priority loading for session/auth state
     if (isSessionLoading) {
       return { accountId: null, role: null, assignedAuctions: [], isLoading: true };
     }
 
-    // Handle anonymous Staff portal
     if (isStaffSession) {
       const staffAuctionId = typeof window !== 'undefined' ? localStorage.getItem('activeAuctionId') : null;
       return {
@@ -146,7 +152,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Force non-loading state if 5s timeout reached to prevent infinite spinner
     if (hasTimeoutReached) {
         return {
             accountId: null,
@@ -156,7 +161,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         };
     }
 
-    // Standard User resolution state
+    // Standard resolution state
     const isLoading = isAuthLoading || (!!user && isMembershipsLoading) || isSelfHealing;
 
     return {
