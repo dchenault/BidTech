@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Trash2, ShieldAlert, Loader2, Users } from 'lucide-react';
+import { PlusCircle, Trash2, ShieldAlert, Loader2, Users, Clock } from 'lucide-react';
 import { AddTeamMemberDialog } from '@/components/add-team-member-dialog';
 import {
   AlertDialog,
@@ -41,12 +41,11 @@ export default function TeamManagementPage() {
   const { user } = useUser();
   const { role, isLoading: isAccountLoading } = useAccount();
   const { members, isLoading: isLoadingTeam, addMember, removeMember } = useTeam();
-  const { auctions, isLoading: isLoadingAuctions } = useAuctions();
+  const { auctions } = useAuctions();
 
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; email: string } | null>(null);
 
-  // UI Guard: Redirect non-admins
   if (!isAccountLoading && role !== 'admin') {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
@@ -83,7 +82,7 @@ export default function TeamManagementPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Active Memberships
+            Team Memberships
           </CardTitle>
           <CardDescription>
             A list of all users who have access to this account.
@@ -106,9 +105,7 @@ export default function TeamManagementPage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium">{member.email}</span>
-                      {member.status === 'pending' && (
-                        <span className="text-xs text-muted-foreground italic">Awaiting first login</span>
-                      )}
+                      <span className="text-[10px] text-muted-foreground font-mono">ID: {member.id}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -117,26 +114,27 @@ export default function TeamManagementPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={member.status === 'active' ? 'outline' : 'secondary'} className="capitalize">
+                    <Badge variant={member.status === 'active' ? 'outline' : 'outline'} className="capitalize gap-1">
+                      {member.status === 'pending' && <Clock className="h-3 w-3" />}
                       {member.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {member.role === 'admin' ? (
-                      <span className="text-sm font-medium text-primary">Global Access</span>
+                      <span className="text-sm font-medium text-primary">Full Organization Access</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {member.assignedAuctions.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[300px]">
+                        {member.assignedAuctions && member.assignedAuctions.length > 0 ? (
                           member.assignedAuctions.map(id => {
                             const auction = auctions.find(a => a.id === id);
                             return (
-                              <Badge key={id} variant="outline" className="text-[10px]">
-                                {auction?.name || 'Unknown Auction'}
+                              <Badge key={id} variant="outline" className="text-[10px] whitespace-nowrap">
+                                {auction?.name || 'Assigned Auction'}
                               </Badge>
                             );
                           })
                         ) : (
-                          <span className="text-xs text-muted-foreground">No auctions assigned</span>
+                          <span className="text-xs text-muted-foreground italic">No auctions assigned</span>
                         )}
                       </div>
                     )}
@@ -180,7 +178,7 @@ export default function TeamManagementPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This will instantly revoke access for <strong>{memberToRemove?.email}</strong>. 
-              This action cannot be undone.
+              They will no longer be able to access this organization's dashboard.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

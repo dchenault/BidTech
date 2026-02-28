@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, deleteDoc, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, deleteDoc, setDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { useCallback } from 'react';
 import { Membership, TeamMemberFormValues } from '@/lib/types';
 import { useAccount } from './use-account';
@@ -25,42 +24,49 @@ export function useTeam() {
     if (!firestore || !accountId || !user) return;
 
     const email = values.email.toLowerCase().trim();
-    // Use sanitized email as document ID to easily check for existing invites
-    const membershipId = email.replace(/[^a-zA-Z0-9]/g, '_');
-    const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', membershipId);
-
+    
     try {
-      // Check if user already exists in root users collection to get their UID if possible
+      // 1. Search for existing user by email to get their UID
       const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where('email', '==', email));
+      const q = query(usersRef, where('email', '==', email), limit(1));
       const userSnap = await getDocs(q);
       
-      const userId = !userSnap.empty ? userSnap.docs[0].id : undefined;
+      const foundUser = !userSnap.empty ? userSnap.docs[0] : null;
+      const userId = foundUser ? foundUser.id : undefined;
 
+      // 2. Determine Document ID (UID is preferred, sanitized email as fallback)
+      const membershipId = userId || email.replace(/[^a-zA-Z0-9]/g, '_');
+      const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', membershipId);
+
+      // 3. Prepare Membership Data
       const newMembership: Membership = {
         id: membershipId,
         userId,
         accountId,
         role: values.role,
         email,
+        // Admins get global access (empty array represents all), Staff get specific assignments
         assignedAuctions: values.role === 'admin' ? [] : values.assignedAuctions,
         status: userId ? 'active' : 'pending',
         invitedBy: user.email || 'Admin',
         invitedAt: serverTimestamp(),
       };
 
+      // 4. Save to Firestore
       await setDoc(membershipDocRef, newMembership);
       
       toast({
-        title: "Member Added",
-        description: `${email} has been added to your team as ${values.role}.`,
+        title: foundUser ? "Member Added" : "Invitation Sent",
+        description: foundUser 
+          ? `${email} is now a member of your team.` 
+          : `${email} has been invited. They will be added automatically when they join BidTech.`,
       });
     } catch (error: any) {
       console.error("Error adding team member:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to add team member.",
+        title: "Permission Denied",
+        description: "You do not have permission to manage team members or the user search failed.",
       });
     }
   }, [firestore, accountId, user, toast]);
@@ -81,7 +87,7 @@ export function useTeam() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to remove team member.",
+        description: "Failed to remove team member. Check your permissions.",
       });
     }
   }, [firestore, accountId, toast]);

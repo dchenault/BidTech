@@ -40,8 +40,9 @@ service cloud.firestore {
         // Allow users to read their own record (Crucial for Discovery/Login)
         allow read: if isSignedIn() && request.auth.uid == membershipId;
         
-        // Only admins can manage team memberships
-        allow write: if hasRole(accountId, 'admin');
+        // Only admins OR the original Account Owner can manage team memberships.
+        // This ensures the owner never gets locked out of their own team settings.
+        allow write: if isSignedIn() && (request.auth.uid == accountId || hasRole(accountId, 'admin'));
       }
 
       // Auctions
@@ -58,7 +59,7 @@ service cloud.firestore {
           allow read, create, update: if hasRole(accountId, 'admin') || 
                                          (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
           
-          // Strict block on Staff deletions
+          // Strict block on Staff deletions to protect data integrity
           allow delete: if hasRole(accountId, 'admin');
         }
       }
@@ -76,7 +77,7 @@ service cloud.firestore {
     }
     
     // Support for Collection Group Queries (Discovery)
-    // This must match the document name used in the sub-collection
+    // Allows the useAccount hook to find any membership belonging to the user
     match /{path=**}/memberships/{membershipId} {
       allow read: if isSignedIn() && request.auth.uid == membershipId;
     }
