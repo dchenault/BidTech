@@ -6,8 +6,8 @@ export type User = {
   name: string;
   email: string;
   avatarUrl: string;
-  // A user can be an admin of one account and a manager of others.
-  accounts: { [accountId: string]: 'admin' | 'manager' };
+  // A user can be an admin of one account and staff of others.
+  accounts: { [accountId: string]: 'admin' | 'staff' };
   // The account the user is currently viewing.
   activeAccountId: string;
   role?: string;
@@ -86,7 +86,7 @@ export type Auction = {
   status: 'upcoming' | 'active' | 'completed';
   itemCount: number;
   startDate: Date | string;
-  items: Item[]; // This will be handled by a subcollection
+  items: Item[]; 
   categories: Category[];
   lots: Lot[];
   accountId: string;
@@ -135,13 +135,21 @@ export type RegisteredPatron = {
     };
 };
 
-//made updates
+export type Membership = {
+  id: string;
+  userId: string;
+  accountId: string;
+  role: 'admin' | 'staff';
+  assignedAuctions: string[];
+  email: string;
+};
+
 export type Invitation = {
   id: string;
   accountId: string;
   auctionId: string;
   email: string;
-  role: string;
+  role: 'admin' | 'staff';
   status: 'pending' | 'accepted';
   acceptedBy?: string; // UID of the user who accepted
 }

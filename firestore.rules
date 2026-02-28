@@ -1,18 +1,12 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // By default, deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
     // ========= HELPER FUNCTIONS =========
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function getMembership(accId) {
       return get(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)).data;
     }
@@ -23,108 +17,57 @@ service cloud.firestore {
              getMembership(accId).role == role;
     }
 
-    function isAdmin(accId) {
-      return hasRole(accId, 'admin');
+    // ========= GLOBAL RULES =========
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isStaff(accId) {
-      return hasRole(accId, 'staff');
-    }
-
-    // Optional: Future-proofing for Stripe/Subscription status
-    function isSubscriptionActive(accId) {
-      // For now, always return true. Later, check the account document.
-      // return get(/databases/$(database)/documents/accounts/$(accId)).data.subscriptionActive == true;
-      return true;
-    }
-
-    // ========= ROOT COLLECTIONS =========
-    
-    // The `users` collection stores a profile for every authenticated user.
     match /users/{userId} {
-      // Only the user themselves can read or write their own profile.
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
-  
-    // The `invitations` collection stores invites for users.
-    match /invitations/{inviteId} {
-      // Admin of the target account can manage invites.
-      allow create, delete: if isAdmin(request.resource.data.accountId) || isAdmin(resource.data.accountId);
-      
-      // The recipient can read the invite if their email matches.
-      allow get: if isSignedIn() && 
-                  (isAdmin(resource.data.accountId) || 
-                   request.auth.token.email.lower() == resource.data.email.lower());
-      
-      // Admins can list invites for their account.
-      allow list: if isSignedIn() && isAdmin(request.query.accountId);
-                   
-      // The invited user can update their own invite to accept it.
-      allow update: if isSignedIn() && request.auth.token.email.lower() == resource.data.email.lower();
-    }
-    
-    // `accounts` holds all tenant data.
-    match /accounts/{accountId} {
-      // Standard membership-based access to the root account document.
-      allow get: if isSignedIn() && (isAdmin(accountId) || isStaff(accountId));
-      allow list: if false; // Accounts are never listed globally.
-      
-      // Account management is restricted to admins.
-      allow update, delete: if isAdmin(accountId);
-      
-      // Allow creation of an account (happens during setup).
-      // We check if the creator sets themselves as adminUserId.
-      allow create: if isSignedIn() && request.resource.data.adminUserId == request.auth.uid;
 
-      // --- Memberships Subcollection ---
-      match /memberships/{userId} {
-        // Users can read their own membership. Admins can manage all memberships.
-        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin(accountId));
-        allow write: if isAdmin(accountId);
+    // ========= ACCOUNT RULES =========
+    match /accounts/{accountId} {
+      // Admins have full control over the account and settings
+      allow read, write: if hasRole(accountId, 'admin');
+
+      // Memberships sub-collection (Team Management)
+      match /memberships/{membershipId} {
+        allow read, write: if hasRole(accountId, 'admin');
+        // Users can read their own membership record
+        allow read: if isSignedIn() && request.auth.uid == membershipId;
       }
 
-      // --- Patrons and Donors (Master Lists) ---
+      // Auctions
+      match /auctions/{auctionId} {
+        // Admins see all. Staff see only if assigned.
+        allow read: if hasRole(accountId, 'admin') || 
+                      (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
+        
+        // Only Admins can create/delete or modify auction settings
+        allow create, delete, update: if hasRole(accountId, 'admin');
+
+        // Auction Data (Items, Bids, etc.)
+        match /{allSubcollections=**} {
+          allow read, create, update: if hasRole(accountId, 'admin') || 
+                                         (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
+          
+          // Staff are strictly forbidden from deleting documents
+          allow delete: if hasRole(accountId, 'admin');
+        }
+      }
+
+      // Global Master Data (Patrons/Donors)
       match /patrons/{patronId} {
-          allow read, create, update: if isAdmin(accountId) || isStaff(accountId);
-          allow delete: if isAdmin(accountId);
+        allow read, write: if hasRole(accountId, 'admin');
+        // Staff can view/edit but not delete global records
+        allow read, create, update: if hasRole(accountId, 'staff');
       }
 
       match /donors/{donorId} {
-          allow read, create, update: if isAdmin(accountId) || isStaff(accountId);
-          allow delete: if isAdmin(accountId);
+        allow read, write: if hasRole(accountId, 'admin');
+        allow read, create, update: if hasRole(accountId, 'staff');
       }
-      
-      // --- Auctions Subcollection ---
-      match /auctions/{auctionId} {
-        
-        function isAssignedStaff() {
-          return isStaff(accountId) && (auctionId in getMembership(accountId).assignedAuctions);
-        }
-
-        // PERMISSIONS FOR THE AUCTION DOCUMENT ITSELF
-        allow get: if true; // Public catalogs need this.
-        allow list: if isAdmin(accountId) || isAssignedStaff();
-        allow create: if isAdmin(accountId);
-        allow update: if isAdmin(accountId); // Staff cannot update auction root settings.
-        allow delete: if isAdmin(accountId); 
-
-        // SUBCOLLECTION RULES (Items, Lots, Registered Patrons)
-        match /{subcollection}/{docId} {
-            allow read: if isAdmin(accountId) || isAssignedStaff();
-            allow create, update: if isAdmin(accountId) || isAssignedStaff();
-            // ONLY Admins can delete auction data.
-            allow delete: if isAdmin(accountId);
-        }
-      }
-    }
-
-    // ========= COLLECTION GROUP RULES =========
-    
-    // Allows real-time queries for items if the user is an admin or assigned staff.
-    match /{path=**}/items/{itemId} {
-      allow read: if isSignedIn() && 
-                  (isAdmin(resource.data.accountId) || 
-                   (isStaff(resource.data.accountId) && resource.data.auctionId in getMembership(resource.data.accountId).assignedAuctions));
     }
   }
 }
