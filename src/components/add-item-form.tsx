@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,6 +35,7 @@ import { AddDonorDialog } from "./add-donor-dialog";
 import { EditCategoryDialog } from "./edit-category-dialog";
 import { PlusCircle, Loader2 } from "lucide-react";
 import { ImageUploader } from "./image-uploader";
+import { useAccount } from "@/hooks/use-account";
 
 export function AddItemForm({
   onSuccess,
@@ -56,6 +58,7 @@ export function AddItemForm({
   const params = useParams();
   const auctionId = typeof params.id === 'string' ? params.id : '';
   const firestore = useFirestore();
+  const { role } = useAccount();
   const [isAddDonorOpen, setIsAddDonorOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
@@ -226,9 +229,11 @@ export function AddItemForm({
                         ))}
                       </SelectContent>
                     </Select>
-                     <Button type="button" size="sm" variant="outline" onClick={() => setIsAddCategoryOpen(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> New
-                    </Button>
+                     {role === 'admin' && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setIsAddCategoryOpen(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> New
+                        </Button>
+                     )}
                   </div>
                   <FormMessage />
                 </FormItem>

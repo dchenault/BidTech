@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ import {
 import { useAccount } from '@/hooks/use-account';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
   { href: '/dashboard/auctions', label: 'Auctions', icon: Gavel, adminOnly: false },
   { href: '/dashboard/patrons', label: 'Patrons', icon: Users, adminOnly: true },
   { href: '/dashboard/donors', label: 'Donors', icon: Gift, adminOnly: true },
