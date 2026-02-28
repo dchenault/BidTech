@@ -1,135 +1,99 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // By default, deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
     // ========= HELPER FUNCTIONS =========
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isUser(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
 
-    function isAccountAdmin(accountId) {
-      // Use the user's profile document to check for admin role.
-      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+    // Combined Helper: Checks existence and role in one pass for better reliability
+    function hasRole(accId, role) {
+      let membershipPath = /databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid);
       return isSignedIn() && 
-             (userProfile.data.accounts[accountId] == 'admin');
+             exists(membershipPath) && 
+             get(membershipPath).data.role == role;
     }
 
-    function isAccountMember(accountId) {
-      // Use the user's profile document to check for any role in the account.
-      let userProfile = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isSignedIn() && userProfile.data.accounts[accountId] != null;
-    }
-    
-    function isInvitedUser(invitation) {
-      // The client already saves the invitation email as lowercase.
-      return isSignedIn() &&
-             request.auth.token.email != null &&
-             invitation.email != null &&
-             request.auth.token.email.lower() == invitation.email;
+    // Helper to get membership data for assignment checks
+    function getMembership(accId) {
+      return get(/databases/$(database)/documents/accounts/$(accId)/memberships/$(request.auth.uid)).data;
     }
 
-    // ========= COLLECTION GROUP RULES =========
-    
-    match /{path=**}/items/{itemId} {
-      allow read: if isAccountMember(resource.data.accountId);
+    // ========= GLOBAL RULES =========
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    match /{path=**}/memberships/{membershipId} {
-      // Required for discovery query and invite lookup
-      // Allow read if user is authenticated OR if they are querying with a valid invite token
-      allow read: if (isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.token.email.lower() == resource.data.email))
-                  || (resource.data.inviteToken != null);
-    }
-
-
-    // ========= ROOT COLLECTIONS =========
-    
     match /users/{userId} {
-      allow create: if isUser(userId);
-      allow read: if isUser(userId);
-      allow update: if isUser(userId);
-      
-      // Allow searching by email for team management
-      allow list: if isSignedIn();
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
-  
-    match /invitations/{inviteId} {
-      allow create: if isAccountAdmin(request.resource.data.accountId);
-      allow delete: if isAccountAdmin(resource.data.accountId);
-      allow get: if isAccountAdmin(resource.data.accountId) || isInvitedUser(resource.data);
-      allow list: if isSignedIn() && request.query.accountId != null && isAccountAdmin(request.query.accountId);
-      allow update: if isInvitedUser(resource.data);
+
+    // Email Templates (Read-only for app verification)
+    match /email_templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if false; 
     }
-    
+
+    // Email Outbox (Used by Trigger Email Extension)
+    match /mail/{mailId} {
+      // Only Admins or Account Owners can trigger an outgoing email
+      allow create: if isSignedIn() && 
+                    (hasRole(request.resource.data.accountId, 'admin') || 
+                     request.auth.uid == request.resource.data.accountId);
+      allow read, update, delete: if false;
+    }
+
+    // ========= ACCOUNT RULES =========
     match /accounts/{accountId} {
-      allow create: if isUser(request.resource.data.adminUserId) && request.resource.data.id == accountId;
-      allow read: if isAccountMember(accountId);
-      allow update, delete: if isAccountAdmin(accountId);
-
-      match /admins/{email} {
-        allow get: if isSignedIn() && request.auth.token.email.lower() == email;
-        allow list, create, delete: if isAccountAdmin(accountId);
-      }
-
-      match /memberships/{membershipId} {
-        allow read: if isAccountMember(accountId) || resource.data.inviteToken != null;
-        allow write: if isAccountAdmin(accountId);
-        // Allow users to delete their own placeholder membership when accepting an invite
-        allow delete: if isSignedIn() && membershipId.startsWith(request.auth.token.email.lower().replace('@', '-at-'));
-      }
       
+      // Allow admins to read/write the account document (Settings/Billing)
+      allow read, write: if hasRole(accountId, 'admin');
+
+      // Memberships sub-collection (Team Management)
+      match /memberships/{membershipId} {
+        // Allow users to read their own record (Crucial for Discovery/Login)
+        allow read: if isSignedIn() && request.auth.uid == membershipId;
+        
+        // SELF-HEALING FIX: Allow a write if the user IS the Account Owner
+        // OR if they already have an existing admin role.
+        allow write: if isSignedIn() && 
+                     (request.auth.uid == accountId || hasRole(accountId, 'admin'));
+      }
+
+      // Auctions
+      match /auctions/{auctionId} {
+        // Admins see all. Staff see only assigned auctions.
+        allow read: if hasRole(accountId, 'admin') || 
+                      (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
+        
+        // Only Admins can create/delete or modify high-level auction settings
+        allow create, delete, update: if hasRole(accountId, 'admin');
+
+        // Auction Data (Items, Bids, Categories, etc.)
+        match /{allSubcollections=**} {
+          allow read, create, update: if hasRole(accountId, 'admin') || 
+                                         (hasRole(accountId, 'staff') && auctionId in getMembership(accountId).assignedAuctions);
+          
+          allow delete: if hasRole(accountId, 'admin');
+        }
+      }
+
+      // Global Master Data (Patrons/Donors)
       match /patrons/{patronId} {
-          allow read, create, update: if isAccountMember(accountId);
-          allow delete: if isAccountAdmin(accountId);
-          allow create, read, update: if isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+        allow read, write: if hasRole(accountId, 'admin');
+        allow read, create, update: if hasRole(accountId, 'staff');
       }
 
       match /donors/{donorId} {
-          allow read, create, update: if isAccountMember(accountId);
-          allow delete: if isAccountAdmin(accountId);
+        allow read, write: if hasRole(accountId, 'admin');
+        allow read, create, update: if hasRole(accountId, 'staff');
       }
-      
-      match /auctions/{auctionId} {
-        
-        function isOwnerOrManager() {
-          let auction = get(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId));
-          let isManager = isSignedIn() && auction.data.managers != null && request.auth.uid in auction.data.managers;
-          return isAccountAdmin(accountId) || isManager;
-        }
-
-        function isAuthorizedStaff() {
-          return isSignedIn() &&
-                 exists(/databases/$(database)/documents/accounts/$(accountId)/auctions/$(auctionId)/staff/$(request.auth.uid));
-        }
-
-        allow get: if true; 
-        allow list: if isAccountMember(accountId);
-        allow create: if isAccountMember(accountId);
-        allow update: if isOwnerOrManager();
-        allow delete: if isAccountAdmin(accountId);
-
-        match /staff/{staffId} {
-          allow get: if true; 
-          allow list, create, delete: if isOwnerOrManager();
-          allow create: if isSignedIn() && staffId == request.auth.uid;
-          allow update: if false;
-        }
-
-        match /{subcollection}/{docId} {
-            allow read, list: if isOwnerOrManager() || isAuthorizedStaff();
-            allow create, update: if isOwnerOrManager() || isAuthorizedStaff();
-            allow delete: if isOwnerOrManager();
-        }
-      }
+    }
+    
+    // Support for Collection Group Queries (Discovery)
+    match /{path=**}/memberships/{membershipId} {
+      allow read: if isSignedIn() && request.auth.uid == membershipId;
     }
   }
 }
