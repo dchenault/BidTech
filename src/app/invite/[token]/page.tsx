@@ -3,19 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Gavel, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import type { Membership, Invitation } from '@/lib/types';
+import type { Membership } from '@/lib/types';
 import Link from 'next/link';
 import { setupNewUser } from '@/firebase/user-setup';
 
 type Status = 'verifying' | 'ready' | 'processing' | 'success' | 'error' | 'unauthorized';
 
-export default function Page({ params }: { params: { token: string } }) {
+export default function InvitePage({ params }: { params: { token: string } }) {
   const token = params.token;
   const { firestore, auth } = useFirebase();
   const { user } = useUser();
@@ -25,7 +25,6 @@ export default function Page({ params }: { params: { token: string } }) {
   const [status, setStatus] = useState<Status>('verifying');
   const [error, setError] = useState<string | null>(null);
   const [membership, setMembership] = useState<(Membership & { docPath: string }) | null>(null);
-  const [rootInvitation, setRootInvitation] = useState<Invitation | null>(null);
   const [accountName, setAccountName] = useState<string>('Organization');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
@@ -34,48 +33,29 @@ export default function Page({ params }: { params: { token: string } }) {
       if (!firestore || !token) return;
 
       try {
-        // Path 1: Check Membership Tokens (New Team System)
+        // Find the invitation by its unique token
         const mQuery = query(
           collectionGroup(firestore, 'memberships'),
           where('inviteToken', '==', token)
         );
         const mSnapshot = await getDocs(mQuery);
 
-        if (!mSnapshot.empty) {
-          const mDoc = mSnapshot.docs[0];
-          const mData = { ...mDoc.data(), docPath: mDoc.ref.path } as Membership & { docPath: string };
-          setMembership(mData);
-
-          const accountRef = doc(firestore, 'accounts', mData.accountId);
-          const accountSnap = await getDoc(accountRef);
-          if (accountSnap.exists()) {
-            setAccountName(accountSnap.data().name);
-          }
-          setStatus('ready');
-          return;
+        if (mSnapshot.empty) {
+          throw new Error('This invitation link is invalid or has expired.');
         }
 
-        // Path 2: Check Root Invitations (Legacy/Auction Manager System)
-        const inviteRef = doc(firestore, 'invitations', token);
-        const inviteSnap = await getDoc(inviteRef);
+        const mDoc = mSnapshot.docs[0];
+        const mData = { ...mDoc.data(), docPath: mDoc.ref.path } as Membership & { docPath: string };
+        setMembership(mData);
+
+        // Fetch organization name for the UI
+        const accountRef = doc(firestore, 'accounts', mData.accountId);
+        const accountSnap = await getDoc(accountRef);
+        if (accountSnap.exists()) {
+          setAccountName(accountSnap.data().name);
+        }
         
-        if (inviteSnap.exists()) {
-          const iData = { id: inviteSnap.id, ...inviteSnap.data() } as Invitation;
-          if (iData.status === 'accepted') {
-            throw new Error('This invitation has already been used.');
-          }
-          setRootInvitation(iData);
-          
-          const accountRef = doc(firestore, 'accounts', iData.accountId);
-          const accountSnap = await getDoc(accountRef);
-          if (accountSnap.exists()) {
-            setAccountName(accountSnap.data().name);
-          }
-          setStatus('ready');
-          return;
-        }
-
-        throw new Error('This invitation link is invalid or has expired.');
+        setStatus('ready');
       } catch (err: any) {
         console.error('Error finding invite:', err);
         setError(err.message || 'Could not verify invitation.');
@@ -87,8 +67,9 @@ export default function Page({ params }: { params: { token: string } }) {
   }, [firestore, token]);
 
   const handleAcceptInvite = async () => {
-    if (!auth || !firestore) return;
+    if (!auth || !firestore || !membership) return;
 
+    // 1. Handle Authentication if not logged in
     if (!user) {
       setIsAuthLoading(true);
       try {
@@ -103,8 +84,8 @@ export default function Page({ params }: { params: { token: string } }) {
       return; 
     }
 
-    const targetEmail = membership?.email || rootInvitation?.email;
-    if (user.email?.toLowerCase() !== targetEmail?.toLowerCase()) {
+    // 2. Email Mismatch Check
+    if (user.email?.toLowerCase() !== membership.email.toLowerCase()) {
       setStatus('unauthorized');
       return;
     }
@@ -116,53 +97,43 @@ export default function Page({ params }: { params: { token: string } }) {
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
+      // 3. Initialize user profile if this is their first time in the app
       if (!userSnap.exists()) {
         await setupNewUser(firestore, user);
       }
 
-      if (membership) {
-        // Accept Organization Membership
-        const newMRef = doc(firestore, 'accounts', membership.accountId, 'memberships', user.uid);
-        const newMData: Membership = {
-          ...membership,
-          id: user.uid,
-          userId: user.uid,
-          status: 'active',
-          inviteToken: undefined,
-        };
-        batch.set(newMRef, newMData);
+      // 4. Convert placeholder membership to permanent UID membership
+      const newMRef = doc(firestore, 'accounts', membership.accountId, 'memberships', user.uid);
+      const newMData: Membership = {
+        ...membership,
+        id: user.uid,
+        userId: user.uid,
+        status: 'active',
+        inviteToken: undefined, // Clear the single-use token
+      };
+      batch.set(newMRef, newMData);
 
-        const oldMRef = doc(firestore, membership.docPath);
-        if (oldMRef.id !== user.uid) {
-          batch.delete(oldMRef);
-        }
-
-        batch.update(userRef, {
-          [`accounts.${membership.accountId}`]: membership.role,
-          activeAccountId: membership.accountId
-        });
-      } else if (rootInvitation) {
-        // Accept Root Auction Invitation
-        batch.update(userRef, { 
-          [`accounts.${rootInvitation.accountId}`]: 'staff',
-          activeAccountId: rootInvitation.accountId,
-        });
-
-        const auctionRef = doc(firestore, 'accounts', rootInvitation.accountId, 'auctions', rootInvitation.auctionId);
-        batch.update(auctionRef, { [`managers.${user.uid}`]: true });
-
-        const updatedInviteRef = doc(firestore, 'invitations', token);
-        batch.update(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
+      // 5. Cleanup: Delete the temporary email-based invitation document
+      const oldMRef = doc(firestore, membership.docPath);
+      if (oldMRef.id !== user.uid) {
+        batch.delete(oldMRef);
       }
+
+      // 6. Update user's role mapping and active account context
+      batch.update(userRef, {
+        [`accounts.${membership.accountId}`]: membership.role,
+        activeAccountId: membership.accountId
+      });
 
       await batch.commit();
       
       setStatus('success');
       toast({ title: 'Welcome aboard!', description: `You have joined ${accountName}.` });
       
+      // Redirect to dashboard with specific account context
       setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+        router.push(`/dashboard?account=${membership.accountId}`);
+      }, 1500);
 
     } catch (err: any) {
       console.error('Acceptance error:', err);
@@ -200,7 +171,7 @@ export default function Page({ params }: { params: { token: string } }) {
           <AlertTriangle className="h-12 w-12 text-amber-500" />
           <h2 className="text-xl font-bold">Wrong Account</h2>
           <p className="text-muted-foreground px-6">
-            This invitation was sent to <strong>{membership?.email || rootInvitation?.email}</strong>, but you are signed in as <strong>{user?.email}</strong>.
+            This invitation was sent to <strong>{membership?.email}</strong>, but you are signed in as <strong>{user?.email}</strong>.
           </p>
           <Button onClick={() => auth?.signOut()} variant="outline">Sign Out and Try Again</Button>
         </div>
@@ -223,7 +194,7 @@ export default function Page({ params }: { params: { token: string } }) {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">You're Invited!</CardTitle>
           <CardDescription>
-            You have been invited to join <strong>{accountName}</strong> as <strong>{membership?.role || 'Staff'}</strong>.
+            You have been invited to join <strong>{accountName}</strong> as <strong>{membership?.role === 'admin' ? 'an Administrator' : 'Staff'}</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 py-6">
