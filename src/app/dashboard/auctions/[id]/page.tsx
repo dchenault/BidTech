@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -75,7 +74,7 @@ export default function AuctionDetailsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { searchQuery, setSearchQuery } = useSearch();
-  const { accountId, isLoading: isAccountLoading } = useAccount();
+  const { accountId, role, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
 
   const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
@@ -612,7 +611,9 @@ export default function AuctionDetailsPage() {
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>
                         Enter Winning Bid
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
+                        {role === 'admin' && (
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
+                        )}
                     </DropdownMenuContent>
                     </DropdownMenu>
                 </TableCell>
@@ -675,29 +676,31 @@ export default function AuctionDetailsPage() {
                       {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Edit Lot</span>
-                    </Button>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span tabIndex={0}>
-                            <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Lot</span>
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {hasItems && (
-                          <TooltipContent>
-                            <p>Cannot delete a lot with items. Unassign items first.</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                  {role === 'admin' && (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit Lot</span>
+                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0}>
+                              <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete Lot</span>
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {hasItems && (
+                            <TooltipContent>
+                              <p>Cannot delete a lot with items. Unassign items first.</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {hasItems ? (
@@ -776,29 +779,31 @@ export default function AuctionDetailsPage() {
                         {hasItems ? `${lotItems.length} item(s) in this lot.` : 'This lot is empty.'}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                       <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
-                         <Pencil className="h-4 w-4" />
-                         <span className="sr-only">Edit Lot</span>
-                       </Button>
-                       <TooltipProvider>
-                         <Tooltip>
-                           <TooltipTrigger asChild>
-                             <span tabIndex={0}>
-                               <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
-                                 <Trash2 className="h-4 w-4" />
-                                 <span className="sr-only">Delete Lot</span>
-                               </Button>
-                             </span>
-                           </TooltipTrigger>
-                           {hasItems && (
-                             <TooltipContent>
-                               <p>Cannot delete lot with items. Unassign items first.</p>
-                             </TooltipContent>
-                           )}
-                         </Tooltip>
-                       </TooltipProvider>
-                     </div>
+                    {role === 'admin' && (
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => setLotToEdit(lot)}>
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Edit Lot</span>
+                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span tabIndex={0}>
+                                <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete Lot</span>
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            {hasItems && (
+                              <TooltipContent>
+                                <p>Cannot delete lot with items. Unassign items first.</p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {hasItems ? (
@@ -814,7 +819,9 @@ export default function AuctionDetailsPage() {
         ) : (
           <div className="text-center text-muted-foreground py-8 border rounded-lg">
             <p>No silent lots have been created yet.</p>
-            <Button variant="link" onClick={() => setIsAddLotDialogOpen(true)}>Create the first lot</Button>
+            {role === 'admin' && (
+              <Button variant="link" onClick={() => setIsAddLotDialogOpen(true)}>Create the first lot</Button>
+            )}
           </div>
         )}
       </TabsContent>
@@ -843,18 +850,20 @@ export default function AuctionDetailsPage() {
                 <p className="text-muted-foreground">{auction.description}</p>
             </div>
              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <Button 
-                        size="sm"
-                        variant={auction.status === 'completed' ? 'default' : 'destructive'}
-                        onClick={handleToggleAuctionStatus}
-                    >
-                        {auction.status === 'completed' ? (
-                            <Power className="mr-2 h-3.5 w-3.5" />
-                        ) : (
-                            <PowerOff className="mr-2 h-3.5 w-3.5" />
-                        )}
-                        {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
-                    </Button>
+                    {role === 'admin' && (
+                      <Button 
+                          size="sm"
+                          variant={auction.status === 'completed' ? 'default' : 'destructive'}
+                          onClick={handleToggleAuctionStatus}
+                      >
+                          {auction.status === 'completed' ? (
+                              <Power className="mr-2 h-3.5 w-3.5" />
+                          ) : (
+                              <PowerOff className="mr-2 h-3.5 w-3.5" />
+                          )}
+                          {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
+                      </Button>
+                    )}
                      {auction.isPublic && (
                         <Button size="sm" variant="outline" onClick={handleShareCatalog}>
                             <Share2 className="mr-2 h-4 w-4" />
@@ -865,7 +874,7 @@ export default function AuctionDetailsPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export Catalog
                     </Button>
-                    {(auction.type === 'Silent' || auction.type === 'Hybrid') && (
+                    {role === 'admin' && (auction.type === 'Silent' || auction.type === 'Hybrid') && (
                         <Button size="sm" variant="outline" onClick={() => setIsAddLotDialogOpen(true)}>
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Add Lot
@@ -884,7 +893,7 @@ export default function AuctionDetailsPage() {
                     <TabsTrigger value="items">Items</TabsTrigger>
                     <TabsTrigger value="donations">Donations</TabsTrigger>
                     <TabsTrigger value="patrons">Patrons</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    {role === 'admin' && <TabsTrigger value="settings">Settings</TabsTrigger>}
                 </TabsList>
             </div>
             <TabsContent value="items" className="mt-4 space-y-4">
@@ -1050,136 +1059,138 @@ export default function AuctionDetailsPage() {
                 </CardContent>
                 </Card>
             </TabsContent>
-              <TabsContent value="settings">
-                  <div className="grid gap-6">
-                      <Card>
-                          <CardHeader className="flex items-center justify-between">
-                              <div>
-                                  <CardTitle className="text-xl">Item Categories</CardTitle>
-                                  <CardDescription>Manage the categories for items in this auction.</CardDescription>
-                              </div>
-                              <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
-                                  <PlusCircle className="mr-2 h-4 w-4" /> Add Category
-                              </Button>
-                          </CardHeader>
-                          <CardContent>
-                              <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                  <TableHead>Category Name</TableHead>
-                                  <TableHead className="w-[150px] text-right">Actions</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {auction.categories?.map((category: Category) => (
-                                  <TableRow key={category.id}>
-                                      <TableCell className="font-medium">{category.name}</TableCell>
-                                      <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
-                                            <Trash2 className="h-4 w-4" />
-                                            <span className="sr-only">Delete Category</span>
-                                        </Button>
-                                      </TableCell>
-                                  </TableRow>
-                                  ))}
-                              </TableBody>
-                              </Table>
-                          </CardContent>
-                      </Card>
-                      <Card>
-                          <CardHeader>
-                              <CardTitle className="text-xl">Public Online Catalog</CardTitle>
-                              <CardDescription>Manage and share the public URL for your auction catalog.</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                              {auction.isPublic && auction.slug ? (
-                                  <div className="space-y-4">
-                                      <p className="text-sm text-muted-foreground">
-                                          Your public catalog is live. Share this link with potential bidders.
-                                      </p>
-                                      <div className="flex w-full items-center space-x-2">
-                                          <Input
-                                              id="public-url"
-                                              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
-                                              readOnly
-                                          />
-                                          <Button type="button" onClick={handleShareCatalog}>
-                                              <Copy className="mr-2 h-4 w-4" />
-                                              Copy Link
+              {role === 'admin' && (
+                <TabsContent value="settings">
+                    <div className="grid gap-6">
+                        <Card>
+                            <CardHeader className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-xl">Item Categories</CardTitle>
+                                    <CardDescription>Manage the categories for items in this auction.</CardDescription>
+                                </div>
+                                <Button size="sm" onClick={() => setIsAddCategoryDialogOpen(true)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Category
+                                </Button>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                    <TableHead>Category Name</TableHead>
+                                    <TableHead className="w-[150px] text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {auction.categories?.map((category: Category) => (
+                                    <TableRow key={category.id}>
+                                        <TableCell className="font-medium">{category.name}</TableCell>
+                                        <TableCell className="text-right">
+                                          <Button variant="ghost" size="icon" onClick={() => handleOpenEditCategoryDialog(category)}>
+                                              <Pencil className="h-4 w-4" />
                                           </Button>
-                                      </div>
-                                  </div>
-                              ) : (
-                                  <div className="text-sm text-muted-foreground">
-                                      This auction's catalog is private. To generate a shareable public link,
-                                      edit the auction and enable the "Make Catalog Public" option.
-                                  </div>
-                              )}
-                          </CardContent>
-                      </Card>
-                      <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl">Staff Management</CardTitle>
-                            <CardDescription>Add or remove staff usernames for this auction. Share the login link for on-site access.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div>
-                                <div className="flex w-full items-center space-x-2">
-                                    <Input
-                                        id="staff-login-url"
-                                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff-login/${accountId}/${auctionId}`}
-                                        readOnly
-                                    />
-                                    <Button type="button" onClick={handleCopyStaffLoginLink}>
-                                        <Copy className="mr-2 h-4 w-4" />
-                                        Copy Staff Login Link
-                                    </Button>
-                                </div>
-                            </div>
-                             <div className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <Input
-                                        placeholder="Enter new staff username"
-                                        value={newStaffUsername}
-                                        onChange={(e) => setNewStaffUsername(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddStaff()}
-                                    />
-                                    <Button onClick={handleAddStaff}>Add Staff</Button>
-                                </div>
-                                {isLoadingStaff ? (
-                                    <p className="text-sm text-muted-foreground">Loading staff...</p>
-                                ) : (staffData && staffData.length > 0) ? (
-                                     <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Username</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {staffData.map(staff => (
-                                                <TableRow key={staff.id}>
-                                                    <TableCell className="font-medium">{staff.id}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setStaffToDelete(staff.id)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                     </Table>
+                                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setCategoryToDelete(category)}>
+                                              <Trash2 className="h-4 w-4" />
+                                              <span className="sr-only">Delete Category</span>
+                                          </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                    ))}
+                                </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-xl">Public Online Catalog</CardTitle>
+                                <CardDescription>Manage and share the public URL for your auction catalog.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {auction.isPublic && auction.slug ? (
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-muted-foreground">
+                                            Your public catalog is live. Share this link with potential bidders.
+                                        </p>
+                                        <div className="flex w-full items-center space-x-2">
+                                            <Input
+                                                id="public-url"
+                                                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/catalog/${auction.accountId}/${auction.slug}`}
+                                                readOnly
+                                            />
+                                            <Button type="button" onClick={handleShareCatalog}>
+                                                <Copy className="mr-2 h-4 w-4" />
+                                                Copy Link
+                                            </Button>
+                                        </div>
+                                    </div>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground text-center py-4">No staff members have been added to this auction yet.</p>
+                                    <div className="text-sm text-muted-foreground">
+                                        This auction's catalog is private. To generate a shareable public link,
+                                        edit the auction and enable the "Make Catalog Public" option.
+                                    </div>
                                 )}
-                            </div>
-                        </CardContent>
-                      </Card>
-                  </div>
-              </TabsContent>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                          <CardHeader>
+                              <CardTitle className="text-xl">Staff Management</CardTitle>
+                              <CardDescription>Add or remove staff usernames for this auction. Share the login link for on-site access.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                              <div>
+                                  <div className="flex w-full items-center space-x-2">
+                                      <Input
+                                          id="staff-login-url"
+                                          value={`${typeof window !== 'undefined' ? window.location.origin : ''}/staff-login/${accountId}/${auctionId}`}
+                                          readOnly
+                                      />
+                                      <Button type="button" onClick={handleCopyStaffLoginLink}>
+                                          <Copy className="mr-2 h-4 w-4" />
+                                          Copy Staff Login Link
+                                      </Button>
+                                  </div>
+                              </div>
+                               <div className="space-y-4">
+                                  <div className="flex items-center gap-2">
+                                      <Input
+                                          placeholder="Enter new staff username"
+                                          value={newStaffUsername}
+                                          onChange={(e) => setNewStaffUsername(e.target.value)}
+                                          onKeyDown={(e) => e.key === 'Enter' && handleAddStaff()}
+                                      />
+                                      <Button onClick={handleAddStaff}>Add Staff</Button>
+                                  </div>
+                                  {isLoadingStaff ? (
+                                      <p className="text-sm text-muted-foreground">Loading staff...</p>
+                                  ) : (staffData && staffData.length > 0) ? (
+                                       <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Username</TableHead>
+                                                  <TableHead className="text-right">Actions</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {staffData.map(staff => (
+                                                  <TableRow key={staff.id}>
+                                                      <TableCell className="font-medium">{staff.id}</TableCell>
+                                                      <TableCell className="text-right">
+                                                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setStaffToDelete(staff.id)}>
+                                                              <Trash2 className="h-4 w-4" />
+                                                          </Button>
+                                                      </TableCell>
+                                                  </TableRow>
+                                              ))}
+                                          </TableBody>
+                                       </Table>
+                                  ) : (
+                                      <p className="text-sm text-muted-foreground text-center py-4">No staff members have been added to this auction yet.</p>
+                                  )}
+                              </div>
+                          </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+              )}
             </Tabs>
         </div>
       </div>

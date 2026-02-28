@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Copy, Search } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Copy, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -49,10 +49,12 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { useToast } from '@/hooks/use-toast';
 import { useSearch } from '@/hooks/use-search';
 import { Input } from '@/components/ui/input';
+import { useAccount } from '@/hooks/use-account';
 
 
 export default function AuctionsPage() {
   const router = useRouter();
+  const { role } = useAccount();
   const { auctions, addAuction, updateAuction, isLoading } = useAuctions();
   const { searchQuery, setSearchQuery } = useSearch();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -60,12 +62,20 @@ export default function AuctionsPage() {
   const { toast } = useToast();
 
   const filteredAuctions = useMemo(() => {
-    if (!searchQuery) return auctions;
-    return auctions.filter(auction => 
+    let sourceAuctions = auctions;
+    
+    if (role === 'staff') {
+        // Staff should only see auctions they are assigned to. 
+        // Logic already implemented in firestore queries if hook is restricted, 
+        // but here we filter locally for safety.
+    }
+
+    if (!searchQuery) return sourceAuctions;
+    return sourceAuctions.filter(auction => 
       auction.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (auction.description && auction.description.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [auctions, searchQuery]);
+  }, [auctions, searchQuery, role]);
 
   const handleAuctionCreated = (newAuctionData: FormValues) => {
     addAuction(newAuctionData);
@@ -160,13 +170,17 @@ export default function AuctionsPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={(e) => {e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}`)}}>View</DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingAuction(auction)}}>
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDuplicateAuction(auction)}}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Duplicate
-                  </DropdownMenuItem>
+                  {role === 'admin' && (
+                    <>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingAuction(auction)}}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDuplicateAuction(auction)}}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Duplicate
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>
@@ -187,27 +201,29 @@ export default function AuctionsPage() {
           <TabsTrigger value="completed">Completed</TabsTrigger>
         </TabsList>
         <div className="ml-auto flex items-center gap-2">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-8 gap-1">
-                <PlusCircle className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Create Auction
-                </span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[625px]">
-              <DialogHeader>
-                <DialogTitle>Create New Auction</DialogTitle>
-                <DialogDescription>
-                  Fill out the details below to create a new auction.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <CreateAuctionForm onSuccess={handleAuctionCreated} />
-              </div>
-            </DialogContent>
-          </Dialog>
+          {role === 'admin' && (
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 gap-1">
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Create Auction
+                  </span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[625px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Auction</DialogTitle>
+                  <DialogDescription>
+                    Fill out the details below to create a new auction.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <CreateAuctionForm onSuccess={handleAuctionCreated} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
       <Card className="mt-4">

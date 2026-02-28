@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
@@ -16,6 +15,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recha
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/hooks/use-account';
+import { useRouter } from 'next/navigation';
 import {
   Select,
   SelectContent,
@@ -27,12 +27,20 @@ import {
 
 export default function DashboardPage() {
     const firestore = useFirestore();
-    const { accountId } = useAccount();
+    const router = useRouter();
+    const { accountId, role, isAccountLoading } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
     const [allItems, setAllItems] = useState<Item[]>([]);
     const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
     const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
+
+    // Redirect staff away from root dashboard
+    useEffect(() => {
+        if (!isAccountLoading && role === 'staff') {
+            router.push('/dashboard/auctions');
+        }
+    }, [role, isAccountLoading, router]);
 
     useEffect(() => {
         if (firestore && accountId && auctions.length > 0) {
@@ -103,9 +111,9 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     }, [auctions]);
 
-    const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingAllItems;
+    const isLoading = isAccountLoading || isLoadingAuctions || isLoadingPatrons || isLoadingAllItems;
 
-    if (isLoading) {
+    if (isLoading || role === 'staff') {
         return (
             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
