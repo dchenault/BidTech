@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -61,16 +61,23 @@ import { collectionGroup, query, where } from 'firebase/firestore';
 
 export default function PatronsPage() {
   const router = useRouter();
+  const { role, accountId, isAccountLoading } = useAccount();
   const { patrons, updatePatron, addPatron, deletePatron, isLoading: isLoadingPatrons } = usePatrons();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { accountId } = useAccount();
 
   const [editingPatron, setEditingPatron] = useState<Patron | null>(null);
   const [patronToDelete, setPatronToDelete] = useState<Patron | null>(null);
   const [isAddPatronDialogOpen, setIsAddPatronDialogOpen] = useState(false);
   const [addFormKey, setAddFormKey] = useState(Date.now());
+
+  // Role Guard: Redirect non-admins away from global list
+  useEffect(() => {
+    if (!isAccountLoading && role === 'staff') {
+      router.push('/dashboard/auctions');
+    }
+  }, [role, isAccountLoading, router]);
 
   // Real-time query for all items in the current account.
   const allItemsQuery = useMemoFirebase(
@@ -174,7 +181,9 @@ export default function PatronsPage() {
     }
   };
   
-  const isLoading = isLoadingPatrons || isLoadingAllItems;
+  const isLoading = isLoadingPatrons || isLoadingAllItems || isAccountLoading;
+
+  if (role === 'staff') return null;
 
   return (
     <>

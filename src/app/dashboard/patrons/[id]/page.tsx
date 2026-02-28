@@ -53,7 +53,7 @@ export default function PatronDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const firestore = useFirestore();
-  const { accountId } = useAccount();
+  const { accountId, role, assignedAuctions } = useAccount();
   const { updatePatron } = usePatrons();
   const { auctions, isLoading: isLoadingAuctions, addDonationToAuction } = useAuctions();
   const patronId = typeof params.id === 'string' ? params.id : '';
@@ -142,12 +142,18 @@ export default function PatronDetailsPage() {
 
   const { patron, wonItems, isInitialLoad, error } = pageData;
   
+  // Scope contributions for Staff: only show items from assigned auctions
+  const scopedWonItems = useMemo(() => {
+    if (role === 'admin') return wonItems;
+    return wonItems.filter(item => assignedAuctions.includes(item.auctionId));
+  }, [wonItems, role, assignedAuctions]);
+
   const contributionsByAuction = useMemo(() => {
-    if (!wonItems || !auctions) return new Map();
+    if (!scopedWonItems || !auctions) return new Map();
 
     const auctionMap = new Map(auctions.map(a => [a.id, a]));
 
-    const sortedItems = [...wonItems].sort((a, b) => {
+    const sortedItems = [...scopedWonItems].sort((a, b) => {
         const auctionA = auctionMap.get(a.auctionId);
         const auctionB = auctionMap.get(b.auctionId);
         if (auctionA && auctionB) {
@@ -164,7 +170,7 @@ export default function PatronDetailsPage() {
       acc.get(item.auctionId)!.items.push(item);
       return acc;
     }, new Map<string, { auctionName: string, items: WonItem[] }>());
-  }, [wonItems, auctions]);
+  }, [scopedWonItems, auctions]);
   
   const handlePatronUpdated = (updatedPatronData: PatronFormValues) => {
     if (!patron) return;
@@ -178,7 +184,7 @@ export default function PatronDetailsPage() {
     const selectedAuction = auctions.find(a => a.id === auctionId);
     if (!selectedAuction) return;
 
-    const itemsForReceipt = wonItems.filter((item: WonItem) => item.auctionId === auctionId && item.paid);
+    const itemsForReceipt = scopedWonItems.filter((item: WonItem) => item.auctionId === auctionId && item.paid);
     
     if (itemsForReceipt.length === 0) {
       toast({
@@ -327,18 +333,17 @@ export default function PatronDetailsPage() {
       <div className="text-center text-destructive py-10">
         <h2 className="text-xl font-bold">Error</h2>
         <p>{error}</p>
-        <Button onClick={() => router.push('/dashboard/patrons')} className="mt-4">Back to Patrons List</Button>
+        <Button onClick={() => router.push('/dashboard/auctions')} className="mt-4">Back to Auctions</Button>
       </div>
     );
   }
   
   if (!patron) {
-    // This case should be handled by the router push in useEffect, but it's a good safeguard.
-    return <div>Patron not found. Redirecting...</div>; 
+    return <div>Patron not found.</div>; 
   }
   
-  const totalSpent = wonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
-  const itemsWonCount = wonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;
+  const totalSpent = scopedWonItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
+  const itemsWonCount = scopedWonItems.filter(item => !item.sku.toString().startsWith("DON-")).length;
 
   return (
     <>
@@ -356,13 +361,15 @@ export default function PatronDetailsPage() {
                   </Avatar>
                   <div>
                     <CardTitle className="text-4xl">{`${patron.firstName} ${patron.lastName}`}</CardTitle>
-                    <CardDescription>Patron since 2023</CardDescription>
+                    <CardDescription>Patron Profile</CardDescription>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Patron
-                </Button>
+                {role === 'admin' && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Patron
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-2 rounded-lg border p-4 md:grid-cols-2">
@@ -382,7 +389,9 @@ export default function PatronDetailsPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Total Contributions</CardTitle>
+                          <CardTitle className="text-sm font-medium">
+                            {role === 'admin' ? 'Total Contributions' : 'Auction Contributions'}
+                          </CardTitle>
                           <DollarSign className="h-4 w-4 text-muted-foreground" />
                       </CardHeader>
                       <CardContent>
@@ -391,7 +400,9 @@ export default function PatronDetailsPage() {
                   </Card>
                   <Card>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Items Won</CardTitle>
+                          <CardTitle className="text-sm font-medium">
+                            {role === 'admin' ? 'Items Won' : 'Items Won (Assigned)'}
+                          </CardTitle>
                           <Award className="h-4 w-4 text-muted-foreground" />
                       </CardHeader>
                       <CardContent>
@@ -402,27 +413,30 @@ export default function PatronDetailsPage() {
               </CardContent>
             </Card>
           </div>
-           <Card>
-            <CardHeader>
-              <CardTitle>Patron Notes</CardTitle>
-              <CardDescription>
-                Internal notes for this patron. Not visible to them.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Label htmlFor="notes" className="sr-only">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any relevant notes here..."
-                className="min-h-[200px]"
-              />
-            </CardContent>
-             <CardFooter>
-              <Button onClick={handleSaveNotes} className="ml-auto">Save Notes</Button>
-            </CardFooter>
-          </Card>
+          
+          {role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Patron Notes</CardTitle>
+                <CardDescription>
+                  Internal notes for this patron. Not visible to them.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Label htmlFor="notes" className="sr-only">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any relevant notes here..."
+                  className="min-h-[200px]"
+                />
+              </CardContent>
+              <CardFooter>
+                <Button onClick={handleSaveNotes} className="ml-auto">Save Notes</Button>
+              </CardFooter>
+            </Card>
+          )}
         </div>
 
 
@@ -430,7 +444,11 @@ export default function PatronDetailsPage() {
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
                 <CardTitle>Contributions</CardTitle>
-                <CardDescription>All items won and donations made by this patron, grouped by auction.</CardDescription>
+                <CardDescription>
+                  {role === 'admin' 
+                    ? 'All items won and donations made by this patron, grouped by auction.'
+                    : 'Contributions made by this patron in your assigned auctions.'}
+                </CardDescription>
             </div>
             <div className="flex items-center gap-2">
                  <Button 
@@ -511,24 +529,26 @@ export default function PatronDetailsPage() {
             })
             ) : (
               <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                This patron has not won any items or made donations yet.
+                No matching contributions found for your assigned auctions.
               </div>
             )}
           </CardContent>
         </Card>
       </div>
       
-      <EditPatronDialog
-        isOpen={isEditDialogOpen}
-        onClose={() => setIsEditDialogOpen(false)}
-        patron={patron}
-        onSuccess={handlePatronUpdated}
-      />
+      {role === 'admin' && (
+        <EditPatronDialog
+          isOpen={isEditDialogOpen}
+          onClose={() => setIsEditDialogOpen(false)}
+          patron={patron}
+          onSuccess={handlePatronUpdated}
+        />
+      )}
 
       <AddDonationDialog
         isOpen={isDonationDialogOpen}
         onClose={() => setIsDonationDialogOpen(false)}
-        auctions={auctions}
+        auctions={role === 'admin' ? auctions : auctions.filter(a => assignedAuctions.includes(a.id))}
         onSubmit={handleAddDonation}
         isLoading={isLoadingAuctions}
       />

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -53,9 +53,11 @@ import { useSearch } from '@/hooks/use-search';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useAccount } from '@/hooks/use-account';
 
 export default function DonorsPage() {
   const router = useRouter();
+  const { role, isAccountLoading } = useAccount();
   const { donors, updateDonor, addDonor, deleteDonor, isLoading } = useDonors();
   const { searchQuery, setSearchQuery } = useSearch();
   const { toast } = useToast();
@@ -64,6 +66,13 @@ export default function DonorsPage() {
   const [donorToDelete, setDonorToDelete] = useState<Donor | null>(null);
   const [isAddDonorDialogOpen, setIsAddDonorDialogOpen] = useState(false);
   const [addFormKey, setAddFormKey] = useState(Date.now());
+
+  // Role Guard: Redirect non-admins
+  useEffect(() => {
+    if (!isAccountLoading && role === 'staff') {
+      router.push('/dashboard/auctions');
+    }
+  }, [role, isAccountLoading, router]);
 
   const filteredDonors = useMemo(() => {
     if (!searchQuery) return donors;
@@ -126,6 +135,10 @@ export default function DonorsPage() {
     }
   };
   
+  const isPageLoading = isLoading || isAccountLoading;
+
+  if (role === 'staff') return null;
+
   return (
     <>
       <Card>
@@ -170,7 +183,7 @@ export default function DonorsPage() {
             </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isPageLoading ? (
             <div className="text-center text-muted-foreground py-8">Loading donors...</div>
           ) : (
             <Table>

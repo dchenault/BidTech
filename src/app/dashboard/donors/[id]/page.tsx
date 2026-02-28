@@ -27,10 +27,12 @@ import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, Gift, Mail, Phone, Building, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAccount } from '@/hooks/use-account';
 
 export default function DonorDetailsPage() {
     const params = useParams();
     const router = useRouter();
+    const { role, assignedAuctions, isAccountLoading } = useAccount();
     const donorId = typeof params.id === 'string' ? params.id : '';
 
     const { donors, isLoading: isLoadingDonors } = useDonors();
@@ -44,9 +46,15 @@ export default function DonorDetailsPage() {
     }, [donors, donorId]);
     
     useEffect(() => {
-        if (!isLoadingAuctions) {
+        if (!isLoadingAuctions && !isAccountLoading) {
             fetchAllItems().then(items => {
-                const itemsFromThisDonor = items.filter(item => item.donorId === donorId);
+                let itemsFromThisDonor = items.filter(item => item.donorId === donorId);
+                
+                // For Staff, filter items to only those in assigned auctions
+                if (role === 'staff') {
+                  itemsFromThisDonor = itemsFromThisDonor.filter(item => assignedAuctions.includes(item.auctionId));
+                }
+
                 const itemsWithAuctionName = itemsFromThisDonor.map(item => {
                     const auction = auctions.find(a => a.id === item.auctionId);
                     return { ...item, auctionName: auction?.name || 'Unknown Auction' };
@@ -55,10 +63,10 @@ export default function DonorDetailsPage() {
                 setIsLoadingItems(false);
             })
         }
-    }, [isLoadingAuctions, fetchAllItems, donorId, auctions]);
+    }, [isLoadingAuctions, isAccountLoading, fetchAllItems, donorId, auctions, role, assignedAuctions]);
 
 
-    if (isLoadingDonors || isLoadingAuctions || isLoadingItems) {
+    if (isLoadingDonors || isLoadingAuctions || isLoadingItems || isAccountLoading) {
         return (
             <div className="flex h-64 w-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -71,7 +79,7 @@ export default function DonorDetailsPage() {
         return (
              <div className="text-center py-10">
                 <h2 className="text-xl font-bold">Donor Not Found</h2>
-                <Button onClick={() => router.push('/dashboard/donors')} className="mt-4">Back to Donors List</Button>
+                <Button onClick={() => router.push('/dashboard/auctions')} className="mt-4">Back to Auctions</Button>
             </div>
         );
     }
@@ -81,11 +89,9 @@ export default function DonorDetailsPage() {
     return (
         <div className="grid gap-6">
             <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-                    <Link href="/dashboard/donors">
+                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => router.back()}>
                     <ChevronLeft className="h-4 w-4" />
-                    <span className="sr-only">Back to Donors</span>
-                    </Link>
+                    <span className="sr-only">Back</span>
                 </Button>
                 <h1 className="text-xl font-semibold tracking-tight">
                     Donor Details
@@ -139,7 +145,9 @@ export default function DonorDetailsPage() {
                         <CardHeader>
                             <CardTitle>Donated Items</CardTitle>
                             <CardDescription>
-                                A history of all items donated by {donor.name}.
+                                {role === 'admin' 
+                                  ? `A history of all items donated by ${donor.name}.`
+                                  : `Items donated by ${donor.name} in your assigned auctions.`}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -163,7 +171,7 @@ export default function DonorDetailsPage() {
                                     ) : (
                                         <TableRow>
                                             <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                                                No items have been donated by this donor yet.
+                                                No matching donated items found.
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -176,4 +184,3 @@ export default function DonorDetailsPage() {
         </div>
     );
 }
-
