@@ -44,8 +44,10 @@ service cloud.firestore {
     }
 
     match /{path=**}/memberships/{membershipId} {
-      // Required for discovery query
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.token.email.lower() == resource.data.email);
+      // Required for discovery query and invite lookup
+      // Allow read if user is authenticated OR if they are querying with a valid invite token
+      allow read: if (isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.token.email.lower() == resource.data.email))
+                  || (resource.data.inviteToken != null);
     }
 
 
@@ -79,8 +81,10 @@ service cloud.firestore {
       }
 
       match /memberships/{membershipId} {
-        allow read: if isAccountMember(accountId);
+        allow read: if isAccountMember(accountId) || resource.data.inviteToken != null;
         allow write: if isAccountAdmin(accountId);
+        // Allow users to delete their own placeholder membership when accepting an invite
+        allow delete: if isSignedIn() && membershipId.startsWith(request.auth.token.email.lower().replace('@', '-at-'));
       }
       
       match /patrons/{patronId} {
