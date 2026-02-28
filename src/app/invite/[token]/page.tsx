@@ -1,27 +1,25 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Gavel, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import type { Membership, Account } from '@/lib/types';
+import type { Membership } from '@/lib/types';
 import Link from 'next/link';
-import { setupNewUser } from '@/firebase/user-setup';
 
 type Status = 'verifying' | 'ready' | 'processing' | 'success' | 'error' | 'unauthorized';
 
-export default function InvitePage() {
+export default function InvitePage({ params }: { params: { token: string } }) {
+  const inviteToken = params.token;
   const { firestore, auth } = useFirebase();
-  const { user, isUserLoading } = useUser();
-  const params = useParams();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
-  const token = typeof params.token === 'string' ? params.token : '';
 
   const [status, setStatus] = useState<Status>('verifying');
   const [error, setError] = useState<string | null>(null);
@@ -29,15 +27,14 @@ export default function InvitePage() {
   const [accountName, setAccountName] = useState<string>('Organization');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  // Step 1: Find the invitation by token
   useEffect(() => {
     const findInvite = async () => {
-      if (!firestore || !token) return;
+      if (!firestore || !inviteToken) return;
 
       try {
         const q = query(
           collectionGroup(firestore, 'memberships'),
-          where('inviteToken', '==', token)
+          where('inviteToken', '==', inviteToken)
         );
         const snapshot = await getDocs(q);
 
@@ -49,7 +46,6 @@ export default function InvitePage() {
         const mData = { ...mDoc.data(), docPath: mDoc.ref.path } as Membership & { docPath: string };
         setMembership(mData);
 
-        // Fetch account name
         const accountRef = doc(firestore, 'accounts', mData.accountId);
         const accountSnap = await getDoc(accountRef);
         if (accountSnap.exists()) {
@@ -65,12 +61,11 @@ export default function InvitePage() {
     };
 
     findInvite();
-  }, [firestore, token]);
+  }, [firestore, inviteToken]);
 
   const handleAcceptInvite = async () => {
     if (!auth || !firestore || !membership) return;
 
-    // 1. Ensure user is signed in
     if (!user) {
       setIsAuthLoading(true);
       try {
@@ -82,10 +77,9 @@ export default function InvitePage() {
         return;
       }
       setIsAuthLoading(false);
-      return; // The useEffect will catch the user change
+      return; 
     }
 
-    // 2. Validate email matches
     if (user.email?.toLowerCase() !== membership.email.toLowerCase()) {
       setStatus('unauthorized');
       return;
@@ -96,33 +90,26 @@ export default function InvitePage() {
     try {
       const batch = writeBatch(firestore);
 
-      // Create new membership doc using UID
       const newMRef = doc(firestore, 'accounts', membership.accountId, 'memberships', user.uid);
       const newMData: Membership = {
         ...membership,
         id: user.uid,
         userId: user.uid,
         status: 'active',
-        inviteToken: undefined, // Clear token
+        inviteToken: undefined,
       };
-      // Remove docPath from data
-      // @ts-ignore
-      delete newMData.docPath;
       
       batch.set(newMRef, newMData);
 
-      // Delete old placeholder doc if IDs differ
       const oldMRef = doc(firestore, membership.docPath);
       if (oldMRef.id !== user.uid) {
         batch.delete(oldMRef);
       }
 
-      // Ensure user profile exists and is updated
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
       if (!userSnap.exists()) {
-        // This is a brand new user to the platform
         const newUserProfile = {
           name: user.displayName || 'New User',
           email: user.email || '',
@@ -132,7 +119,6 @@ export default function InvitePage() {
         };
         batch.set(userRef, newUserProfile);
       } else {
-        // Existing user, just link account
         batch.update(userRef, {
           [`accounts.${membership.accountId}`]: membership.role,
           activeAccountId: membership.accountId
