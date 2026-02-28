@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react';
 import { useUser, useFirestore } from '@/firebase';
-import { collectionGroup, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import type { Membership, Account } from '@/lib/types';
 import { useStaffSession } from './use-staff-session';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -47,7 +47,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         
         // --- STEP 1: Try Direct Fetch ---
         // If we have an account ID in the URL, try to get the membership record directly.
-        // This is much more reliable and permission-safe than a discovery query.
         if (urlAccountId) {
           console.log('RBAC: Attempting direct membership fetch for account:', urlAccountId);
           const directRef = doc(firestore, 'accounts', urlAccountId, 'memberships', user.uid);
@@ -58,7 +57,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               const activeMembership = { id: directSnap.id, ...directSnap.data() } as Membership;
               setMemberships([activeMembership]);
               setIsLoading(false);
-              return; // Exit early if we found our context
+              return;
             }
           } catch (directErr) {
             console.warn('RBAC: Direct fetch failed or restricted, falling back to discovery.', directErr);
@@ -66,7 +65,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         }
 
         // --- STEP 2: Discovery Query (Fallback) ---
-        // If direct fetch failed or we don't have a URL account ID, search for all memberships.
         console.log('RBAC Discovery: Started for UID', user.uid);
         const q = query(
           collectionGroup(firestore, 'memberships'),
@@ -83,8 +81,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           } as Membership));
         } catch (discoveryErr: any) {
           console.error("RBAC Discovery Query Error:", discoveryErr);
-          // If we get a permission error here, we don't want to hang the app.
-          // We let it settle with whatever we have (likely empty).
         }
         
         setMemberships(foundMemberships);
@@ -103,17 +99,37 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               setIsSelfHealing(true);
               const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
               
-              const newM = {
+              const newMData = {
                 userId: user.uid,
                 accountId: targetId,
                 role: 'admin' as const,
                 email: user.email || '',
                 assignedAuctions: [],
-                status: 'active' as const
+                status: 'active' as const,
+                joinedAt: serverTimestamp(),
               };
               
-              await setDoc(mRef, newM);
-              setMemberships([{ id: user.uid, ...newM }]);
+              await setDoc(mRef, newMData);
+
+              // Trigger Welcome Email for the recovered owner
+              try {
+                const mailRef = collection(firestore, 'mail');
+                await addDoc(mailRef, {
+                  to: user.email,
+                  accountId: targetId,
+                  template: {
+                    name: 'welcome-owner',
+                    data: {
+                      name: user.displayName || 'Owner'
+                    }
+                  }
+                });
+                console.log('RBAC: Welcome email queued for owner.');
+              } catch (mailErr: any) {
+                console.error(`RBAC Mail Trigger Failed. Path: mail/. UID: ${user.uid}, accountId: ${targetId}. Error: ${mailErr.message}`);
+              }
+
+              setMemberships([{ id: user.uid, ...newMData } as any]);
               setIsSelfHealing(false);
             }
           } catch (healingErr) {
