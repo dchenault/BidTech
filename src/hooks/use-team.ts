@@ -24,7 +24,6 @@ export function useTeam() {
     if (!firestore || !accountId || !user) return;
 
     const email = values.email.toLowerCase().trim();
-    const sanitizedEmailId = email.replace('@', '-at-').replace(/\./g, '-');
     const inviteToken = crypto.randomUUID();
     
     try {
@@ -33,11 +32,11 @@ export function useTeam() {
       const accountSnap = await getDoc(accountRef);
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
-      // 2. Create membership document
-      const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', sanitizedEmailId);
+      // 2. Create membership document using the token as the ID for direct lookup
+      const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', inviteToken);
 
       const newMembership: Membership = {
-        id: sanitizedEmailId,
+        id: inviteToken,
         accountId,
         role: values.role,
         email,
@@ -52,18 +51,18 @@ export function useTeam() {
       await setDoc(membershipDocRef, newMembership);
       
       // 4. Trigger invitation email (Standardized Template Nesting)
-      //const mailRef = collection(firestore, 'mail');
+      const inviteLink = `https://bidtech.net/invite/${accountId}/${inviteToken}`;
       
-      // CORRECT NESTING FOR FIREBASE TRIGGER EMAIL
       await addDoc(collection(firestore, 'mail'), {
         to: email,
         accountId: accountId,
         template: {
-          name: 'staff-invite', // name must be a DIRECT child of template
-          data: {               // all variables must be inside data
+          name: 'staff-invite',
+          data: {
             inviteToken: inviteToken,
-            orgName: "Dave Chenault's Account",
-            role: 'staff'
+            inviteLink: inviteLink,
+            orgName: orgName,
+            role: values.role
           }
         }
       });
