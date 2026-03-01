@@ -114,7 +114,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               try {
                 //const mailRef = collection(firestore, 'mail');
                 // ✅ CORRECT NESTING FOR OWNER WELCOME
-                await addDoc(collection(db, 'mail'), {
+                await addDoc(collection(firestore, 'mail'), {
                   to: user.email,
                     accountId: accountId,
                   template: {

@@ -55,7 +55,7 @@ export function useTeam() {
       //const mailRef = collection(firestore, 'mail');
       
       // CORRECT NESTING FOR FIREBASE TRIGGER EMAIL
-      await addDoc(collection(db, 'mail'), {
+      await addDoc(collection(firestore, 'mail'), {
         to: invitedEmail,
         accountId: accountId,
         template: {
