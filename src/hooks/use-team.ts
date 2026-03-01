@@ -61,7 +61,7 @@ export function useTeam() {
         template: {
           name: 'staff-invite', // name must be a DIRECT child of template
           data: {               // all variables must be inside data
-            inviteToken: token,
+            inviteToken: inviteToken,
             orgName: "Dave Chenault's Account",
             role: 'staff'
           }
