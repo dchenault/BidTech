@@ -110,15 +110,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               
               await setDoc(mRef, newMData);
 
-              // Standardized Mail Document Structure
+              // Standardized Mail Document Structure (Correct Template Nesting)
               try {
                 const mailRef = collection(firestore, 'mail');
                 await addDoc(mailRef, {
                   to: user.email,
                   accountId: targetId, // Root field required by security rules
                   template: {
-                    name: 'welcome-owner',
-                    data: {
+                    name: 'welcome-owner', // Correct: Direct child
+                    data: {               // Correct: Nested data
                       name: user.displayName || 'Owner'
                     }
                   }

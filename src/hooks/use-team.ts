@@ -51,14 +51,14 @@ export function useTeam() {
       // 3. Save membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
-      // 4. Trigger invitation email (Standardized Document Structure)
+      // 4. Trigger invitation email (Correct Template Nesting)
       const mailRef = collection(firestore, 'mail');
       await addDoc(mailRef, {
         to: email,
         accountId: accountId, // Required root field for Security Rules
         template: {
-          name: 'staff-invite', // Matches Doc ID in email_templates
-          data: {
+          name: 'staff-invite', // Correct: Direct child of template
+          data: {               // Correct: Variables nested in data
             orgName: orgName,
             role: values.role,
             inviteToken: inviteToken,
