@@ -116,7 +116,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 // ✅ CORRECT NESTING FOR OWNER WELCOME
                 await addDoc(collection(firestore, 'mail'), {
                   to: user.email,
-                    accountId: accountId,
+                    accountId: urlAccountId,
                   template: {
                     name: 'welcome-owner', 
                     data: {
