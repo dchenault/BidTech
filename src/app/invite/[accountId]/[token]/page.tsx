@@ -29,21 +29,23 @@ export default function InvitePage({ params }: { params: { accountId: string; to
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   useEffect(() => {
-    const findInvite = async () => {
+    const fetchInviteDirectly = async () => {
       if (!firestore || !accountId || !token) return;
 
       try {
-        // Robust Discovery Strategy: Query within the specific account by the invite token.
-        // This ensures it finds the doc regardless of whether the Document ID is an email or token.
+        console.log(`Verifying invite token: ${token} for account: ${accountId}`);
+        
+        // Ensure query is scoped strictly to the accountId from the URL
         const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
         const q = query(membershipsRef, where('inviteToken', '==', token));
-        const querySnap = await getDocs(q);
+        const querySnapshot = await getDocs(q);
 
-        if (querySnap.empty) {
+        if (querySnapshot.empty) {
+          console.error('Invite Discovery Failed: Token not found in database.');
           throw new Error('This invitation link is invalid or has expired.');
         }
 
-        const inviteDoc = querySnap.docs[0];
+        const inviteDoc = querySnapshot.docs[0];
         const mData = { id: inviteDoc.id, ...inviteDoc.data() } as Membership;
         setMembership(mData);
 
@@ -56,13 +58,19 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         
         setStatus('ready');
       } catch (err: any) {
-        console.error('Error finding invite:', err);
-        setError(err.message || 'Could not verify invitation.');
+        // Distinguish between "Not Found" and "Permission Denied"
+        if (err.code === 'permission-denied') {
+            console.error('Invite Error: Permission Denied. Check security rules for /accounts/{accId}/memberships.', err);
+            setError('Access Denied: You do not have permission to verify this invitation.');
+        } else {
+            console.error('Invite Error:', err);
+            setError(err.message || 'Could not verify invitation.');
+        }
         setStatus('error');
       }
     };
 
-    findInvite();
+    fetchInviteDirectly();
   }, [firestore, accountId, token]);
 
   useEffect(() => {
