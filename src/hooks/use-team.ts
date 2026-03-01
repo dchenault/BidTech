@@ -52,16 +52,18 @@ export function useTeam() {
       await setDoc(membershipDocRef, newMembership);
       
       // 4. Trigger invitation email (Standardized Template Nesting)
-      const mailRef = collection(firestore, 'mail');
-      await addDoc(mailRef, {
-        to: email,
-        accountId: accountId, // Required root field for Security Rules
+      //const mailRef = collection(firestore, 'mail');
+      
+      // CORRECT NESTING FOR FIREBASE TRIGGER EMAIL
+      await addDoc(collection(db, 'mail'), {
+        to: invitedEmail,
+        accountId: accountId,
         template: {
-          name: 'staff-invite', // Correct: Direct child of template
-          data: {               // Correct: Variables nested in data
-            orgName: orgName,
-            role: values.role,
-            inviteToken: inviteToken,
+          name: 'staff-invite', // name must be a DIRECT child of template
+          data: {               // all variables must be inside data
+            inviteToken: token,
+            orgName: "Dave Chenault's Account",
+            role: 'staff'
           }
         }
       });

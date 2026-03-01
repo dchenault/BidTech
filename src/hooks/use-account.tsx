@@ -112,17 +112,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
               // Standardized Mail Document Structure (Corrected Template Nesting)
               try {
-                const mailRef = collection(firestore, 'mail');
-                await addDoc(mailRef, {
+                //const mailRef = collection(firestore, 'mail');
+                // ✅ CORRECT NESTING FOR OWNER WELCOME
+                await addDoc(collection(db, 'mail'), {
                   to: user.email,
-                  accountId: targetId, // Root field required by security rules
+                    accountId: accountId,
                   template: {
-                    name: 'welcome-owner', // Correct: Direct child of template
-                    data: {               // Correct: Variables nested in data
-                      name: user.displayName || 'Owner'
+                    name: 'welcome-owner', 
+                    data: {
+                      name: user.displayName || 'Owner',
+                      orgName: accountName
                     }
                   }
-                });
+                });      
+
                 console.log('RBAC: Welcome email successfully queued.');
               } catch (mailErr: any) {
                 console.error(`RBAC Mail Write Failed. Path: mail/ (accountId: ${targetId}). Error: ${mailErr.message}`);
