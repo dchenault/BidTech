@@ -121,7 +121,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                     name: 'welcome-owner', 
                     data: {
                       name: user.displayName || 'Owner',
-                      orgName: accountName
+                      orgName: accountSnap.exists() ? accountSnap.data().name : 'Your Organization'
                     }
                   }
                 });      
