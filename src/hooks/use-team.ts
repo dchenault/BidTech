@@ -33,6 +33,7 @@ export function useTeam() {
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
       // 2. Create membership document using the token as the ID for direct lookup
+      // Path: accounts/[accountId]/memberships/[inviteToken]
       const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', inviteToken);
 
       const newMembership: Membership = {
@@ -51,6 +52,7 @@ export function useTeam() {
       await setDoc(membershipDocRef, newMembership);
       
       // 4. Trigger invitation email (Standardized Template Nesting)
+      // Standard Link: /invite/[accountId]/[token]
       const inviteLink = `https://bidtech.net/invite/${accountId}/${inviteToken}`;
       
       await addDoc(collection(firestore, 'mail'), {

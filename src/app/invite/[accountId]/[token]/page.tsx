@@ -93,6 +93,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
+      // If user profile doesn't exist (new user), initialize it
       if (!userSnap.exists()) {
         await setupNewUser(firestore, user);
       }
