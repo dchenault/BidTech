@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,15 +33,18 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       if (!firestore || !accountId || !token) return;
 
       try {
-        // Direct Path Strategy: Use accountId and token to find the doc directly
-        const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
-        const inviteSnap = await getDoc(inviteRef);
+        // Robust Discovery Strategy: Query within the specific account by the invite token.
+        // This handles cases where the Doc ID might be an email or an auto-ID.
+        const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
+        const q = query(membershipsRef, where('inviteToken', '==', token));
+        const querySnap = await getDocs(q);
 
-        if (!inviteSnap.exists()) {
+        if (querySnap.empty) {
           throw new Error('This invitation link is invalid or has expired.');
         }
 
-        const mData = { id: inviteSnap.id, ...inviteSnap.data() } as Membership;
+        const inviteDoc = querySnap.docs[0];
+        const mData = { id: inviteDoc.id, ...inviteDoc.data() } as Membership;
         setMembership(mData);
 
         // Fetch organization name for the UI
@@ -89,6 +92,14 @@ export default function InvitePage({ params }: { params: { accountId: string; to
     setStatus('processing');
 
     try {
+      // Re-verify the invite before processing
+      const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
+      const q = query(membershipsRef, where('inviteToken', '==', token));
+      const querySnap = await getDocs(q);
+      
+      if (querySnap.empty) throw new Error("Invitation no longer exists.");
+      const inviteDoc = querySnap.docs[0];
+
       const batch = writeBatch(firestore);
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
@@ -111,10 +122,9 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       
       batch.set(newMRef, newMData);
 
-      // Delete the temporary token-indexed document
-      const oldMRef = doc(firestore, 'accounts', accountId, 'memberships', token);
-      if (oldMRef.id !== user.uid) {
-        batch.delete(oldMRef);
+      // Delete the old invitation record (whatever its ID was)
+      if (inviteDoc.id !== user.uid) {
+        batch.delete(inviteDoc.ref);
       }
 
       // Update user's active account context
@@ -172,7 +182,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
           </p>
           <Button onClick={() => {
             auth?.signOut();
-            setStatus('ready');
+            setStatus('verifying');
           }} variant="outline">Sign Out and Try Again</Button>
         </div>
       );
