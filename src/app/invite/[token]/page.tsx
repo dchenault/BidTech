@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,7 @@ export default function InvitePage({ params }: { params: { token: string } }) {
 
       try {
         // Find the invitation by its unique token
+        // This requires the COLLECTION_GROUP_ASC index we just built
         const mQuery = query(
           collectionGroup(firestore, 'memberships'),
           where('inviteToken', '==', token)
@@ -66,6 +67,16 @@ export default function InvitePage({ params }: { params: { token: string } }) {
     findInvite();
   }, [firestore, token]);
 
+  // ✅ FIX: Move the unauthorized check into a secondary useEffect or a computed check
+  // This prevents the "Wrong Account" screen from showing up before the user even logs in.
+  useEffect(() => {
+    if (status === 'ready' && user && membership) {
+      if (user.email?.toLowerCase() !== membership.email.toLowerCase()) {
+        setStatus('unauthorized');
+      }
+    }
+  }, [user, membership, status]);
+
   const handleAcceptInvite = async () => {
     if (!auth || !firestore || !membership) return;
 
@@ -75,19 +86,14 @@ export default function InvitePage({ params }: { params: { token: string } }) {
       try {
         const provider = new GoogleAuthProvider();
         await signInWithPopup(auth, provider);
+        // Note: The useEffect above will catch the new user state and 
+        // either keep it 'ready' or move to 'unauthorized'
       } catch (err: any) {
         toast({ variant: 'destructive', title: 'Login Failed', description: err.message });
+      } finally {
         setIsAuthLoading(false);
-        return;
       }
-      setIsAuthLoading(false);
       return; 
-    }
-
-    // 2. Email Mismatch Check
-    if (user.email?.toLowerCase() !== membership.email.toLowerCase()) {
-      setStatus('unauthorized');
-      return;
     }
 
     setStatus('processing');
@@ -97,29 +103,32 @@ export default function InvitePage({ params }: { params: { token: string } }) {
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
-      // 3. Initialize user profile if this is their first time in the app
+      // 2. Initialize user profile if this is their first time in the app
       if (!userSnap.exists()) {
         await setupNewUser(firestore, user);
       }
 
-      // 4. Convert placeholder membership to permanent UID membership
+      // 3. Convert placeholder membership to permanent UID membership
       const newMRef = doc(firestore, 'accounts', membership.accountId, 'memberships', user.uid);
+      
+      // We explicitly set the userId to the authenticated UID
       const newMData: Membership = {
         ...membership,
         id: user.uid,
         userId: user.uid,
         status: 'active',
-        inviteToken: undefined, // Clear the single-use token
+        inviteToken: "" // Clear the single-use token by setting to empty string
       };
+      
       batch.set(newMRef, newMData);
 
-      // 5. Cleanup: Delete the temporary email-based invitation document
+      // 4. Cleanup: Delete the temporary email-based invitation document
       const oldMRef = doc(firestore, membership.docPath);
       if (oldMRef.id !== user.uid) {
         batch.delete(oldMRef);
       }
 
-      // 6. Update user's role mapping and active account context
+      // 5. Update user's role mapping and active account context
       batch.update(userRef, {
         [`accounts.${membership.accountId}`]: membership.role,
         activeAccountId: membership.accountId
@@ -173,7 +182,10 @@ export default function InvitePage({ params }: { params: { token: string } }) {
           <p className="text-muted-foreground px-6">
             This invitation was sent to <strong>{membership?.email}</strong>, but you are signed in as <strong>{user?.email}</strong>.
           </p>
-          <Button onClick={() => auth?.signOut()} variant="outline">Sign Out and Try Again</Button>
+          <Button onClick={() => {
+            auth?.signOut();
+            setStatus('ready'); // Reset status so they can try again
+          }} variant="outline">Sign Out and Try Again</Button>
         </div>
       );
     }
