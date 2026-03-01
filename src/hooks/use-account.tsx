@@ -30,6 +30,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveAccount = async () => {
+      // CRITICAL: Stop background discovery on invite paths to prevent permission errors
+      if (pathname.startsWith('/invite')) {
+        console.log('RBAC: Invite path detected, skipping background discovery.');
+        setIsLoading(false);
+        return;
+      }
+
       if (!user) {
         if (!isAuthLoading && !isSessionLoading) {
           setIsLoading(false);
@@ -147,10 +154,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!isAuthLoading && !isSessionLoading) {
       resolveAccount();
     }
-  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession]);
+  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession, pathname]);
 
   useEffect(() => {
-    if (isLoading || isSelfHealing || !user) return;
+    if (isLoading || isSelfHealing || !user || pathname.startsWith('/invite')) return;
 
     const urlAccountId = searchParams.get('account');
     const isDashboardArea = pathname.startsWith('/dashboard');
