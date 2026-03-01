@@ -51,7 +51,7 @@ export function useTeam() {
       // 3. Save membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
-      // 4. Trigger invitation email (Corrected Template Nesting)
+      // 4. Trigger invitation email (Standardized Template Nesting)
       const mailRef = collection(firestore, 'mail');
       await addDoc(mailRef, {
         to: email,

@@ -125,7 +125,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 });
                 console.log('RBAC: Welcome email successfully queued.');
               } catch (mailErr: any) {
-                console.error(`RBAC Mail Write Failed. Path: mail/. accountId: ${targetId}. Error: ${mailErr.message}`);
+                console.error(`RBAC Mail Write Failed. Path: mail/ (accountId: ${targetId}). Error: ${mailErr.message}`);
               }
 
               setMemberships([{ id: user.uid, ...newMData } as any]);
