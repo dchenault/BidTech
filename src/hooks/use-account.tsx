@@ -30,9 +30,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveAccount = async () => {
-      // CRITICAL: Stop background discovery on invite paths to prevent permission errors
-      if (pathname.startsWith('/invite')) {
-        console.log('RBAC: Invite path detected, skipping background discovery.');
+      // BYPASS LOGIC FOR INVITATION PATHS
+      // This prevents broad background queries from triggering permission errors on public invite pages.
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/invite')) {
+        console.log('RBAC Discovery: Bypassed for invitation path');
         setIsLoading(false);
         return;
       }
@@ -54,12 +55,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         // --- STEP 1: Direct Fetch Priority ---
         if (urlAccountId) {
           const directPath = `accounts/${urlAccountId}/memberships/${user.uid}`;
-          console.log('RBAC: Searching for membership at:', directPath);
           const directRef = doc(firestore, directPath);
           try {
             const directSnap = await getDoc(directRef);
             if (directSnap.exists()) {
-              console.log('RBAC: Direct membership found.');
               const activeMembership = { id: directSnap.id, ...directSnap.data() } as Membership;
               setMemberships([activeMembership]);
               setIsLoading(false);
@@ -80,7 +79,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         let foundMemberships: Membership[] = [];
         try {
           const querySnapshot = await getDocs(q);
-          console.log('RBAC Discovery: Found docs:', querySnapshot.size);
           foundMemberships = querySnapshot.docs.map(d => ({
             id: d.id,
             ...d.data()
@@ -122,7 +120,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 await addDoc(collection(firestore, 'mail'), {
                   to: user.email,
                   accountId: targetId,
-                  attachments: [], // Consistency fix
+                  attachments: [],
                   template: {
                     name: 'welcome-owner', 
                     data: {
@@ -131,7 +129,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                     }
                   }
                 });      
-
                 console.log('RBAC: Welcome email successfully queued.');
               } catch (mailErr: any) {
                 console.error(`RBAC Mail Write Failed. Path: mail/ (accountId: ${targetId}). Error: ${mailErr.message}`);
