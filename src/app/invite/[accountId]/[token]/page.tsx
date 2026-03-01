@@ -34,7 +34,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
 
       try {
         // Robust Discovery Strategy: Query within the specific account by the invite token.
-        // This handles cases where the Doc ID might be an email or an auto-ID.
+        // This ensures it finds the doc regardless of whether the Document ID is an email or token.
         const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
         const q = query(membershipsRef, where('inviteToken', '==', token));
         const querySnap = await getDocs(q);
@@ -92,7 +92,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
     setStatus('processing');
 
     try {
-      // Re-verify the invite before processing
+      // Re-verify the invite token before processing
       const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
       const q = query(membershipsRef, where('inviteToken', '==', token));
       const querySnap = await getDocs(q);

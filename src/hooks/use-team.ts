@@ -58,6 +58,7 @@ export function useTeam() {
       await addDoc(collection(firestore, 'mail'), {
         to: email,
         accountId: accountId,
+        attachments: [], // Ensure extension compatibility
         template: {
           name: 'staff-invite',
           data: {

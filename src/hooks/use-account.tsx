@@ -110,18 +110,17 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               
               await setDoc(mRef, newMData);
 
-              // Standardized Mail Document Structure (Corrected Template Nesting)
+              // Standardized Mail Document Structure
               try {
-                //const mailRef = collection(firestore, 'mail');
-                // ✅ CORRECT NESTING FOR OWNER WELCOME
                 await addDoc(collection(firestore, 'mail'), {
                   to: user.email,
-                    accountId: urlAccountId,
+                  accountId: targetId,
+                  attachments: [], // Consistency fix
                   template: {
                     name: 'welcome-owner', 
                     data: {
                       name: user.displayName || 'Owner',
-                      orgName: accountSnap.exists() ? accountSnap.data().name : 'Your Organization'
+                      orgName: accountSnap.data().name || 'Your Organization'
                     }
                   }
                 });      
