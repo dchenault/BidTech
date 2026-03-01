@@ -32,8 +32,8 @@ export function useTeam() {
       const accountSnap = await getDoc(accountRef);
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
-      // 2. Create membership document using the token as the ID for direct lookup initially,
-      // but the landing page now also uses a query for robustness.
+      // 2. Create membership document using the token as the ID for direct lookup.
+      // This implements the "Token as ID" strategy.
       const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', inviteToken);
 
       const newMembership: Membership = {
@@ -52,7 +52,7 @@ export function useTeam() {
       await setDoc(membershipDocRef, newMembership);
       
       // 4. Trigger invitation email (Standardized Template Nesting)
-      // Standard Link Format: /invite/[accountId]/[token]
+      // Standard Link Format: https://bidtech.net/invite/[accountId]/[token]
       const inviteLink = `https://bidtech.net/invite/${accountId}/${inviteToken}`;
       
       await addDoc(collection(firestore, 'mail'), {
