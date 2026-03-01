@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,20 +33,17 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       if (!firestore || !accountId || !token) return;
 
       try {
-        console.log(`Verifying invite token: ${token} for account: ${accountId}`);
+        console.log(`Verifying invite token via direct path: accounts/${accountId}/memberships/${token}`);
         
-        // Ensure query is scoped strictly to the accountId from the URL
-        const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
-        const q = query(membershipsRef, where('inviteToken', '==', token));
-        const querySnapshot = await getDocs(q);
+        const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
+        const inviteSnap = await getDoc(inviteRef);
 
-        if (querySnapshot.empty) {
-          console.error('Invite Discovery Failed: Token not found in database.');
+        if (!inviteSnap.exists()) {
+          console.error('Invite Discovery Failed: Document not found at path.');
           throw new Error('This invitation link is invalid or has expired.');
         }
 
-        const inviteDoc = querySnapshot.docs[0];
-        const mData = { id: inviteDoc.id, ...inviteDoc.data() } as Membership;
+        const mData = { id: inviteSnap.id, ...inviteSnap.data() } as Membership;
         setMembership(mData);
 
         // Fetch organization name for the UI
@@ -58,7 +55,6 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         
         setStatus('ready');
       } catch (err: any) {
-        // Distinguish between "Not Found" and "Permission Denied"
         if (err.code === 'permission-denied') {
             console.error('Invite Error: Permission Denied. Check security rules for /accounts/{accId}/memberships.', err);
             setError('Access Denied: You do not have permission to verify this invitation.');
@@ -100,13 +96,11 @@ export default function InvitePage({ params }: { params: { accountId: string; to
     setStatus('processing');
 
     try {
-      // Re-verify the invite token before processing
-      const membershipsRef = collection(firestore, 'accounts', accountId, 'memberships');
-      const q = query(membershipsRef, where('inviteToken', '==', token));
-      const querySnap = await getDocs(q);
+      // Re-verify the invite token document before processing
+      const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
+      const inviteSnap = await getDoc(inviteRef);
       
-      if (querySnap.empty) throw new Error("Invitation no longer exists.");
-      const inviteDoc = querySnap.docs[0];
+      if (!inviteSnap.exists()) throw new Error("Invitation no longer exists.");
 
       const batch = writeBatch(firestore);
       const userRef = doc(firestore, 'users', user.uid);
@@ -125,14 +119,14 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         id: user.uid,
         userId: user.uid,
         status: 'active',
-        inviteToken: "" // Clear the single-use token
+        inviteToken: "" // Clear the single-use token reference
       };
       
       batch.set(newMRef, newMData);
 
-      // Delete the old invitation record (whatever its ID was)
-      if (inviteDoc.id !== user.uid) {
-        batch.delete(inviteDoc.ref);
+      // Delete the old invitation record (which was keyed by the token)
+      if (token !== user.uid) {
+        batch.delete(inviteRef);
       }
 
       // Update user's active account context
