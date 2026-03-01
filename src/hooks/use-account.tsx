@@ -30,7 +30,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveAccount = async () => {
-      // Step A: If !user, check for staff session or stop loading
       if (!user) {
         if (!isAuthLoading && !isSessionLoading) {
           setIsLoading(false);
@@ -45,26 +44,26 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       try {
         const urlAccountId = searchParams.get('account');
         
-        // --- STEP 1: Try Direct Fetch ---
-        // If we have an account ID in the URL, try to get the membership record directly.
+        // --- STEP 1: Direct Fetch Priority ---
         if (urlAccountId) {
-          console.log('RBAC: Attempting direct membership fetch for account:', urlAccountId);
-          const directRef = doc(firestore, 'accounts', urlAccountId, 'memberships', user.uid);
+          const directPath = `accounts/${urlAccountId}/memberships/${user.uid}`;
+          console.log('RBAC: Searching for membership at:', directPath);
+          const directRef = doc(firestore, directPath);
           try {
             const directSnap = await getDoc(directRef);
             if (directSnap.exists()) {
-              console.log('RBAC: Direct membership hit.');
+              console.log('RBAC: Direct membership found.');
               const activeMembership = { id: directSnap.id, ...directSnap.data() } as Membership;
               setMemberships([activeMembership]);
               setIsLoading(false);
               return;
             }
           } catch (directErr) {
-            console.warn('RBAC: Direct fetch failed or restricted, falling back to discovery.', directErr);
+            console.warn('RBAC: Direct fetch failed, trying discovery query...', directErr);
           }
         }
 
-        // --- STEP 2: Discovery Query (Fallback) ---
+        // --- STEP 2: Discovery Fallback ---
         console.log('RBAC Discovery: Started for UID', user.uid);
         const q = query(
           collectionGroup(firestore, 'memberships'),
@@ -80,14 +79,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             ...d.data()
           } as Membership));
         } catch (discoveryErr: any) {
-          console.error("RBAC Discovery Query Error:", discoveryErr);
+          console.error("RBAC Discovery Query Failed:", discoveryErr);
         }
         
         setMemberships(foundMemberships);
 
-        // --- STEP 3: Fallback / Self-Healing ---
+        // --- STEP 3: Self-Healing Fallback ---
         if (foundMemberships.length === 0) {
-          console.warn('RBAC Discovery: No memberships found in DB');
+          console.warn('RBAC Discovery: No memberships found. Checking account ownership...');
           
           const targetId = urlAccountId || user.uid;
           const accountRef = doc(firestore, 'accounts', targetId);
@@ -95,7 +94,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           try {
             const accountSnap = await getDoc(accountRef);
             if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
-              console.log('RBAC Discovery: Owner found without membership. Self-healing...');
+              console.log('RBAC Discovery: Owner found without membership record. Repairing...');
               setIsSelfHealing(true);
               const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
               
@@ -111,12 +110,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               
               await setDoc(mRef, newMData);
 
-              // Trigger Welcome Email for the recovered owner
+              // Standardized Mail Document Structure
               try {
                 const mailRef = collection(firestore, 'mail');
                 await addDoc(mailRef, {
                   to: user.email,
-                  accountId: targetId,
+                  accountId: targetId, // Root field required by security rules
                   template: {
                     name: 'welcome-owner',
                     data: {
@@ -124,20 +123,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                     }
                   }
                 });
-                console.log('RBAC: Welcome email queued for owner.');
+                console.log('RBAC: Welcome email successfully queued.');
               } catch (mailErr: any) {
-                console.error(`RBAC Mail Trigger Failed. Path: mail/. UID: ${user.uid}, accountId: ${targetId}. Error: ${mailErr.message}`);
+                console.error(`RBAC Mail Write Failed. Path: mail/. accountId: ${targetId}. Error: ${mailErr.message}`);
               }
 
               setMemberships([{ id: user.uid, ...newMData } as any]);
               setIsSelfHealing(false);
             }
           } catch (healingErr) {
-            console.error("RBAC Healing Error:", healingErr);
+            console.error("RBAC Self-Healing Failed:", healingErr);
           }
         }
       } catch (err) {
-        console.error("RBAC Critical Resolve Error:", err);
+        console.error("RBAC Critical Error:", err);
       } finally {
         setIsLoading(false);
       }
@@ -148,7 +147,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession]);
 
-  // Handle Redirection logic after state resolution
   useEffect(() => {
     if (isLoading || isSelfHealing || !user) return;
 

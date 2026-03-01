@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -25,10 +24,7 @@ export function useTeam() {
     if (!firestore || !accountId || !user) return;
 
     const email = values.email.toLowerCase().trim();
-    // Sanitize email for a safe temporary document ID: test@gmail.com -> test-at-gmail-com
     const sanitizedEmailId = email.replace('@', '-at-').replace(/\./g, '-');
-    
-    // Generate a secure invite token
     const inviteToken = crypto.randomUUID();
     
     try {
@@ -45,7 +41,6 @@ export function useTeam() {
         accountId,
         role: values.role,
         email,
-        // Admins get global access (empty array represents all), Staff get specific assignments
         assignedAuctions: values.role === 'admin' ? [] : values.assignedAuctions,
         status: 'invited',
         invitedBy: user.uid,
@@ -53,16 +48,16 @@ export function useTeam() {
         inviteToken,
       };
 
-      // 3. Save to Firestore
+      // 3. Save membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
-      // 4. Trigger invitation email via Firebase Trigger Email extension
+      // 4. Trigger invitation email (Standardized Document Structure)
       const mailRef = collection(firestore, 'mail');
       await addDoc(mailRef, {
         to: email,
-        accountId: accountId, // Required for security rules check
+        accountId: accountId, // Required root field for Security Rules
         template: {
-          name: 'staff-invite',
+          name: 'staff-invite', // Matches Doc ID in email_templates
           data: {
             orgName: orgName,
             role: values.role,
@@ -80,7 +75,7 @@ export function useTeam() {
       toast({
         variant: "destructive",
         title: "Invitation Failed",
-        description: "You do not have permission to manage team members or the operation failed.",
+        description: error.message || "Failed to create invitation.",
       });
     }
   }, [firestore, accountId, user, toast]);
