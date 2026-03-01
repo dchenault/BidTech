@@ -68,15 +68,6 @@ export function useTeam() {
         }
       });
 
-      // 🚀 TEMPORARY BYPASS TEST
-await addDoc(collection(firestore, 'mail'), {
-  to: email,
-  message: {
-    subject: "Direct Test (No Template)",
-    html: `<p>If you see this, the extension is working, but your template document is the problem.</p>`
-  }
-});
-
       toast({
         title: "Staff Member Invited",
         description: `An invitation has been sent to ${email}.`,
