@@ -24,7 +24,6 @@ export function useTeam() {
     if (!firestore || !accountId || !user) return;
 
     const email = values.email.toLowerCase().trim();
-    const inviteToken = crypto.randomUUID();
     
     try {
       // 1. Fetch organization name for the email template
@@ -32,37 +31,34 @@ export function useTeam() {
       const accountSnap = await getDoc(accountRef);
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
-      // 2. Token-as-ID Strategy: Use the unique token as the document ID.
-      // This facilitates high-performance direct lookups on the landing page.
-      const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', inviteToken);
+      // 2. Email-as-ID Strategy: Use the email as the document ID for the pending membership.
+      // This facilitates automatic "claiming" when the user logs in to the dashboard.
+      const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', email);
 
-      const newMembership: Membership = {
-        id: inviteToken,
+      const newMembership: Omit<Membership, 'id'> = {
         accountId,
         role: values.role,
         email,
         assignedAuctions: values.role === 'admin' ? [] : values.assignedAuctions,
-        status: 'invited',
+        status: 'pending',
         invitedBy: user.uid,
         invitedAt: serverTimestamp(),
-        inviteToken,
       };
 
       // 3. Save the pending membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
-      // 4. Trigger invitation email (Standardized Template Nesting)
-      // Standard Link Format: https://bidtech.net/invite/[accountId]/[token]
-      const inviteLink = `https://bidtech.net/invite/${accountId}/${inviteToken}`;
+      // 4. Trigger invitation email pointing directly to the dashboard
+      // The useUserSetup hook will handle the claiming process automatically.
+      const inviteLink = `https://bidtech.net/dashboard`;
       
       await addDoc(collection(firestore, 'mail'), {
         to: email,
         accountId: accountId,
-        attachments: [], // Mandatory empty array for Trigger Email extension compatibility
+        attachments: [], // Mandatory for Trigger Email extension
         template: {
           name: 'staff-invite',
           data: {
-            inviteToken: inviteToken,
             inviteLink: inviteLink,
             orgName: orgName,
             role: values.role
