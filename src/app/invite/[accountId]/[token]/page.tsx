@@ -39,6 +39,8 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         
         // Direct Path Lookup: Token is used as the Document ID for pending memberships
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
+        
+        console.log("EXECUTION: Firing getDoc now...");
         const inviteSnap = await getDoc(inviteRef);
 
         if (!inviteSnap.exists()) {
