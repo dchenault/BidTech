@@ -7,6 +7,7 @@ import { Loader2, Gavel, LogOut, RefreshCcw } from 'lucide-react';
 import { useStaffSession } from '@/hooks/use-staff-session';
 import { useAccount } from '@/hooks/use-account';
 import { useRoleSync } from '@/hooks/use-role-sync';
+import { useUserSetup } from '@/hooks/use-user-setup';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 
@@ -17,10 +18,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { isStaffSession, isSessionLoading } = useStaffSession();
   const { accountId, isLoading: isAccountLoading } = useAccount();
 
-  // New hook to sync roles on load
+  // Handle one-time user setup and invitation claiming logic.
+  const { isSetupLoading } = useUserSetup();
+
+  // Sync roles if the user is listed in the account's admin list.
   useRoleSync(accountId);
 
-  const isLoading = isSessionLoading || (isUserLoading && !isStaffSession) || isAccountLoading;
+  const isLoading = isSessionLoading || (isUserLoading && !isStaffSession) || isAccountLoading || isSetupLoading;
 
   const handleSignOut = async () => {
     if (!auth) return;
@@ -32,8 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.reload();
   };
 
-  // This is the unified loading state. We wait until we know for sure if it's
-  // a staff session or until the regular user's auth state has been resolved.
+  // This is the unified loading state. We wait until auth, session, and setup are resolved.
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background p-4 text-center">
@@ -62,14 +65,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
   
   // This is the unified Auth Guard.
-  // If all loading is complete and we have neither a regular user nor a staff session, redirect to login.
   if (!user && !isStaffSession) {
     router.push('/login');
-    return null; // Render nothing while redirecting.
+    return null;
   }
 
-  // If we pass the guard, render the standard layout. The ClientLayout component
-  // itself will correctly handle hiding the sidebar for staff sessions.
+  // If we pass the guard, render the standard layout.
   return (
     <ClientLayout>
       {children}

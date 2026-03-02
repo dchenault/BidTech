@@ -31,7 +31,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const resolveAccount = async () => {
       // BYPASS LOGIC FOR INVITATION PATHS
-      // This prevents broad background queries from triggering permission errors on public invite pages.
       if (typeof window !== 'undefined' && window.location.pathname.startsWith('/invite')) {
         console.log('RBAC Discovery: Bypassed for invitation path');
         setIsLoading(false);
@@ -71,26 +70,56 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
         // --- STEP 2: Discovery Fallback ---
         console.log('RBAC Discovery: Started for UID', user.uid);
-        const q = query(
+        
+        // A. Query by UID
+        const qByUid = query(
           collectionGroup(firestore, 'memberships'),
           where('userId', '==', user.uid)
         );
         
         let foundMemberships: Membership[] = [];
         try {
-          const querySnapshot = await getDocs(q);
+          const querySnapshot = await getDocs(qByUid);
           foundMemberships = querySnapshot.docs.map(d => ({
             id: d.id,
             ...d.data()
           } as Membership));
         } catch (discoveryErr: any) {
-          console.error("RBAC Discovery Query Failed:", discoveryErr);
+          console.error("RBAC Discovery (UID) Query Failed:", discoveryErr);
+        }
+
+        // B. Query by Email (Pending Invites)
+        if (user.email) {
+          const emailQ = query(
+            collectionGroup(firestore, 'memberships'),
+            where('email', '==', user.email.toLowerCase()),
+            where('status', '==', 'pending')
+          );
+          try {
+            const emailSnap = await getDocs(emailQ);
+            const emailMemberships = emailSnap.docs.map(d => ({
+              id: d.id,
+              ...d.data()
+            } as Membership));
+            foundMemberships = [...foundMemberships, ...emailMemberships];
+          } catch (e) {
+            console.error("RBAC Discovery (Email) Failed:", e);
+          }
         }
         
-        setMemberships(foundMemberships);
+        // De-duplicate memberships by accountId (UID-based matches win)
+        const membershipMap = new Map<string, Membership>();
+        foundMemberships.forEach(m => {
+          if (!membershipMap.has(m.accountId) || m.userId === user.uid) {
+            membershipMap.set(m.accountId, m);
+          }
+        });
+
+        const finalMemberships = Array.from(membershipMap.values());
+        setMemberships(finalMemberships);
 
         // --- STEP 3: Self-Healing Fallback ---
-        if (foundMemberships.length === 0) {
+        if (finalMemberships.length === 0) {
           console.warn('RBAC Discovery: No memberships found. Checking account ownership...');
           
           const targetId = urlAccountId || user.uid;
@@ -115,7 +144,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               
               await setDoc(mRef, newMData);
 
-              // Standardized Mail Document Structure
               try {
                 await addDoc(collection(firestore, 'mail'), {
                   to: user.email,
@@ -129,9 +157,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                     }
                   }
                 });      
-                console.log('RBAC: Welcome email successfully queued.');
               } catch (mailErr: any) {
-                console.error(`RBAC Mail Write Failed. Path: mail/ (accountId: ${targetId}). Error: ${mailErr.message}`);
+                console.error(`RBAC Mail Write Failed: ${mailErr.message}`);
               }
 
               setMemberships([{ id: user.uid, ...newMData } as any]);

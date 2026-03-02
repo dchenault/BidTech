@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -26,7 +25,6 @@ export function useUserSetup() {
     }
 
     // Use sessionStorage to prevent this complex check from re-running on every render
-    // during a single user session after it has completed once.
     if (sessionStorage.getItem(`user-setup-complete-${user.uid}`)) {
       return;
     }
@@ -44,18 +42,20 @@ export function useUserSetup() {
         return;
       }
 
-      // Check if the user's email is listed in ANY account's memberships.
+      // Check if the user's email is listed in ANY account's memberships as pending.
       const membershipsQuery = query(
         collectionGroup(firestore, 'memberships'),
-        where('email', '==', user.email?.toLowerCase())
+        where('email', '==', user.email?.toLowerCase()),
+        where('status', '==', 'pending')
       );
       const membershipDocsSnap = await getDocs(membershipsQuery);
 
       if (!membershipDocsSnap.empty) {
         // --- Path A: User has a pre-existing membership (Admin or Staff) ---
+        // Claim the invitation by creating a UID-based record and deleting the email-based one.
         const membershipDoc = membershipDocsSnap.docs[0];
-        const accountId = membershipDoc.ref.parent.parent?.id;
         const membershipData = membershipDoc.data();
+        const accountId = membershipData.accountId;
 
         if (!accountId) {
           throw new Error("Could not determine Account ID from membership record.");
@@ -63,13 +63,21 @@ export function useUserSetup() {
 
         const batch = writeBatch(firestore);
         
-        // 1. Update the membership document to be active and linked to the UID
-        batch.update(membershipDoc.ref, { 
-          userId: user.uid, 
-          status: 'active' 
+        // 1. Create the permanent membership document linked to the UID
+        const newMRef = doc(firestore, 'accounts', accountId, 'memberships', user.uid);
+        batch.set(newMRef, {
+          ...membershipData,
+          id: user.uid,
+          userId: user.uid,
+          status: 'active'
         });
 
-        // 2. Initialize or update the root user profile
+        // 2. Delete the temporary email-based invitation document
+        if (membershipDoc.id !== user.uid) {
+          batch.delete(membershipDoc.ref);
+        }
+
+        // 3. Initialize or update the root user profile
         const userData = {
           name: user.displayName || 'Team Member',
           email: user.email || '',
@@ -88,7 +96,6 @@ export function useUserSetup() {
         });
       } else {
         // --- Path B: Standard new user signup ---
-        // User is not part of any team yet, so run the standard new account creation flow.
         await setupNewUser(firestore, user);
         toast({
           title: 'Welcome!',
