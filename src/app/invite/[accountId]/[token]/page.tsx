@@ -33,7 +33,9 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       if (!firestore || !accountId || !token) return;
 
       try {
-        console.log(`Verifying invite token: ${token} for account: ${accountId}`);
+        // Debugging logs to verify SDK configuration and path structure
+        console.log("DEBUG: Project ID from Config:", (firestore as any).app.options.projectId);
+        console.log("DEBUG: Target Path:", `accounts/${accountId}/memberships/${token}`);
         
         // Direct Path Lookup: Token is used as the Document ID for pending memberships
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
