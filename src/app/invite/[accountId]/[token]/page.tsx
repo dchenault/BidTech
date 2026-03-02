@@ -30,9 +30,17 @@ export default function InvitePage({ params }: { params: { accountId: string; to
 
   useEffect(() => {
     const fetchInviteDirectly = async () => {
-      if (!firestore || !accountId || !token) return;
+      if (!firestore || !auth || !accountId || !token) return;
 
       try {
+        console.log("DEBUG: Current Auth UID before fetch:", auth.currentUser?.uid);
+        
+        // Ensure a clean, unauthenticated request to prevent stale token conflicts
+        if (auth.currentUser) {
+          console.log("DEBUG: Stale user detected. Signing out for clean fetch...");
+          await auth.signOut();
+        }
+
         // Direct Path Lookup: Token is used as the Document ID for pending memberships
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
         
@@ -68,7 +76,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
     };
 
     fetchInviteDirectly();
-  }, [firestore, accountId, token]);
+  }, [firestore, auth, accountId, token]);
 
   useEffect(() => {
     if (status === 'ready' && user && membership) {
