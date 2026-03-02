@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirebase, useUser } from '@/firebase';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +37,15 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         console.log("DEBUG: Project ID from Config:", (firestore as any).app.options.projectId);
         console.log("DEBUG: Target Path:", `accounts/${accountId}/memberships/${token}`);
         
+        // HARD RESET: Clear local persistence to bypass cached "Permission Denied" states
+        try {
+          await terminate(firestore);
+          await clearIndexedDbPersistence(firestore);
+          console.log("CACHE: Firestore local persistence cleared successfully.");
+        } catch (resetErr) {
+          console.warn("CACHE: Persistence reset skipped (likely instance active or already handled).", resetErr);
+        }
+
         // Direct Path Lookup: Token is used as the Document ID for pending memberships
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
         
@@ -60,7 +69,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         
         setStatus('ready');
       } catch (err: any) {
-        console.error(`Invite Discovery Error (code: ${err.code}):`, err);
+        console.error("FULL ERROR OBJECT:", err);
         
         if (err.code === 'permission-denied') {
             setError('Access Denied: Missing permissions to verify this link. Please check Security Rules.');
