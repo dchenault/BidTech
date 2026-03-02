@@ -32,8 +32,8 @@ export function useTeam() {
       const accountSnap = await getDoc(accountRef);
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
-      // 2. Create membership document using the token as the ID for direct lookup.
-      // This implements the "Token as ID" strategy.
+      // 2. Token-as-ID Strategy: Use the unique token as the document ID.
+      // This facilitates high-performance direct lookups on the landing page.
       const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', inviteToken);
 
       const newMembership: Membership = {
@@ -48,7 +48,7 @@ export function useTeam() {
         inviteToken,
       };
 
-      // 3. Save membership to Firestore
+      // 3. Save the pending membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
       // 4. Trigger invitation email (Standardized Template Nesting)
@@ -58,7 +58,7 @@ export function useTeam() {
       await addDoc(collection(firestore, 'mail'), {
         to: email,
         accountId: accountId,
-        attachments: [], // Ensure extension compatibility
+        attachments: [], // Mandatory empty array for Trigger Email extension compatibility
         template: {
           name: 'staff-invite',
           data: {

@@ -35,6 +35,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       try {
         console.log(`Verifying invite token via direct path: accounts/${accountId}/memberships/${token}`);
         
+        // Strategy: Use the token as the document ID for direct lookup (high performance)
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
         const inviteSnap = await getDoc(inviteRef);
 
@@ -46,7 +47,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         const mData = { id: inviteSnap.id, ...inviteSnap.data() } as Membership;
         setMembership(mData);
 
-        // Fetch organization name for the UI
+        // Fetch organization name for the UI context
         const accountRef = doc(firestore, 'accounts', accountId);
         const accountSnap = await getDoc(accountRef);
         if (accountSnap.exists()) {
@@ -71,6 +72,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
 
   useEffect(() => {
     if (status === 'ready' && user && membership) {
+      // Security: Ensure the signed-in user's email matches the invitation
       if (user.email?.toLowerCase() !== membership.email.toLowerCase()) {
         setStatus('unauthorized');
       }
@@ -80,6 +82,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
   const handleAcceptInvite = async () => {
     if (!auth || !firestore || !membership) return;
 
+    // Trigger auth if not logged in
     if (!user) {
       setIsAuthLoading(true);
       try {
@@ -96,7 +99,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
     setStatus('processing');
 
     try {
-      // Re-verify the invite token document before processing
+      // Re-verify the invitation record exists before starting batch
       const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
       const inviteSnap = await getDoc(inviteRef);
       
@@ -106,12 +109,13 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       
-      // If user profile doesn't exist (new user), initialize it
+      // If user profile doesn't exist (new user), initialize the root record
       if (!userSnap.exists()) {
         await setupNewUser(firestore, user);
       }
 
-      // Convert token-based membership to permanent UID-based membership
+      // Conversion Strategy: Move from token-based ID to permanent UID-based ID
+      // This is crucial for Security Rules which check memberships/$(request.auth.uid)
       const newMRef = doc(firestore, 'accounts', accountId, 'memberships', user.uid);
       
       const newMData: Membership = {
@@ -119,17 +123,17 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         id: user.uid,
         userId: user.uid,
         status: 'active',
-        inviteToken: "" // Clear the single-use token reference
+        inviteToken: "" // Clear token to prevent reuse
       };
       
       batch.set(newMRef, newMData);
 
-      // Delete the old invitation record (which was keyed by the token)
+      // Delete the temporary token-keyed invitation document
       if (token !== user.uid) {
         batch.delete(inviteRef);
       }
 
-      // Update user's active account context
+      // Update user's organizational context
       batch.update(userRef, {
         [`accounts.${accountId}`]: membership.role,
         activeAccountId: accountId
@@ -140,6 +144,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       setStatus('success');
       toast({ title: 'Welcome aboard!', description: `You have joined ${accountName}.` });
       
+      // Clean Redirection: Pass the accountId to the dashboard
       setTimeout(() => {
         router.push(`/dashboard?account=${accountId}`);
       }, 1500);
