@@ -33,21 +33,21 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       if (!firestore || !accountId || !token) return;
 
       try {
-        console.log(`Verifying invite token via direct path: accounts/${accountId}/memberships/${token}`);
+        console.log(`Verifying invite token: ${token} for account: ${accountId}`);
         
-        // Strategy: Use the token as the document ID for direct lookup (high performance)
+        // Direct Path Lookup: Token is used as the Document ID for pending memberships
         const inviteRef = doc(firestore, 'accounts', accountId, 'memberships', token);
         const inviteSnap = await getDoc(inviteRef);
 
         if (!inviteSnap.exists()) {
-          console.error('Invite Discovery Failed: Document not found at path.');
+          console.warn(`Invite Lookup Failed: No document found at accounts/${accountId}/memberships/${token}`);
           throw new Error('This invitation link is invalid or has expired.');
         }
 
         const mData = { id: inviteSnap.id, ...inviteSnap.data() } as Membership;
         setMembership(mData);
 
-        // Fetch organization name for the UI context
+        // Fetch organization name for UI context
         const accountRef = doc(firestore, 'accounts', accountId);
         const accountSnap = await getDoc(accountRef);
         if (accountSnap.exists()) {
@@ -56,11 +56,11 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         
         setStatus('ready');
       } catch (err: any) {
+        console.error(`Invite Discovery Error (code: ${err.code}):`, err);
+        
         if (err.code === 'permission-denied') {
-            console.error('Invite Error: Permission Denied. Check security rules for /accounts/{accId}/memberships.', err);
-            setError('Access Denied: You do not have permission to verify this invitation.');
+            setError('Access Denied: Missing permissions to verify this link. Please check Security Rules.');
         } else {
-            console.error('Invite Error:', err);
             setError(err.message || 'Could not verify invitation.');
         }
         setStatus('error');
@@ -144,7 +144,7 @@ export default function InvitePage({ params }: { params: { accountId: string; to
       setStatus('success');
       toast({ title: 'Welcome aboard!', description: `You have joined ${accountName}.` });
       
-      // Clean Redirection: Pass the accountId to the dashboard
+      // Pass accountId to dashboard to ensure correct context
       setTimeout(() => {
         router.push(`/dashboard?account=${accountId}`);
       }, 1500);
