@@ -32,7 +32,6 @@ export function useTeam() {
       const orgName = accountSnap.exists() ? accountSnap.data().name : 'Your Organization';
 
       // 2. Email-as-ID Strategy: Use the email as the document ID for the pending membership.
-      // This facilitates automatic "claiming" when the user logs in to the dashboard.
       const membershipDocRef = doc(firestore, 'accounts', accountId, 'memberships', email);
 
       const newMembership: Omit<Membership, 'id'> = {
@@ -48,18 +47,17 @@ export function useTeam() {
       // 3. Save the pending membership to Firestore
       await setDoc(membershipDocRef, newMembership);
       
-      // 4. Trigger invitation email pointing directly to the dashboard
-      // The useUserSetup hook will handle the claiming process automatically.
-      const dashboardLink = `https://bidtech.net/dashboard`;
+      // 4. Link includes the accountId hint for the direct-path discovery logic.
+      const inviteLink = `${window.location.origin}/dashboard?account=${accountId}`;
       
       await addDoc(collection(firestore, 'mail'), {
         to: email,
         accountId: accountId,
-        attachments: [], // Mandatory for Trigger Email extension
+        attachments: [],
         template: {
           name: 'staff-invite',
           data: {
-            inviteLink: dashboardLink,
+            inviteLink: inviteLink,
             orgName: orgName,
             role: values.role
           }

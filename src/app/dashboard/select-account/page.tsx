@@ -1,28 +1,58 @@
-
 'use client';
 
-import { useUser, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, where } from 'firebase/firestore';
-import type { Membership } from '@/lib/types';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import type { Membership, User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { Loader2, Gavel, ArrowRight, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 
 export default function SelectAccountPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
 
-  const membershipsQuery = useMemoFirebase(
-    () => (firestore && user ? query(collectionGroup(firestore, 'memberships'), where('userId', '==', user.uid)) : null),
+  const userRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
     [firestore, user]
   );
-  
-  const { data: memberships, isLoading: isMembershipsLoading } = useCollection<Membership>(membershipsQuery);
+  const { data: profile, isLoading: isProfileLoading } = useDoc<User>(userRef);
 
-  if (isUserLoading || isMembershipsLoading) {
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [isLoadingMemberships, setIsLoadingMemberships] = useState(true);
+
+  useEffect(() => {
+    const fetchMemberships = async () => {
+      if (!profile?.accounts || !firestore || !user) {
+        setIsLoadingMemberships(false);
+        return;
+      }
+
+      setIsLoadingMemberships(true);
+      try {
+        const accountIds = Object.keys(profile.accounts);
+        const fetchPromises = accountIds.map(async (accId) => {
+          const mRef = doc(firestore, 'accounts', accId, 'memberships', user.uid);
+          const mSnap = await getDoc(mRef);
+          return mSnap.exists() ? { id: mSnap.id, ...mSnap.data() } as Membership : null;
+        });
+        
+        const results = await Promise.all(fetchPromises);
+        setMemberships(results.filter((m): m is Membership => m !== null));
+      } catch (err) {
+        console.error("Error fetching memberships for selector:", err);
+      } finally {
+        setIsLoadingMemberships(false);
+      }
+    };
+
+    fetchMemberships();
+  }, [profile, firestore, user]);
+
+  if (isUserLoading || isProfileLoading || isLoadingMemberships) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -30,7 +60,7 @@ export default function SelectAccountPage() {
     );
   }
 
-  if (!memberships || memberships.length === 0) {
+  if (memberships.length === 0) {
     return (
       <div className="mx-auto max-w-md space-y-6 py-12">
         <Card className="text-center">
@@ -40,18 +70,18 @@ export default function SelectAccountPage() {
             </div>
             <CardTitle>No Accounts Found</CardTitle>
             <CardDescription>
-              You don't seem to be a member of any organization. 
-              Contact your administrator or create your own account.
+              You don't seem to be an active member of any organization. 
+              Check your invitation email or create your own account.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href="/dashboard">Check Again</Link>
+              <Link href="/dashboard">Refresh Dashboard</Link>
             </Button>
             <Button variant="outline" asChild className="w-full">
-              <Link href="/dashboard/settings/team">
+              <Link href="/dashboard/settings">
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Invite Team Members
+                Go to Settings
               </Link>
             </Button>
           </CardContent>
@@ -70,14 +100,14 @@ export default function SelectAccountPage() {
       <div className="grid gap-4">
         {memberships.map((membership) => (
           <Card 
-            key={membership.id} 
+            key={membership.accountId} 
             className="hover:border-primary hover:shadow-md transition-all cursor-pointer group" 
             onClick={() => router.push(`/dashboard?account=${membership.accountId}`)}
           >
             <CardContent className="flex items-center justify-between p-6">
               <div className="flex flex-col gap-1">
                 <span className="font-bold text-xl group-hover:text-primary transition-colors">
-                  {membership.accountId === user?.uid ? 'Personal Account' : `Organization: ${membership.accountId}`}
+                  {membership.accountId === user?.uid ? 'Personal Account' : `Organization ID: ${membership.accountId.slice(0, 8)}...`}
                 </span>
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground capitalize bg-secondary px-2 py-0.5 rounded">
