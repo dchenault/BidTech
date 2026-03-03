@@ -2,8 +2,8 @@
 
 import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react';
 import { useUser, useFirestore } from '@/firebase';
-import { collectionGroup, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
-import type { Membership, Account } from '@/lib/types';
+import { collectionGroup, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, collection, addDoc, writeBatch } from 'firebase/firestore';
+import type { Membership, Account, User } from '@/lib/types';
 import { useStaffSession } from './use-staff-session';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
@@ -38,6 +38,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Bypass RBAC background discovery on invitation routes
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/invite')) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       
       try {
@@ -61,8 +67,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         }
 
         // --- STEP 2: Discovery Fallback ---
-        // We look for any membership records matching this user's UID or Email.
-        
         // A. Query by UID (Active Memberships)
         const qByUid = query(
           collectionGroup(firestore, 'memberships'),
@@ -80,26 +84,59 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           console.error("RBAC Discovery (UID) Query Failed:", discoveryErr);
         }
 
-        // B. Query by Email (Pending Invitations)
-        if (user.email) {
+        // --- NEW STEP: Auto-Claim by Email if no UID matches exist ---
+        if (foundMemberships.length === 0 && user.email) {
+          console.log("RBAC: No UID memberships found. Searching for email invitations...");
           const emailQ = query(
             collectionGroup(firestore, 'memberships'),
             where('email', '==', user.email.toLowerCase()),
             where('status', '==', 'pending')
           );
+          
           try {
             const emailSnap = await getDocs(emailQ);
-            const emailMemberships = emailSnap.docs.map(d => ({
-              id: d.id,
-              ...d.data()
-            } as Membership));
-            foundMemberships = [...foundMemberships, ...emailMemberships];
-          } catch (e) {
-            console.error("RBAC Discovery (Email) Failed:", e);
+            if (!emailSnap.empty) {
+              const batch = writeBatch(firestore);
+              const claimed: Membership[] = [];
+
+              for (const d of emailSnap.docs) {
+                const inviteData = d.data() as Membership;
+                const accountId = inviteData.accountId;
+                
+                // 1. Create permanent UID-based membership
+                const newMRef = doc(firestore, 'accounts', accountId, 'memberships', user.uid);
+                const activeM: Membership = {
+                  ...inviteData,
+                  id: user.uid,
+                  userId: user.uid,
+                  status: 'active',
+                };
+                batch.set(newMRef, activeM);
+
+                // 2. Delete old email-indexed invitation
+                batch.delete(d.ref);
+
+                // 3. Update/Initialize user profile to prevent race conditions with setup hook
+                const profileRef = doc(firestore, 'users', user.uid);
+                const profileUpdate: Partial<User> = {
+                  activeAccountId: accountId,
+                  [`accounts.${accountId}`]: inviteData.role,
+                };
+                batch.set(profileRef, profileUpdate, { merge: true });
+                
+                claimed.push(activeM);
+              }
+
+              await batch.commit();
+              console.log(`RBAC: Auto-claimed ${claimed.length} invitations.`);
+              foundMemberships = claimed;
+            }
+          } catch (emailErr) {
+            console.error("RBAC Discovery (Email) Failed:", emailErr);
           }
         }
         
-        // De-duplicate memberships by accountId (UID-based matches take precedence)
+        // De-duplicate memberships by accountId
         const membershipMap = new Map<string, Membership>();
         foundMemberships.forEach(m => {
           if (!membershipMap.has(m.accountId) || m.userId === user.uid) {

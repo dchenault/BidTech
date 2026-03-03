@@ -38,7 +38,6 @@ service cloud.firestore {
     // Email Outbox (Used by Trigger Email Extension)
     match /mail/{mailId} {
       // Only Admins or Account Owners can trigger an outgoing email
-      // Note: We check the 'accountId' context from the request data if available
       allow create: if isSignedIn() && 
                     (hasRole(request.resource.data.accountId, 'admin') || 
                      request.auth.uid == request.resource.data.accountId);
@@ -53,11 +52,16 @@ service cloud.firestore {
 
       // Memberships sub-collection (Team Management)
       match /memberships/{membershipId} {
-        // Allow users to read their own record (Crucial for Discovery/Login)
-        allow read: if isSignedIn() && request.auth.uid == membershipId;
+        // Allow users to read/claim their own record (Crucial for Discovery/Login)
+        allow read: if isSignedIn() && (request.auth.uid == membershipId || request.auth.token.email.lower() == membershipId.lower());
         
-        // Only admins OR the original Account Owner can manage team memberships.
-        allow write: if isSignedIn() && (request.auth.uid == accountId || hasRole(accountId, 'admin'));
+        // Allow user to write their own permanent membership doc (claiming)
+        // OR allow admins/owners to manage members.
+        allow write: if isSignedIn() && (
+          request.auth.uid == membershipId || 
+          request.auth.uid == accountId || 
+          hasRole(accountId, 'admin')
+        );
       }
 
       // Auctions
@@ -92,7 +96,7 @@ service cloud.firestore {
     
     // Support for Collection Group Queries (Discovery)
     match /{path=**}/memberships/{membershipId} {
-      allow read: if isSignedIn() && request.auth.uid == membershipId;
+      allow read: if isSignedIn() && (request.auth.uid == membershipId || request.auth.token.email.lower() == membershipId.lower());
     }
   }
 }
