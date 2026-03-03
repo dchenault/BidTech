@@ -30,21 +30,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveAccount = async () => {
-      // BYPASS LOGIC FOR INVITATION PATHS
-      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/invite')) {
-        console.log('RBAC Discovery: Bypassed for invitation path');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!user) {
+      // Exit if auth isn't resolved, there's no user, or no firestore connection.
+      if (!user || !firestore) {
         if (!isAuthLoading && !isSessionLoading) {
           setIsLoading(false);
         }
         return;
       }
-
-      if (!firestore) return;
 
       setIsLoading(true);
       
@@ -69,9 +61,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         }
 
         // --- STEP 2: Discovery Fallback ---
-        console.log('RBAC Discovery: Started for UID', user.uid);
+        // We look for any membership records matching this user's UID or Email.
         
-        // A. Query by UID
+        // A. Query by UID (Active Memberships)
         const qByUid = query(
           collectionGroup(firestore, 'memberships'),
           where('userId', '==', user.uid)
@@ -88,7 +80,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           console.error("RBAC Discovery (UID) Query Failed:", discoveryErr);
         }
 
-        // B. Query by Email (Pending Invites)
+        // B. Query by Email (Pending Invitations)
         if (user.email) {
           const emailQ = query(
             collectionGroup(firestore, 'memberships'),
@@ -107,7 +99,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // De-duplicate memberships by accountId (UID-based matches win)
+        // De-duplicate memberships by accountId (UID-based matches take precedence)
         const membershipMap = new Map<string, Membership>();
         foundMemberships.forEach(m => {
           if (!membershipMap.has(m.accountId) || m.userId === user.uid) {
@@ -118,17 +110,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const finalMemberships = Array.from(membershipMap.values());
         setMemberships(finalMemberships);
 
-        // --- STEP 3: Self-Healing Fallback ---
+        // --- STEP 3: Self-Healing Fallback (Account Owners) ---
         if (finalMemberships.length === 0) {
-          console.warn('RBAC Discovery: No memberships found. Checking account ownership...');
-          
           const targetId = urlAccountId || user.uid;
           const accountRef = doc(firestore, 'accounts', targetId);
           
           try {
             const accountSnap = await getDoc(accountRef);
             if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
-              console.log('RBAC Discovery: Owner found without membership record. Repairing...');
               setIsSelfHealing(true);
               const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
               
@@ -143,24 +132,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               };
               
               await setDoc(mRef, newMData);
-
-              try {
-                await addDoc(collection(firestore, 'mail'), {
-                  to: user.email,
-                  accountId: targetId,
-                  attachments: [],
-                  template: {
-                    name: 'welcome-owner', 
-                    data: {
-                      name: user.displayName || 'Owner',
-                      orgName: accountSnap.data().name || 'Your Organization'
-                    }
-                  }
-                });      
-              } catch (mailErr: any) {
-                console.error(`RBAC Mail Write Failed: ${mailErr.message}`);
-              }
-
               setMemberships([{ id: user.uid, ...newMData } as any]);
               setIsSelfHealing(false);
             }
@@ -178,10 +149,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!isAuthLoading && !isSessionLoading) {
       resolveAccount();
     }
-  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession, pathname]);
+  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, isStaffSession]);
 
+  // Route Guard: Ensure the user is in an organizational context
   useEffect(() => {
-    if (isLoading || isSelfHealing || !user || pathname.startsWith('/invite')) return;
+    if (isLoading || isSelfHealing || !user) return;
 
     const urlAccountId = searchParams.get('account');
     const isDashboardArea = pathname.startsWith('/dashboard');

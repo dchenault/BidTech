@@ -9,7 +9,7 @@ import { doc, getDoc, collectionGroup, query, where, getDocs, writeBatch } from 
 /**
  * Hook that runs on authenticated layouts to handle one-time setup for new users.
  * This hook is critical for correctly associating a new user with an existing account
- * if they were invited as an admin or staff, or creating a new personal account for them if not.
+ * if they were invited via email, or creating a new personal account for them if not.
  * @returns {boolean} A loading state `isSetupLoading`.
  */
 export function useUserSetup() {
@@ -43,6 +43,7 @@ export function useUserSetup() {
       }
 
       // Check if the user's email is listed in ANY account's memberships as pending.
+      // This identifies invitations that were sent using the user's email as the document ID.
       const membershipsQuery = query(
         collectionGroup(firestore, 'memberships'),
         where('email', '==', user.email?.toLowerCase()),
@@ -51,8 +52,8 @@ export function useUserSetup() {
       const membershipDocsSnap = await getDocs(membershipsQuery);
 
       if (!membershipDocsSnap.empty) {
-        // --- Path A: User has a pre-existing membership (Admin or Staff) ---
-        // Claim the invitation by creating a UID-based record and deleting the email-based one.
+        // --- Path A: User has a pending email-based membership ---
+        // Claim the invitation by creating a permanent UID-based record and deleting the email-based one.
         const membershipDoc = membershipDocsSnap.docs[0];
         const membershipData = membershipDoc.data();
         const accountId = membershipData.accountId;
@@ -63,7 +64,7 @@ export function useUserSetup() {
 
         const batch = writeBatch(firestore);
         
-        // 1. Create the permanent membership document linked to the UID
+        // 1. Create the permanent membership document linked to the actual user UID
         const newMRef = doc(firestore, 'accounts', accountId, 'memberships', user.uid);
         batch.set(newMRef, {
           ...membershipData,
@@ -72,7 +73,7 @@ export function useUserSetup() {
           status: 'active'
         });
 
-        // 2. Delete the temporary email-based invitation document
+        // 2. Delete the temporary email-indexed invitation document
         if (membershipDoc.id !== user.uid) {
           batch.delete(membershipDoc.ref);
         }
@@ -95,7 +96,7 @@ export function useUserSetup() {
           description: `You've joined the account as ${membershipData.role}.`,
         });
       } else {
-        // --- Path B: Standard new user signup ---
+        // --- Path B: Standard new user signup (create personal account) ---
         await setupNewUser(firestore, user);
         toast({
           title: 'Welcome!',

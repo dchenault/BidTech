@@ -50,7 +50,7 @@ export function useTeam() {
       
       // 4. Trigger invitation email pointing directly to the dashboard
       // The useUserSetup hook will handle the claiming process automatically.
-      const inviteLink = `https://bidtech.net/dashboard`;
+      const dashboardLink = `https://bidtech.net/dashboard`;
       
       await addDoc(collection(firestore, 'mail'), {
         to: email,
@@ -59,7 +59,7 @@ export function useTeam() {
         template: {
           name: 'staff-invite',
           data: {
-            inviteLink: inviteLink,
+            inviteLink: dashboardLink,
             orgName: orgName,
             role: values.role
           }

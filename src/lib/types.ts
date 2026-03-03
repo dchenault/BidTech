@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export type User = {
@@ -145,7 +144,6 @@ export type Membership = {
   status: 'active' | 'pending' | 'invited';
   invitedBy?: string;
   invitedAt?: any;
-  inviteToken?: string;
 };
 
 export type Invitation = {
@@ -178,7 +176,7 @@ export const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(1, 'Password is required.'),
 });
-export type LoginValues = z.infer<typeof loginSchema>;
+export type LoginValues = z.infer<typeof loginSchema.)>;
 
 export const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
