@@ -130,7 +130,6 @@ export default function InvitePage({ params }: { params: { accountId: string; to
         id: user.uid,
         userId: user.uid,
         status: 'active',
-        inviteToken: "" // Clear token to prevent reuse
       };
       
       batch.set(newMRef, newMData);
