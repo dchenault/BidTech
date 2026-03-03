@@ -29,7 +29,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveAccount = async () => {
-      // Exit if auth isn't resolved, there's no user, or no firestore connection.
       if (!user || !firestore) {
         if (!isAuthLoading && !isSessionLoading) {
           setIsLoading(false);
@@ -37,8 +36,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Bypass RBAC discovery on public routes
-      if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/invite') || window.location.pathname.startsWith('/catalog'))) {
+      // Bypass discovery on public-facing routes
+      if (typeof window !== 'undefined' && (pathname.startsWith('/invite') || pathname.startsWith('/catalog') || pathname.startsWith('/staff-login'))) {
         setIsLoading(false);
         return;
       }
@@ -48,12 +47,54 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       try {
         const urlAccountId = searchParams.get('account');
         const userRef = doc(firestore, 'users', user.uid);
+        
+        // --- PHASE 1: Targeted Invitation Handshake (Direct Path) ---
+        // This is the "Emergency Refactor": We check the URL hint first.
+        if (urlAccountId && user.email) {
+          const invitePath = `accounts/${urlAccountId}/memberships/${user.email.toLowerCase()}`;
+          const inviteRef = doc(firestore, invitePath);
+          const inviteSnap = await getDoc(inviteRef);
+
+          if (inviteSnap.exists()) {
+            const inviteData = inviteSnap.data() as Membership;
+            
+            if (inviteData.status === 'pending') {
+              console.log("RBAC: Found pending invite at direct path. Starting Auto-Claim...");
+              const batch = writeBatch(firestore);
+              
+              // 1. Create permanent UID-based membership
+              const newMRef = doc(firestore, 'accounts', urlAccountId, 'memberships', user.uid);
+              const activeM: Membership = {
+                ...inviteData,
+                id: user.uid,
+                userId: user.uid,
+                status: 'active',
+              };
+              batch.set(newMRef, activeM);
+
+              // 2. Delete temporary email-indexed invitation doc
+              batch.delete(inviteRef);
+
+              // 3. Update/Initialize user profile
+              const profileUpdate: Partial<User> = {
+                activeAccountId: urlAccountId,
+                [`accounts.${urlAccountId}`]: inviteData.role,
+              };
+              batch.set(userRef, profileUpdate, { merge: true });
+              
+              await batch.commit();
+              console.log("RBAC: Auto-claim committed successfully.");
+              setMemberships([activeM]);
+              setIsLoading(false);
+              return; // Stop here, we just initialized the context
+            }
+          }
+        }
+
+        // --- PHASE 2: Standard Active Membership Discovery ---
         const userSnap = await getDoc(userRef);
         const userData = userSnap.exists() ? userSnap.data() as User : null;
 
-        // --- PHASE 1: Active Membership Discovery ---
-        // Instead of collectionGroup, we use the user's profile as a registry of active accounts.
-        let activeMemberships: Membership[] = [];
         if (userData?.accounts) {
           const accountIds = Object.keys(userData.accounts);
           const fetchPromises = accountIds.map(async (accId) => {
@@ -62,83 +103,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             return mSnap.exists() ? { id: mSnap.id, ...mSnap.data() } as Membership : null;
           });
           const results = await Promise.all(fetchPromises);
-          activeMemberships = results.filter((m): m is Membership => m !== null);
+          const activeMemberships = results.filter((m): m is Membership => m !== null);
+          setMemberships(activeMemberships);
+        } else {
+          setMemberships([]);
         }
 
-        // --- PHASE 2: Targeted Invitation Handshake (Direct Path) ---
-        // If an account is specified in the URL, check for a pending email-indexed invite.
-        if (urlAccountId && user.email) {
-          const isAlreadyActive = activeMemberships.some(m => m.accountId === urlAccountId);
-          
-          if (!isAlreadyActive) {
-            const invitePath = `accounts/${urlAccountId}/memberships/${user.email.toLowerCase()}`;
-            const inviteRef = doc(firestore, invitePath);
-            const inviteSnap = await getDoc(inviteRef);
-
-            if (inviteSnap.exists()) {
-              const inviteData = inviteSnap.data() as Membership;
-              
-              if (inviteData.status === 'pending') {
-                console.log("RBAC: Found pending invite. Starting Auto-Claim batch...");
-                const batch = writeBatch(firestore);
-                
-                // 1. Create permanent UID-based membership
-                const newMRef = doc(firestore, 'accounts', urlAccountId, 'memberships', user.uid);
-                const activeM: Membership = {
-                  ...inviteData,
-                  id: user.uid,
-                  userId: user.uid,
-                  status: 'active',
-                };
-                batch.set(newMRef, activeM);
-
-                // 2. Delete temporary email-indexed invitation doc
-                batch.delete(inviteRef);
-
-                // 3. Update/Initialize user profile to link organizational context
-                const profileUpdate: Partial<User> = {
-                  activeAccountId: urlAccountId,
-                  [`accounts.${urlAccountId}`]: inviteData.role,
-                };
-                batch.set(userRef, profileUpdate, { merge: true });
-                
-                await batch.commit();
-                console.log("RBAC: Auto-claim successful.");
-                activeMemberships.push(activeM);
-              }
-            }
-          }
-        }
-
-        setMemberships(activeMemberships);
-
-        // --- PHASE 3: Self-Healing Fallback (Owners) ---
-        if (activeMemberships.length === 0) {
-          const targetId = urlAccountId || user.uid;
-          const accountRef = doc(firestore, 'accounts', targetId);
-          const accountSnap = await getDoc(accountRef);
-          
-          if (accountSnap.exists() && accountSnap.data().adminUserId === user.uid) {
-            const mRef = doc(firestore, 'accounts', targetId, 'memberships', user.uid);
-            const newMData = {
-              userId: user.uid,
-              accountId: targetId,
-              role: 'admin' as const,
-              email: user.email || '',
-              assignedAuctions: [],
-              status: 'active' as const,
-              joinedAt: serverTimestamp(),
-            };
-            await writeBatch(firestore)
-              .set(mRef, newMData)
-              .set(userRef, { accounts: { [targetId]: 'admin' }, activeAccountId: targetId }, { merge: true })
-              .commit();
-            
-            setMemberships([{ id: user.uid, ...newMData } as any]);
-          }
-        }
       } catch (err) {
-        console.error("RBAC Discovery Error:", err);
+        console.error("RBAC Direct Path Error:", err);
       } finally {
         setIsLoading(false);
       }
@@ -147,7 +119,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!isAuthLoading && !isSessionLoading) {
       resolveAccount();
     }
-  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, pathname, router]);
+  }, [user, firestore, isAuthLoading, isSessionLoading, searchParams, pathname]);
 
   // Route Guard: Ensure the user is in an organizational context
   useEffect(() => {

@@ -53,9 +53,11 @@ service cloud.firestore {
       // Memberships sub-collection (Team Management)
       match /memberships/{membershipId} {
         // Direct Path Read: Allow users to read their own record (UID or Email indexed)
+        // CRITICAL: email field check is for collectionGroup search, membershipId check is for direct path.
         allow read: if isSignedIn() && (
           request.auth.uid == membershipId || 
-          request.auth.token.email.lower() == membershipId.lower()
+          request.auth.token.email.lower() == membershipId.lower() ||
+          (exists(request.path) && get(request.path).data.email.lower() == request.auth.token.email.lower())
         );
         
         // Direct Path Write: Allow user to claim/delete their own record

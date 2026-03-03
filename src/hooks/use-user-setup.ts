@@ -8,9 +8,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useAccount } from './use-account';
 
 /**
- * Hook that handles final user setup if no organization was auto-claimed.
- * It primarily handles standard new user signup (personal account creation).
- * @returns {boolean} A loading state `isSetupLoading`.
+ * Hook that handles fallback user setup (creating a personal account) 
+ * if no organizational memberships were discovered or claimed during the RBAC phase.
  */
 export function useUserSetup() {
   const { firestore, user, isUserLoading: isAuthLoading } = useFirebase();
@@ -19,33 +18,39 @@ export function useUserSetup() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const performUserSetup = useCallback(async () => {
-    // Exit if auth isn't resolved, there's no user, or no firestore connection.
+    // Only run if everything is resolved
     if (isAuthLoading || isAccountLoading || !user || !firestore) {
       return;
     }
 
-    // Use sessionStorage to prevent re-running
-    if (sessionStorage.getItem(`user-setup-complete-${user.uid}`)) {
+    // Use session storage to ensure we don't spam checks in the same session
+    const setupKey = `user-setup-check-${user.uid}`;
+    if (sessionStorage.getItem(setupKey)) {
       return;
-    }
-
-    // If an organizational context already exists (from UID membership or auto-claim),
-    // ensure the profile exists and then we are done.
-    if (accountId) {
-      const userProfileRef = doc(firestore, 'users', user.uid);
-      const userProfileSnap = await getDoc(userProfileRef);
-      
-      if (userProfileSnap.exists()) {
-        sessionStorage.setItem(`user-setup-complete-${user.uid}`, 'true');
-        return;
-      }
     }
 
     setIsProcessing(true);
 
     try {
-      // Standard Path: If no account was discovered/claimed, create a new personal organization.
+      // Step 1: If useAccount found/claimed an account, just verify profile existence.
+      if (accountId) {
+        const userProfileRef = doc(firestore, 'users', user.uid);
+        const userProfileSnap = await getDoc(userProfileRef);
+        
+        // If the profile doesn't exist but the account was claimed, initialize the profile.
+        if (!userProfileSnap.exists()) {
+          console.log("Setup: Claim detected but profile missing. Initializing profile...");
+          await setupNewUser(firestore, user);
+        }
+        
+        sessionStorage.setItem(setupKey, 'true');
+        return;
+      }
+
+      // Step 2: Standard Fallback - If NO account was found (no param, no existing memberships),
+      // create a new personal organization.
       if (!accountId) {
+        console.log("Setup: No organization context found. Creating personal account...");
         await setupNewUser(firestore, user);
         toast({
           title: 'Welcome!',
@@ -53,7 +58,7 @@ export function useUserSetup() {
         });
       }
 
-      sessionStorage.setItem(`user-setup-complete-${user.uid}`, 'true');
+      sessionStorage.setItem(setupKey, 'true');
 
     } catch (error) {
       console.error('Error during user setup:', error);
