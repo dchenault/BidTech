@@ -49,7 +49,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       try {
         const urlAccountId = searchParams.get('account');
         
-        // --- STEP 1: Direct Fetch Priority ---
+        // --- STEP 1: Direct Fetch Priority (By UID) ---
         if (urlAccountId) {
           const directPath = `accounts/${urlAccountId}/memberships/${user.uid}`;
           const directRef = doc(firestore, directPath);
@@ -66,8 +66,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // --- STEP 2: Discovery Fallback ---
-        // A. Query by UID (Active Memberships)
+        // --- STEP 2: Discovery Fallback (UID Search) ---
         const qByUid = query(
           collectionGroup(firestore, 'memberships'),
           where('userId', '==', user.uid)
@@ -84,7 +83,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           console.error("RBAC Discovery (UID) Query Failed:", discoveryErr);
         }
 
-        // --- NEW STEP: Auto-Claim by Email if no UID matches exist ---
+        // --- STEP 3: Auto-Claim Handshake (Email Discovery) ---
+        // If no UID matches exist, search for invitations sent to the user's email address
         if (foundMemberships.length === 0 && user.email) {
           console.log("RBAC: No UID memberships found. Searching for email invitations...");
           const emailQ = query(
@@ -101,10 +101,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
               for (const d of emailSnap.docs) {
                 const inviteData = d.data() as Membership;
-                const accountId = inviteData.accountId;
+                const targetAccountId = inviteData.accountId;
                 
                 // 1. Create permanent UID-based membership
-                const newMRef = doc(firestore, 'accounts', accountId, 'memberships', user.uid);
+                const newMRef = doc(firestore, 'accounts', targetAccountId, 'memberships', user.uid);
                 const activeM: Membership = {
                   ...inviteData,
                   id: user.uid,
@@ -113,14 +113,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 };
                 batch.set(newMRef, activeM);
 
-                // 2. Delete old email-indexed invitation
+                // 2. Delete temporary email-indexed invitation doc
                 batch.delete(d.ref);
 
-                // 3. Update/Initialize user profile to prevent race conditions with setup hook
+                // 3. Update/Initialize user profile to link organizational context
                 const profileRef = doc(firestore, 'users', user.uid);
                 const profileUpdate: Partial<User> = {
-                  activeAccountId: accountId,
-                  [`accounts.${accountId}`]: inviteData.role,
+                  activeAccountId: targetAccountId,
+                  [`accounts.${targetAccountId}`]: inviteData.role,
                 };
                 batch.set(profileRef, profileUpdate, { merge: true });
                 
@@ -136,7 +136,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // De-duplicate memberships by accountId
+        // De-duplicate memberships by accountId (UID priority)
         const membershipMap = new Map<string, Membership>();
         foundMemberships.forEach(m => {
           if (!membershipMap.has(m.accountId) || m.userId === user.uid) {
@@ -147,7 +147,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const finalMemberships = Array.from(membershipMap.values());
         setMemberships(finalMemberships);
 
-        // --- STEP 3: Self-Healing Fallback (Account Owners) ---
+        // --- STEP 4: Self-Healing Fallback (Account Owners) ---
         if (finalMemberships.length === 0) {
           const targetId = urlAccountId || user.uid;
           const accountRef = doc(firestore, 'accounts', targetId);

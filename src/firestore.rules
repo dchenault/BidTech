@@ -53,12 +53,22 @@ service cloud.firestore {
       // Memberships sub-collection (Team Management)
       match /memberships/{membershipId} {
         // Allow users to read their own record (Crucial for Discovery/Login)
-        allow read: if isSignedIn() && request.auth.uid == membershipId;
+        // Checks UID identity OR Email identity for pending invitations
+        allow read: if isSignedIn() && (
+          request.auth.uid == membershipId || 
+          request.auth.token.email.lower() == membershipId.lower() ||
+          (exists(resource) && request.auth.token.email.lower() == resource.data.email.lower())
+        );
         
-        // SELF-HEALING FIX: Allow a write if the user IS the Account Owner
-        // OR if they already have an existing admin role.
-        allow write: if isSignedIn() && 
-                     (request.auth.uid == accountId || hasRole(accountId, 'admin'));
+        // Allow user to write their own permanent membership doc (claiming)
+        // OR delete their own temporary email-indexed doc (claiming completion)
+        // OR allow admins/owners to manage members.
+        allow write: if isSignedIn() && (
+          request.auth.uid == membershipId || 
+          request.auth.token.email.lower() == membershipId.lower() ||
+          request.auth.uid == accountId || 
+          hasRole(accountId, 'admin')
+        );
       }
 
       // Auctions
@@ -93,7 +103,10 @@ service cloud.firestore {
     
     // Support for Collection Group Queries (Discovery)
     match /{path=**}/memberships/{membershipId} {
-      allow read: if isSignedIn() && request.auth.uid == membershipId;
+      allow read: if isSignedIn() && (
+        request.auth.uid == membershipId || 
+        request.auth.token.email.lower() == membershipId.lower()
+      );
     }
   }
 }
