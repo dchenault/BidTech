@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2 } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2, Upload } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -56,6 +56,7 @@ import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dial
 import { useStorage } from '@/firebase/provider';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
 import Link from 'next/link';
+import { ImportItemsCsvDialog } from '@/components/import-items-csv-dialog';
 
 export default function PublicStaffAuctionPage() {
   const params = useParams();
@@ -87,6 +88,7 @@ export default function PublicStaffAuctionPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
+  const [isImportItemsDialogOpen, setIsImportItemsDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -445,6 +447,11 @@ export default function PublicStaffAuctionPage() {
     }
   };
 
+  const handleOpenEditCategoryDialog = (category: Category) => {
+    setSelectedCategory(category);
+    setIsEditCategoryDialogOpen(true);
+  };
+
   const handleAddCategory = async (values: any) => {
     if (!firestore || !accountId || !auctionId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -677,6 +684,10 @@ export default function PublicStaffAuctionPage() {
                     </Button>
                      {auction.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
                     <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}><Download className="mr-2 h-4 w-4" />Export Catalog</Button>
+                    <Button size="sm" variant="outline" onClick={() => setIsImportItemsDialogOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import Items
+                    </Button>
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
               </div>
@@ -843,6 +854,14 @@ export default function PublicStaffAuctionPage() {
       </AlertDialog>
 
       <ExportCatalogDialog isOpen={isExportCatalogDialogOpen} onClose={() => setIsExportCatalogDialogOpen(false)} items={items} lots={lots} onSubmit={(orderedItems) => handleExportCatalog(orderedItems, lots)} isLoading={isLoading}/>
+      
+      <ImportItemsCsvDialog
+        isOpen={isImportItemsDialogOpen}
+        onClose={() => setIsImportItemsDialogOpen(false)}
+        accountId={accountId}
+        auctionId={auctionId}
+        categories={auction.categories || []}
+      />
     </>
   );
 }

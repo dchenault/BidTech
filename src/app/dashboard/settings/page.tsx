@@ -30,12 +30,14 @@ import type { Item } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
 import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
+import { ImportItemsCsvDialog } from '@/components/import-items-csv-dialog';
 
 type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations';
 
 export default function SettingsPage() {
   const [isImportPatronsDialogOpen, setIsImportPatronsDialogOpen] = useState(false);
   const [isImportDonorsDialogOpen, setIsImportDonorsDialogOpen] = useState(false);
+  const [isImportItemsDialogOpen, setIsImportItemsDialogOpen] = useState(false);
   const [isProcessingExport, setIsProcessingExport] = useState(false);
   const [exportDialog, setExportDialog] = useState<{ isOpen: boolean; type: ExportType; title: string; } | null>(null);
   
@@ -132,11 +134,15 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Import Data</CardTitle>
           <CardDescription>
-            Bulk import patrons or donors from a CSV file.
+            Bulk import items, patrons, or donors from a CSV file.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <Button variant="outline" onClick={() => setIsImportItemsDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Items
+            </Button>
             <Button variant="outline" onClick={() => setIsImportPatronsDialogOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
               Import Patrons
@@ -201,6 +207,12 @@ export default function SettingsPage() {
         reportOptions={exportDialog.type === 'reports' ? { full: 'All Winning Bids', specific: 'Winning Bids from a specific auction' } : undefined}
       />
     )}
+
+    <ImportItemsCsvDialog
+        isOpen={isImportItemsDialogOpen}
+        onClose={() => setIsImportItemsDialogOpen(false)}
+        accountId={accountId!}
+    />
 
     <ImportCsvDialog
         isOpen={isImportPatronsDialogOpen}

@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel, Upload } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -61,6 +61,7 @@ import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { EditLotDialog } from '@/components/edit-lot-dialog';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
+import { ImportItemsCsvDialog } from '@/components/import-items-csv-dialog';
 
 export default function AuctionDetailsPage() {
   const params = useParams();
@@ -79,6 +80,7 @@ export default function AuctionDetailsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
+  const [isImportItemsDialogOpen, setIsImportItemsDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
 
@@ -279,7 +281,7 @@ export default function AuctionDetailsPage() {
     }
     const url = `${window.location.origin}/catalog/${auction.accountId}/${auction.slug}`;
     navigator.clipboard.writeText(url).then(() => {
-        toast({ title: 'Public Link Copied!', description: 'The link to the public catalog has been copied to your clipboard.'});
+        toast({ title: 'Public Link Passed!', description: 'The link to the public catalog has been copied to your clipboard.'});
     }).catch(err => {
         toast({ variant: 'destructive', title: 'Failed to Copy Link'});
         console.error('Failed to copy: ', err);
@@ -835,6 +837,10 @@ export default function AuctionDetailsPage() {
                             Add Lot
                         </Button>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => setIsImportItemsDialogOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import Items
+                    </Button>
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}>
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Add Item
@@ -1318,6 +1324,14 @@ export default function AuctionDetailsPage() {
         lots={lots}
         onSubmit={(orderedItems) => handleExportCatalog(orderedItems, lots)}
         isLoading={isLoadingItems || isLoadingLots}
+      />
+
+      <ImportItemsCsvDialog
+        isOpen={isImportItemsDialogOpen}
+        onClose={() => setIsImportItemsDialogOpen(false)}
+        accountId={accountId!}
+        auctionId={auctionId}
+        categories={auction.categories || []}
       />
     </>
   );
