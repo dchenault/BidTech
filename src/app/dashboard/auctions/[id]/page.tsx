@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -25,15 +24,9 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,15 +38,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuctions } from '@/hooks/use-auctions';
-import { useState, useMemo, useEffect } from 'react';
-import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, LotFormValues, Auction } from '@/lib/types';
+import { useState, useMemo } from 'react';
+import type { Item, Patron, ItemFormValues, Category, CategoryFormValues, RegisteredPatron, Lot, Auction } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
 import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -339,23 +332,6 @@ export default function AuctionDetailsPage() {
     setIsWinningBidDialogOpen(true);
   };
   
-  const handleOpenEditDialog = (item: Item) => {
-    setSelectedItem(item);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleOpenDeleteDialog = (item: Item) => {
-    if (item.winnerId || item.winningBid) {
-      toast({
-        variant: "destructive",
-        title: "Cannot Delete Item",
-        description: "This item has already been won and cannot be deleted."
-      });
-      return;
-    }
-    setItemToDelete(item);
-  };
-
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     try {
@@ -472,11 +448,6 @@ export default function AuctionDetailsPage() {
   };
 
 
-  const handleAssignItemToLot = (itemId: string, lotId: string) => {
-    if (!auction) return;
-    moveItemToLot(auction.id, itemId, lotId);
-  }
-
   const handleRegisterPatron = async (patron: Patron, bidderNumber: number) => {
     if (!registeredPatronsRef || !accountId || !user) return;
 
@@ -536,11 +507,6 @@ export default function AuctionDetailsPage() {
                     </Button>
                 </TableHead>
                 <TableHead className="hidden lg:table-cell">
-                    <Button variant="ghost" onClick={() => requestSort('estimatedValue')} className="-ml-4 h-8">
-                        Est. Value {sortConfig?.key === 'estimatedValue' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                    </Button>
-                </TableHead>
-                <TableHead className="hidden lg:table-cell">
                       <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
                         Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
@@ -550,9 +516,7 @@ export default function AuctionDetailsPage() {
                         Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
-                <TableHead>
-                    <span className="sr-only">Actions</span>
-                </TableHead>
+                <TableHead className="text-right">Action</TableHead>
             </TableRow>
             </TableHeader>
             <TableBody>
@@ -585,36 +549,36 @@ export default function AuctionDetailsPage() {
                     <Badge variant="outline">{item.category.name}</Badge>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                    {formatCurrency(item.estimatedValue)}
-                </TableCell>
-                <TableCell className="hidden lg:table-cell">
                     {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
                     {item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}
                 </TableCell>
-                <TableCell>
-                    <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                <TableCell className="text-right">
+                    {item.winningBid ? (
                         <Button 
-                            aria-haspopup="true" 
-                            size="icon" 
-                            variant="ghost"
-                            onClick={(e) => e.stopPropagation()}
+                            size="sm" 
+                            variant="secondary"
+                            className="h-8 w-24"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenWinningBidDialog(item);
+                            }}
                         >
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
+                            Edit Bid
                         </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/auctions/${auction.id}/items/${item.id}`)}}>View Details</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>
-                        Enter Winning Bid
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                    </DropdownMenu>
+                    ) : (
+                        <Button 
+                            size="sm" 
+                            className="h-8 w-24 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenWinningBidDialog(item);
+                            }}
+                        >
+                            Winning Bid
+                        </Button>
+                    )}
                 </TableCell>
                 </TableRow>
             ))}
@@ -1200,7 +1164,10 @@ export default function AuctionDetailsPage() {
       {selectedItem && (
         <EnterWinningBidDialog
             isOpen={isWinningBidDialogOpen}
-            onClose={() => setIsWinningBidDialogOpen(false)}
+            onClose={() => {
+                setIsWinningBidDialogOpen(false);
+                setSelectedItem(null);
+            }}
             item={selectedItem}
             patrons={registeredPatronsWithDetails}
             onSubmit={handleWinningBidSubmit}

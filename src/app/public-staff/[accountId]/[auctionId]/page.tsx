@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import {
@@ -25,15 +23,9 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Frown, Loader2 } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +42,7 @@ import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc, writeBatch, onSnapshot, query, where, increment, deleteField, getDocs, runTransaction, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, increment, onSnapshot, query, where, deleteField, getDocs, runTransaction, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
@@ -60,15 +52,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import Image from 'next/image';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStorage } from '@/firebase/provider';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
 import Link from 'next/link';
-
-// This is a standalone, self-sufficient version of the Auction Details page,
-// specifically for the public staff portal. It re-implements data fetching
-// and actions directly, bypassing the app's main authentication hooks to avoid conflicts.
 
 export default function PublicStaffAuctionPage() {
   const params = useParams();
@@ -76,13 +63,12 @@ export default function PublicStaffAuctionPage() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
+  const { isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
   const auctionId = typeof params.auctionId === 'string' ? params.auctionId : '';
   
-  // --- Authorization & State Management ---
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [staffName, setStaffName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -92,12 +78,10 @@ export default function PublicStaffAuctionPage() {
   const [lots, setLots] = useState<Lot[]>([]);
   const [patrons, setPatrons] = useState<Patron[]>([]);
   const [registeredPatrons, setRegisteredPatrons] = useState<RegisteredPatron[]>([]);
-  const [staffUsernames, setStaffUsernames] = useState<{ id: string }[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // --- Dialog States ---
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -109,12 +93,9 @@ export default function PublicStaffAuctionPage() {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
-  const [newStaffUsername, setNewStaffUsername] = useState("");
-  const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
 
-  // --- Hydration-Safe Authorization Check & Name Display ---
    useEffect(() => {
     setMounted(true);
     const staffNameFromStorage = localStorage.getItem('staffName');
@@ -124,7 +105,6 @@ export default function PublicStaffAuctionPage() {
   
     setDisplayName(staffNameFromStorage || 'Staff');
     
-    // If IDs match the URL, authorize locally immediately
     if (staffNameFromStorage && isSession && sessionAccountId === accountId && sessionAuctionId === auctionId) {
       setIsAuthorized(true);
       setStaffName(staffNameFromStorage);
@@ -133,7 +113,6 @@ export default function PublicStaffAuctionPage() {
     }
   }, [accountId, auctionId]);
 
-  // --- Direct Data Fetching ---
   useEffect(() => {
     if (!mounted) return;
 
@@ -168,7 +147,6 @@ export default function PublicStaffAuctionPage() {
     return () => unsubscribers.forEach(unsub => unsub());
   }, [isAuthorized, firestore, accountId, auctionId, mounted]);
   
-  // --- Re-implemented Actions ---
   const updateAuction = useCallback(async (updatedAuctionData: Partial<Auction>) => {
     if (!firestore || !accountId || !auctionId) return;
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
@@ -211,8 +189,6 @@ export default function PublicStaffAuctionPage() {
       });
   }, [firestore, accountId, auctionId]);
   
-  
-  // --- Memos and Derived State (Copied from original component) ---
   const searchedItems = useMemo(() => {
     const actualItems = items.filter((item: Item) => !item.sku.toString().startsWith('DON-'));
     if (!searchQuery) return actualItems;
@@ -315,7 +291,6 @@ export default function PublicStaffAuctionPage() {
     return null;
   }
   
-  // --- Render logic ---
   if (isAuthorized === null || (isAuthorized && isUserLoading)) {
       return (
           <div className="flex h-full flex-1 flex-col items-center justify-center gap-4">
@@ -343,7 +318,6 @@ export default function PublicStaffAuctionPage() {
   if (isLoading) return <div className="text-center p-8">Loading auction...</div>;
   if (!auction) return <div className="text-center p-8">Auction not found.</div>;
   
-  // --- Handlers (Copied and modified from original component) ---
   const requestSort = (key: string) => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
@@ -362,13 +336,7 @@ export default function PublicStaffAuctionPage() {
     navigator.clipboard.writeText(url).then(() => toast({ title: 'Public Link Copied!' })).catch(err => toast({ variant: 'destructive', title: 'Failed to Copy Link'}));
   }
 
-  const handleCopyStaffLoginLink = () => {
-    const url = `${window.location.origin}/staff-login/${accountId}/${auctionId}`;
-    navigator.clipboard.writeText(url).then(() => toast({ title: 'Staff Login Link Copied!'})).catch(err => toast({ variant: 'destructive', title: 'Failed to Copy Link'}));
-  };
-  
   const handleOpenWinningBidDialog = (item: Item) => { setSelectedItem(item); setIsWinningBidDialogOpen(true); };
-  const handleOpenEditDialog = (item: Item) => { setSelectedItem(item); setIsEditDialogOpen(true); };
   
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
     if (!selectedItem || !firestore || !accountId) return;
@@ -463,14 +431,6 @@ export default function PublicStaffAuctionPage() {
     }
   };
 
-  const handleOpenDeleteDialog = (item: Item) => {
-    if (item.winnerId || item.winningBid) {
-      toast({ variant: "destructive", title: "Cannot Delete Item", description: "This item has already been won and cannot be deleted." });
-      return;
-    }
-    setItemToDelete(item);
-  };
-  
   const handleConfirmDelete = async () => {
     if (!itemToDelete || !firestore || !accountId || !storage) return;
     try {
@@ -492,11 +452,6 @@ export default function PublicStaffAuctionPage() {
     await updateDoc(auctionDocRef, { categories: arrayUnion(newCategory) });
     setIsAddCategoryDialogOpen(false);
     toast({ title: 'Category Added' });
-  };
-  
-  const handleOpenEditCategoryDialog = (category: Category) => {
-    setSelectedCategory(category);
-    setIsEditCategoryDialogOpen(true);
   };
   
   const handleUpdateCategory = async (values: any) => {
@@ -576,10 +531,6 @@ export default function PublicStaffAuctionPage() {
         toast({ title: 'Patron Unregistered' });
     };
     
-    // ... More handlers
-    const handleDeleteStaff = async () => { /* ... */ };
-
-    
     const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
       <>
         {itemsToRender.length > 0 ? (
@@ -604,12 +555,16 @@ export default function PublicStaffAuctionPage() {
                 <TableHead className="hidden lg:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
                 </TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
+                <TableHead className="text-right">Action</TableHead>
             </TableRow>
             </TableHeader>
             <TableBody>
             {itemsToRender.map((item: Item) => (
-                <TableRow key={item.id} className="cursor-pointer" onClick={() => handleOpenEditDialog(item)}>
+                <TableRow 
+                    key={item.id} 
+                    className="cursor-pointer" 
+                    onClick={() => router.push(`/public-staff/${accountId}/${auctionId}/items/${item.id}`)}
+                >
                   <TableCell className="hidden sm:table-cell">
                     <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
                       {item.thumbnailUrl ? (<Image alt={item.name} className="aspect-square rounded-md object-cover" height="64" src={item.thumbnailUrl} width="64"/>) : (<ImageIcon className="h-6 w-6 text-muted-foreground" />)}
@@ -620,15 +575,31 @@ export default function PublicStaffAuctionPage() {
                 <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
                 <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
-                <TableCell>
-                    <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(item)}}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenWinningBidDialog(item)}}>Enter Winning Bid</DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(item)}} className="text-destructive">Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                    </DropdownMenu>
+                <TableCell className="text-right">
+                    {item.winningBid ? (
+                        <Button 
+                            size="sm" 
+                            variant="secondary"
+                            className="h-8 w-24"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenWinningBidDialog(item);
+                            }}
+                        >
+                            Edit Bid
+                        </Button>
+                    ) : (
+                        <Button 
+                            size="sm" 
+                            className="h-8 w-24 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenWinningBidDialog(item);
+                            }}
+                        >
+                            Winning Bid
+                        </Button>
+                    )}
                 </TableCell>
                 </TableRow>
             ))}
@@ -832,7 +803,7 @@ export default function PublicStaffAuctionPage() {
 
       {/* DIALOGS */}
       <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />
-      {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => setIsWinningBidDialogOpen(false)} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
+      {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => { setIsWinningBidDialogOpen(false); setSelectedItem(null); }} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
       {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />)}
       
       <EditCategoryDialog isOpen={isAddCategoryDialogOpen} onClose={() => setIsAddCategoryDialogOpen(false)} onSubmit={handleAddCategory} title="Add New Category" description="Create a new category for items." submitButtonText="Add Category"/>
