@@ -46,7 +46,7 @@ import { AddItemDialog } from '@/components/add-item-dialog';
 import { EditCategoryDialog } from '@/components/edit-category-dialog';
 import { usePatrons } from '@/hooks/use-patrons';
 import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useMemoFirebase, useUser, useCollection } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
 import { AddLotDialog } from '@/components/add-lot-dialog';
 import { exportAuctionCatalogToHTML } from '@/lib/export';
