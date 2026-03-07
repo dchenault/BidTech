@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2 } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2, BarChart3 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -668,6 +668,16 @@ export default function PublicStaffAuctionPage() {
                   Logged in as: <span className="font-semibold text-foreground">{displayName}</span>
                 </p>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    <Button 
+                        asChild
+                        size="sm" 
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                        <Link href="/dashboard">
+                            <BarChart3 className="mr-2 h-4 w-4" />
+                            View Live Stats
+                        </Link>
+                    </Button>
                     <Button size="sm" variant={auction?.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
                         {auction?.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
                         {auction?.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
@@ -743,7 +753,7 @@ export default function PublicStaffAuctionPage() {
                                 className="cursor-pointer"
                             >
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
-                            <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell>
+                            <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell(
                             <TableCell className="hidden md:table-cell text-center">{patron.itemsWonInAuction}</TableCell>
                             <TableCell className="hidden lg:table-cell text-right">{formatCurrency(patron.amountDueInAuction)}</TableCell>
                              <TableCell className="hidden lg:table-cell text-center">

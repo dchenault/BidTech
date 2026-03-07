@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle } from 'lucide-react';
+import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
 import type { Item, RegisteredPatron } from '@/lib/types';
@@ -15,6 +16,8 @@ import { Bar, BarChart, XAxis, YAxis, Tooltip } from 'recharts';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/hooks/use-account';
+import { Button } from '@/components/ui/button';
+import { useStaffSession } from '@/hooks/use-staff-session';
 import {
   Select,
   SelectContent,
@@ -39,6 +42,7 @@ export default function DashboardPage() {
     const { accountId } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
+    const { isStaffSession } = useStaffSession();
     
     // Real-time listener for all items in the account
     const itemsQuery = useMemoFirebase(
@@ -121,6 +125,13 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     }, [auctions]);
 
+    const returnUrl = useMemo(() => {
+        if (!selectedActiveAuctionId || !accountId) return null;
+        return isStaffSession 
+            ? `/public-staff/${accountId}/${selectedActiveAuctionId}`
+            : `/dashboard/auctions/${selectedActiveAuctionId}`;
+    }, [selectedActiveAuctionId, accountId, isStaffSession]);
+
     const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingItems;
 
     if (isLoading) {
@@ -143,18 +154,33 @@ export default function DashboardPage() {
                             <TrendingUp className="h-5 w-5 text-primary" />
                             <h2 className="text-lg font-bold uppercase tracking-tight">Auction Command Center</h2>
                         </div>
-                        <Select onValueChange={setSelectedActiveAuctionId} value={selectedActiveAuctionId}>
-                            <SelectTrigger className="w-[200px] bg-background">
-                                <SelectValue placeholder="Select active auction" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {activeAuctions.map(auction => (
-                                    <SelectItem key={auction.id} value={auction.id}>
-                                        {auction.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3">
+                            {returnUrl && (
+                                <Button 
+                                    asChild 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="border-teal-600 text-teal-600 hover:bg-teal-50 hover:text-teal-700 font-bold"
+                                >
+                                    <Link href={returnUrl}>
+                                        <ArrowLeft className="mr-2 h-4 w-4" />
+                                        Return to Auction
+                                    </Link>
+                                </Button>
+                            )}
+                            <Select onValueChange={setSelectedActiveAuctionId} value={selectedActiveAuctionId}>
+                                <SelectTrigger className="w-[200px] bg-background">
+                                    <SelectValue placeholder="Select active auction" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {activeAuctions.map(auction => (
+                                        <SelectItem key={auction.id} value={auction.id}>
+                                            {auction.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
