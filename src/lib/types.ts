@@ -47,6 +47,7 @@ export type Item = {
   donorId?: string;
   donor?: Donor;
   donorName?: string;
+  business?: string; // New field for bulk update
   imageUrl?: string;
   thumbnailUrl?: string;
   metadata?: {

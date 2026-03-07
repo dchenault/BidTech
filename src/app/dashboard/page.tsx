@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft, Wallet } from 'lucide-react';
+import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft, Wallet, AlertTriangle, ArrowRight } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
 import type { Item, RegisteredPatron } from '@/lib/types';
@@ -156,6 +157,23 @@ export default function DashboardPage() {
 
     return (
         <div className="flex flex-col gap-8">
+            {/* Bulk Update Notice */}
+            <Card className="border-l-4 border-l-primary bg-primary/5">
+              <CardContent className="flex items-center justify-between py-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-primary" />
+                  <p className="text-sm font-medium">
+                    New Business Name data is ready to be applied to Auction s3VnbScgvA5TgsLy6vRn.
+                  </p>
+                </div>
+                <Button size="sm" asChild>
+                  <Link href="/dashboard/update-business">
+                    Run Update Utility <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Command Center - Active Auction Focused */}
             {activeAuctions.length > 0 && commandCenterStats && (
                 <section className="space-y-4">
@@ -211,7 +229,7 @@ export default function DashboardPage() {
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Catalog Progress</CardTitle>
                                 <LivePulse />
-                            </CardHeader>
+                            </Header>
                             <CardContent>
                                 <div className="text-3xl font-black text-orange-600 tracking-tighter">
                                     {commandCenterStats.soldCount} <span className="text-lg text-muted-foreground font-medium">/ {commandCenterStats.totalPhysicalCount}</span>
@@ -264,7 +282,7 @@ export default function DashboardPage() {
                                 <div className="text-3xl font-black text-pink-600 tracking-tighter">
                                     {formatCurrency(commandCenterStats.donations)}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground mt-1 leading-tight">Charitable donations from patrons</p>
+                                <p className="text-[10px] text-muted-foreground mt-1 leading-tight text-pink-600">Charitable donations from patrons</p>
                             </CardContent>
                         </Card>
                     </div>
