@@ -14,7 +14,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Loader2, Frown } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Loader2, Frown, Printer } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { EditItemDialog } from '@/components/edit-item-dialog';
@@ -25,6 +25,7 @@ import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useStorage } from '@/firebase/provider';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
+import { exportAuctioneerSheetToHTML } from '@/lib/export';
 
 export default function PublicStaffItemDetailsPage() {
   const params = useParams();
@@ -194,6 +195,11 @@ export default function PublicStaffItemDetailsPage() {
     }
   };
 
+  const handlePrintAuctioneerSheet = () => {
+    if (!item || !auction) return;
+    exportAuctioneerSheetToHTML(item, auction);
+  };
+
   return (
     <>
       <div className="grid gap-6">
@@ -209,6 +215,15 @@ export default function PublicStaffItemDetailsPage() {
           </h1>
           <Badge variant="outline" className="shrink-0">{item.category.name}</Badge>
           <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:ml-auto sm:w-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handlePrintAuctioneerSheet}
+              className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print for Auctioneer
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setIsWinningBidDialogOpen(true)}>
               <Gavel className="mr-2 h-4 w-4" />
               Enter Winning Bid

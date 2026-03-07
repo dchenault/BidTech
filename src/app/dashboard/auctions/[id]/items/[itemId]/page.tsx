@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -16,7 +15,7 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Printer } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { EditItemDialog } from '@/components/edit-item-dialog';
@@ -27,6 +26,7 @@ import { useAccount } from '@/hooks/use-account';
 import { collection, doc, updateDoc } from 'firebase/firestore';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { exportAuctioneerSheetToHTML } from '@/lib/export';
 
 export default function ItemDetailsPage() {
   const params = useParams();
@@ -106,6 +106,11 @@ export default function ItemDetailsPage() {
     }
   };
 
+  const handlePrintAuctioneerSheet = () => {
+    if (!item || !auction) return;
+    exportAuctioneerSheetToHTML(item, auction);
+  };
+
 
   return (
     <>
@@ -122,6 +127,15 @@ export default function ItemDetailsPage() {
           </h1>
           <Badge variant="outline" className="shrink-0">{item.category.name}</Badge>
           <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:ml-auto sm:w-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handlePrintAuctioneerSheet}
+              className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print for Auctioneer
+            </Button>
             <Button
               size="sm"
               variant="outline"

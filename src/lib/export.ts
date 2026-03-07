@@ -497,3 +497,87 @@ export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })
   const csvContent = [csvHeader, ...csvRows, footer].join('\n');
   downloadFile(csvContent, 'all_donations.csv', 'text/csv;charset=utf-8;');
 }
+
+// 12. Export Auctioneer Sheet to HTML
+export function exportAuctioneerSheetToHTML(item: Item, auction: Auction) {
+  const styles = `
+    <style>
+      @page { size: letter portrait; margin: 0.5in; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.4; color: #000; background: #fff; }
+      .container { max-width: 800px; margin: 0 auto; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+      .sku { font-size: 84pt; font-weight: 900; line-height: 1; margin: 0; }
+      .auction-info { text-align: right; }
+      .auction-name { font-size: 18pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+      .sheet-label { font-size: 14pt; color: #666; margin: 0; }
+      .item-name { font-size: 36pt; font-weight: 800; text-align: center; margin: 20px 0; line-height: 1.1; }
+      .image-container { text-align: center; margin-bottom: 30px; }
+      .item-image { max-width: 100%; max-height: 400px; border: 2px solid #eee; border-radius: 8px; object-fit: contain; }
+      .details { font-size: 18pt; line-height: 1.6; margin-bottom: 40px; }
+      .footer { border-top: 2px solid #000; padding-top: 20px; display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+      .footer-box { background: #f9f9f9; padding: 15px; border-radius: 8px; }
+      .footer-label { font-size: 12pt; font-weight: bold; text-transform: uppercase; color: #555; display: block; margin-bottom: 5px; }
+      .footer-value { font-size: 20pt; font-weight: bold; }
+      .print-controls { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; }
+      .btn { padding: 10px 20px; font-size: 14pt; cursor: pointer; border-radius: 5px; border: none; }
+      .btn-print { background: #000; color: #fff; }
+      .btn-close { background: #eee; color: #000; }
+      @media print {
+        .print-controls { display: none; }
+        body { -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  `;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Auctioneer Sheet: ${item.sku}</title>
+      ${styles}
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 class="sku">${item.sku}</h1>
+          <div class="auction-info">
+            <p class="auction-name">${auction.name}</p>
+            <p class="sheet-label">Auctioneer Flashcard</p>
+          </div>
+        </div>
+
+        <h2 class="item-name">${item.name}</h2>
+
+        ${item.imageUrl ? `
+          <div class="image-container">
+            <img src="${item.imageUrl}" class="item-image" alt="${item.name}" />
+          </div>
+        ` : ''}
+
+        <div class="details">
+          ${item.description || 'No description provided.'}
+        </div>
+
+        <div class="footer">
+          <div class="footer-box">
+            <span class="footer-label">Donated By</span>
+            <span class="footer-value">${item.donor?.name || 'Anonymous'}</span>
+          </div>
+          <div class="footer-box">
+            <span class="footer-label">Starting Value</span>
+            <span class="footer-value">${formatCurrency(item.estimatedValue)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="print-controls">
+        <button class="btn btn-close" onclick="window.close()">Close</button>
+        <button class="btn btn-print" onclick="window.print()">Print Sheet</button>
+      </div>
+    </body>
+    </html>
+  `;
+
+  openHtmlInNewTab(htmlContent);
+}
