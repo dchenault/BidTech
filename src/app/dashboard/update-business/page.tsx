@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -215,7 +214,7 @@ export default function UpdateBusinessPage() {
         toast({ title: 'Success!', description: `Updated ${matchCount} items with business names.` });
       } else {
         addLog('No matching SKUs found in the provided table.');
-        toast({ variant: 'outline', title: 'No Changes', description: 'None of the items in this auction matched the SKUs in the list.' });
+        toast({ variant: 'default', title: 'No Changes', description: 'None of the items in this auction matched the SKUs in the list.' });
       }
 
     } catch (e: any) {
