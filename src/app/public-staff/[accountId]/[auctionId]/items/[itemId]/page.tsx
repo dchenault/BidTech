@@ -136,8 +136,9 @@ export default function PublicStaffItemDetailsPage() {
         return;
     }
     try {
+        const storagePath = `items/${accountId}/${auctionId}`;
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:')
-            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, undefined)
+            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, storagePath)
             : (itemData.imageUrl === "" ? deleteField() : itemData.imageUrl);
         
         if (itemData.imageUrl === "" && item.imageUrl) await deleteFileByUrl(storage, item.imageUrl);

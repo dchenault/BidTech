@@ -371,8 +371,9 @@ export default function PublicStaffAuctionPage() {
         throw new Error('Cannot add item: missing context.');
     }
     try {
+        const storagePath = `items/${accountId}/${auctionId}`;
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:') 
-            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, undefined)
+            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, storagePath)
             : undefined;
 
         if (itemData.sku && itemData.sku.trim() !== '') {
@@ -420,8 +421,9 @@ export default function PublicStaffAuctionPage() {
         return;
     }
     try {
+        const storagePath = `items/${accountId}/${auctionId}`;
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:')
-            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, selectedItem.imageUrl)
+            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, storagePath)
             : (itemData.imageUrl === "" ? deleteField() : itemData.imageUrl);
         
         if (itemData.imageUrl === "" && selectedItem.imageUrl) await deleteFileByUrl(storage, selectedItem.imageUrl);
