@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -19,9 +18,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
-import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2 } from 'lucide-react';
+import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2, Trash2 } from 'lucide-react';
 import type { Item, PatronFormValues, Auction, PaymentMethod, Patron, RegisteredPatron } from '@/lib/types';
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
@@ -32,7 +41,7 @@ import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { useAccount } from '@/hooks/use-account';
-import { doc, writeBatch, collection, collectionGroup, query, where, getDoc, getDocs, limit } from 'firebase/firestore';
+import { doc, writeBatch, collection, collectionGroup, query, where, getDoc, getDocs, limit, updateDoc, deleteField } from 'firebase/firestore';
 import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -70,6 +79,7 @@ export default function PatronDetailsPage() {
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [itemsToPay, setItemsToPay] = useState<Item[]>([]);
+  const [itemToRemove, setItemToRemove] = useState<WonItem | null>(null);
   const [notes, setNotes] = useState('');
 
   // Waterfall data fetching
@@ -84,7 +94,6 @@ export default function PatronDetailsPage() {
 
       // Waterfall Step 1: Fetch the Patron document. This is critical.
       try {
-        console.log(`Fetching patron with ID: ${patronId} for account: ${accountId}`);
         const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
         const patronSnap = await getDoc(patronRef);
 
@@ -92,7 +101,6 @@ export default function PatronDetailsPage() {
           throw new Error('Patron not found.');
         }
         fetchedPatron = { id: patronSnap.id, ...patronSnap.data() } as Patron;
-        console.log("Successfully fetched patron:", fetchedPatron);
         setNotes(fetchedPatron.notes || '');
       } catch (err: any) {
         console.error("CRITICAL: Failed to fetch patron document:", err);
@@ -109,7 +117,6 @@ export default function PatronDetailsPage() {
           where('accountId', '==', accountId),
           where('winnerId', '==', patronId)
         );
-        console.log(`Querying for items with accountId: ${accountId} and winnerId: ${patronId}`);
         
         const itemsSnapshot = await getDocs(itemsQuery);
         
@@ -121,11 +128,9 @@ export default function PatronDetailsPage() {
             auctionName: auctionMap.get(item.auctionId) || 'Unknown Auction',
           };
         });
-        console.log(`Found ${fetchedWonItems.length} won items/donations.`);
 
       } catch (err: any) {
           console.error("NON-CRITICAL: Failed to fetch won items:", err);
-          // We will still proceed to render the patron's details, with an empty items array.
       }
 
       // Final state update
@@ -314,6 +319,43 @@ export default function PatronDetailsPage() {
     });
   };
 
+  const handleRemoveItem = async () => {
+    if (!itemToRemove || !firestore) return;
+
+    try {
+      const itemRef = doc(firestore, 'accounts', itemToRemove.accountId, 'auctions', itemToRemove.auctionId, 'items', itemToRemove.id);
+      
+      // Clear all winning bid fields to return item to unsold state
+      await updateDoc(itemRef, {
+        winningBid: deleteField(),
+        winnerId: deleteField(),
+        winner: deleteField(),
+        paid: deleteField(),
+        paymentMethod: deleteField(),
+      });
+
+      // Update local state
+      setPageData(prev => ({
+        ...prev,
+        wonItems: prev.wonItems.filter(item => item.id !== itemToRemove.id)
+      }));
+
+      toast({
+        title: "Item Removed",
+        description: `"${itemToRemove.name}" has been removed from the invoice.`,
+      });
+    } catch (error: any) {
+      console.error("Error removing item:", error);
+      toast({
+        variant: 'destructive',
+        title: "Error",
+        description: "Failed to remove the item from the invoice.",
+      });
+    } finally {
+      setItemToRemove(null);
+    }
+  };
+
   if (isInitialLoad) {
     return (
       <div className="flex h-64 w-full items-center justify-center">
@@ -333,7 +375,6 @@ export default function PatronDetailsPage() {
   }
   
   if (!patron) {
-    // This case should be handled by the router push in useEffect, but it's a good safeguard.
     return <div>Patron not found. Redirecting...</div>; 
   }
   
@@ -473,7 +514,7 @@ export default function PatronDetailsPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {auctionItems.map((item: any) => {
+                                  {auctionItems.map((item: WonItem) => {
                                     const isDonation = item.sku.toString().startsWith('DON-');
                                     return (
                                         <TableRow 
@@ -485,20 +526,31 @@ export default function PatronDetailsPage() {
                                                 {isDonation ? `Donation` : item.name}
                                             </TableCell>
                                             <TableCell className="text-right">{formatCurrency(item.winningBid || 0)}</TableCell>
-                                            <TableCell className="text-center w-[180px]">
-                                                {item.paid ? (
-                                                    <Badge variant="secondary">
-                                                        Paid ({item.paymentMethod})
-                                                    </Badge>
-                                                ) : (
+                                            <TableCell className="text-center w-[220px]">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {item.paid ? (
+                                                        <Badge variant="secondary">
+                                                            Paid ({item.paymentMethod})
+                                                        </Badge>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-green-600 hover:bg-green-700"
+                                                            onClick={(e) => { e.stopPropagation(); openPaymentDialog([item]); }}
+                                                        >
+                                                            Mark Paid
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         size="sm"
-                                                        className="bg-green-600 hover:bg-green-700"
-                                                        onClick={(e) => { e.stopPropagation(); openPaymentDialog([item]); }}
+                                                        variant="ghost"
+                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={(e) => { e.stopPropagation(); setItemToRemove(item); }}
                                                     >
-                                                        Mark Paid
+                                                        <Trash2 className="h-4 w-4" />
+                                                        <span className="sr-only">Remove Item</span>
                                                     </Button>
-                                                )}
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     )
@@ -539,6 +591,25 @@ export default function PatronDetailsPage() {
         onSubmit={handleMarkAsPaid}
         itemCount={itemsToPay.length}
       />
+
+      <AlertDialog open={!!itemToRemove} onOpenChange={(open) => !open && setItemToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove item from invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{itemToRemove?.name}" from {patron.firstName}&apos;s invoice? 
+              This will clear the winning bid and return the item to the auction catalog. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveItem} className="bg-destructive hover:bg-destructive/90">
+              Confirm Removal
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
