@@ -3,10 +3,10 @@
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { DollarSign, Gavel, Users } from 'lucide-react';
+import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
-import type { Item } from '@/lib/types';
+import type { Item, RegisteredPatron } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { query, collectionGroup, where } from 'firebase/firestore';
+import { query, collectionGroup, where, collection } from 'firebase/firestore';
+
+const LivePulse = () => (
+  <div className="flex items-center gap-1.5 ml-auto">
+    <span className="relative flex h-2 w-2">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+    </span>
+    <span className="text-[10px] font-bold uppercase tracking-wider text-red-500">Live</span>
+  </div>
+);
 
 export default function DashboardPage() {
     const firestore = useFirestore();
@@ -38,45 +48,52 @@ export default function DashboardPage() {
     const { data: allItemsData, isLoading: isLoadingItems } = useCollection<Item>(itemsQuery);
     const allItems = useMemo(() => allItemsData || [], [allItemsData]);
 
-    const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
-    
-    // Animation states for pulsing metrics
-    const [animateTotal, setAnimateTotal] = useState(false);
-    const [animateActive, setAnimateActive] = useState(false);
-    const [animatePatrons, setAnimatePatrons] = useState(false);
-    const [animateItems, setAnimateItems] = useState(false);
-
-    const stats = useMemo(() => {
-        const totalRevenue = allItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
-        const totalPatrons = patrons.length;
-        return { totalRevenue, totalPatrons };
-    }, [allItems, patrons]);
-
     const activeAuctions = useMemo(() => {
         return auctions.filter(a => a.status === 'active');
     }, [auctions]);
+
+    const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (activeAuctions.length > 0 && !selectedActiveAuctionId) {
             setSelectedActiveAuctionId(activeAuctions[0].id);
         }
-        if (selectedActiveAuctionId && !activeAuctions.find(a => a.id === selectedActiveAuctionId)) {
-            setSelectedActiveAuctionId(activeAuctions.length > 0 ? activeAuctions[0].id : undefined);
-        }
     }, [activeAuctions, selectedActiveAuctionId]);
 
-    const selectedAuctionRevenue = useMemo(() => {
-        if (!selectedActiveAuctionId) return 0;
-        return allItems
-            .filter(item => item.auctionId === selectedActiveAuctionId)
-            .reduce((sum, item) => sum + (item.winningBid || 0), 0);
-    }, [allItems, selectedActiveAuctionId]);
+    // Registered Patrons listener for the selected active auction
+    const regPatronsRef = useMemoFirebase(
+        () => (firestore && accountId && selectedActiveAuctionId ? collection(firestore, 'accounts', accountId, 'auctions', selectedActiveAuctionId, 'registered_patrons') : null),
+        [firestore, accountId, selectedActiveAuctionId]
+    );
+    const { data: registeredPatronsData, isLoading: isLoadingRegPatrons } = useCollection<RegisteredPatron>(regPatronsRef);
 
-    // Trigger pulse animations on value changes
-    useEffect(() => { if (stats.totalRevenue > 0) { setAnimateTotal(true); const t = setTimeout(() => setAnimateTotal(false), 600); return () => clearTimeout(t); } }, [stats.totalRevenue]);
-    useEffect(() => { if (selectedAuctionRevenue > 0) { setAnimateActive(true); const t = setTimeout(() => setAnimateActive(false), 600); return () => clearTimeout(t); } }, [selectedAuctionRevenue]);
-    useEffect(() => { if (stats.totalPatrons > 0) { setAnimatePatrons(true); const t = setTimeout(() => setAnimatePatrons(false), 600); return () => clearTimeout(t); } }, [stats.totalPatrons]);
-    useEffect(() => { if (allItems.length > 0) { setAnimateItems(true); const t = setTimeout(() => setAnimateItems(false), 600); return () => clearTimeout(t); } }, [allItems.length]);
+    // Command Center Calculations
+    const commandCenterStats = useMemo(() => {
+        if (!selectedActiveAuctionId) return null;
+
+        const auctionItems = allItems.filter(i => i.auctionId === selectedActiveAuctionId);
+        const physicalItems = auctionItems.filter(i => !i.sku.toString().startsWith('DON-'));
+        const donations = auctionItems.filter(i => i.sku.toString().startsWith('DON-'));
+
+        const revenueItems = auctionItems.reduce((sum, i) => sum + (i.winningBid || 0), 0);
+        const soldCount = physicalItems.filter(i => (i.winningBid || 0) > 0).length;
+        const totalPhysicalCount = physicalItems.length;
+        const totalDonations = donations.reduce((sum, i) => sum + (i.winningBid || 0), 0);
+
+        return {
+            revenue: revenueItems,
+            soldCount,
+            totalPhysicalCount,
+            donations: totalDonations,
+            registeredCount: registeredPatronsData?.length || 0
+        };
+    }, [selectedActiveAuctionId, allItems, registeredPatronsData]);
+
+    const globalStats = useMemo(() => {
+        const totalRevenue = allItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
+        const totalPatrons = patrons.length;
+        return { totalRevenue, totalPatrons };
+    }, [allItems, patrons]);
 
     const chartData = useMemo(() => {
         return auctions
@@ -108,67 +125,27 @@ export default function DashboardPage() {
 
     if (isLoading) {
         return (
-            <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
-                    <Card key={i}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <Skeleton className="h-4 w-24" />
-                        </CardHeader>
-                        <CardContent>
-                            <Skeleton className="h-8 w-1/2" />
-                            <Skeleton className="h-3 w-3/4 mt-1" />
-                        </CardContent>
-                    </Card>
+                    <Skeleton key={i} className="h-32 w-full rounded-xl" />
                 ))}
-                <Card className="col-span-1 lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Upcoming Auctions</CardTitle>
-                        <CardDescription>Your next scheduled events.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Skeleton className="h-32 w-full" />
-                    </CardContent>
-                </Card>
-                <Card className="col-span-1 lg:col-span-2">
-                     <CardHeader>
-                        <CardTitle>Top Auctions by Revenue</CardTitle>
-                        <CardDescription>Your most successful events.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Skeleton className="h-[200px] w-full" />
-                    </CardContent>
-                </Card>
             </div>
         );
     }
 
     return (
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className={cn("text-2xl font-bold transition-all", animateTotal && "animate-value-change")}>
-                        {formatCurrency(stats.totalRevenue)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">From all completed bids & donations</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Auction Revenue</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className={cn("text-2xl font-bold transition-all", animateActive && "animate-value-change")}>
-                        {formatCurrency(selectedAuctionRevenue)}
-                    </div>
-                    {activeAuctions.length > 0 ? (
+        <div className="flex flex-col gap-8">
+            {/* Command Center - Active Auction Focused */}
+            {activeAuctions.length > 0 && commandCenterStats && (
+                <section className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-primary" />
+                            <h2 className="text-lg font-bold uppercase tracking-tight">Auction Command Center</h2>
+                        </div>
                         <Select onValueChange={setSelectedActiveAuctionId} value={selectedActiveAuctionId}>
-                            <SelectTrigger className="text-xs border-none shadow-none focus:ring-0 p-0 h-auto mt-1 w-auto bg-transparent">
-                                <SelectValue placeholder="Select an active auction" />
+                            <SelectTrigger className="w-[200px] bg-background">
+                                <SelectValue placeholder="Select active auction" />
                             </SelectTrigger>
                             <SelectContent>
                                 {activeAuctions.map(auction => (
@@ -178,101 +155,160 @@ export default function DashboardPage() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    ) : (
-                        <p className="text-xs text-muted-foreground">No active auctions</p>
-                    )}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Patrons</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className={cn("text-2xl font-bold transition-all", animatePatrons && "animate-value-change")}>
-                        {stats.totalPatrons}
                     </div>
-                    <p className="text-xs text-muted-foreground">In your master list</p>
-                </CardContent>
-            </Card>
-            <Card>
-                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-                    <Gavel className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className={cn("text-2xl font-bold transition-all", animateItems && "animate-value-change")}>
-                        {allItems.length}
+
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        <Card className="border-l-4 border-l-green-500 shadow-md">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Live Revenue</CardTitle>
+                                <LivePulse />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-green-600 tracking-tighter">
+                                    {formatCurrency(commandCenterStats.revenue)}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">Winning Bids + Cash Donations</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-l-4 border-l-orange-500 shadow-md">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Catalog Progress</CardTitle>
+                                <LivePulse />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-orange-600 tracking-tighter">
+                                    {commandCenterStats.soldCount} <span className="text-lg text-muted-foreground font-medium">/ {commandCenterStats.totalPhysicalCount}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">Items with recorded winners</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-l-4 border-l-blue-500 shadow-md">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Registered Bidders</CardTitle>
+                                <LivePulse />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-blue-600 tracking-tighter">
+                                    {commandCenterStats.registeredCount}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">Patrons assigned bidding numbers</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-l-4 border-l-pink-500 shadow-md bg-pink-50/30 dark:bg-pink-950/10">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Direct Donations</CardTitle>
+                                <HeartHandshake className="h-4 w-4 text-pink-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-pink-600 tracking-tighter">
+                                    {formatCurrency(commandCenterStats.donations)}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">Paddle raises & cash gifts</p>
+                            </CardContent>
+                        </Card>
                     </div>
-                    <p className="text-xs text-muted-foreground">Across all auctions</p>
-                </CardContent>
-            </Card>
-            <Card className="col-span-1 lg:col-span-2">
-                <CardHeader>
-                    <CardTitle>Upcoming Auctions</CardTitle>
-                    <CardDescription>Your next scheduled events.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                   {upcomingAuctions.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Auction</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Type</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {upcomingAuctions.map(auction => (
-                                    <TableRow key={auction.id}>
-                                        <TableCell>
-                                            <Link href={`/dashboard/auctions/${auction.id}`} className="font-medium hover:underline">
-                                                {auction.name}
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell>{new Date(auction.startDate).toLocaleDateString()}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant="outline">{auction.type}</Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                   ) : (
-                        <div className="text-center text-muted-foreground py-8">
-                            No upcoming auctions scheduled.
+                </section>
+            )}
+
+            {/* Global Stats Section */}
+            <section className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-2">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Global Total Revenue</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {formatCurrency(globalStats.totalRevenue)}
                         </div>
-                   )}
-                </CardContent>
-            </Card>
-             <Card className="col-span-1 lg:col-span-2">
-                <CardHeader>
-                    <CardTitle>Top Auctions by Revenue</CardTitle>
-                    <CardDescription>Your most successful events.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                        <BarChart data={chartData} accessibilityLayer>
-                            <XAxis
-                                dataKey="name"
-                                tickLine={false}
-                                axisLine={false}
-                                tickMargin={8}
-                                tickFormatter={(value) => value.slice(0, 3)}
-                            />
-                            <YAxis tickFormatter={(value) => `$${Math.round(value / 1000)}k`} />
-                            <Tooltip
-                                cursor={false}
-                                content={<ChartTooltipContent
-                                    hideLabel
-                                    formatter={(value) => formatCurrency(value as number)}
-                                />}
-                            />
-                            <Bar dataKey="total" fill="var(--color-total)" radius={4} />
-                        </BarChart>
-                    </ChartContainer>
-                </CardContent>
-            </Card>
+                        <p className="text-xs text-muted-foreground">Across all historical events</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Master Patron List</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {globalStats.totalPatrons}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Total unique donors in system</p>
+                    </CardContent>
+                </Card>
+            </section>
+
+            <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-2">
+                <Card className="col-span-1">
+                    <CardHeader>
+                        <CardTitle>Upcoming Auctions</CardTitle>
+                        <CardDescription>Your next scheduled events.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    {upcomingAuctions.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Auction</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead className="text-right">Type</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {upcomingAuctions.map(auction => (
+                                        <TableRow key={auction.id}>
+                                            <TableCell>
+                                                <Link href={`/dashboard/auctions/${auction.id}`} className="font-medium hover:underline">
+                                                    {auction.name}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell>{new Date(auction.startDate).toLocaleDateString()}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge variant="outline">{auction.type}</Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                    ) : (
+                            <div className="text-center text-muted-foreground py-8">
+                                No upcoming auctions scheduled.
+                            </div>
+                    )}
+                    </CardContent>
+                </Card>
+                <Card className="col-span-1">
+                    <CardHeader>
+                        <CardTitle>Top Auctions by Revenue</CardTitle>
+                        <CardDescription>Your most successful events.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+                            <BarChart data={chartData} accessibilityLayer>
+                                <XAxis
+                                    dataKey="name"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickMargin={8}
+                                    tickFormatter={(value) => value.slice(0, 3)}
+                                />
+                                <YAxis tickFormatter={(value) => `$${Math.round(value / 1000)}k`} />
+                                <Tooltip
+                                    cursor={false}
+                                    content={<ChartTooltipContent
+                                        hideLabel
+                                        formatter={(value) => formatCurrency(value as number)}
+                                    />}
+                                />
+                                <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+                            </BarChart>
+                        </ChartContainer>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
