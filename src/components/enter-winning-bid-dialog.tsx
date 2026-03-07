@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,13 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import type { Item, Patron } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,7 +20,7 @@ interface EnterWinningBidDialogProps {
   isOpen: boolean;
   onClose: () => void;
   item: Item | null;
-  patrons: Patron[];
+  patrons: (Patron & { biddingNumber?: number })[];
   onSubmit: (winningBid: number, winner: Patron) => void;
 }
 
@@ -45,7 +38,7 @@ export function EnterWinningBidDialog({
   useEffect(() => {
     if (item) {
       setBidAmount(item.winningBid || "");
-      setWinnerId(item.winner?.id);
+      setWinnerId(item.winner?.id || item.winnerId);
     }
   }, [item]);
 
@@ -81,14 +74,15 @@ export function EnterWinningBidDialog({
     }
     
     onSubmit(bid, winner);
-    toast({
-        title: "Winning Bid Entered",
-        description: `The winning bid for "${item?.name}" has been recorded.`
-    })
     onClose();
   };
   
   if (!item) return null;
+
+  const patronOptions = patrons.map((p) => ({
+    value: p.id,
+    label: `${p.biddingNumber ? `#${p.biddingNumber}` : 'N/A'} - ${p.firstName} ${p.lastName}`,
+  }));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -96,13 +90,27 @@ export function EnterWinningBidDialog({
         <DialogHeader>
           <DialogTitle>Enter Winning Bid for "{item.name}"</DialogTitle>
           <DialogDescription>
-            Enter the final bid amount and select the winning patron.
+            Search for a bidder by number or name and enter the final amount.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
+            <Label htmlFor="winner">
+              Winning Bidder
+            </Label>
+            <Combobox
+              options={patronOptions}
+              value={winnerId}
+              onChange={setWinnerId}
+              placeholder="Search Bidder # or Name..."
+              searchPlaceholder="Type bidder # or name..."
+              noResultsText="No registered patron found."
+              autoFocusSearch={true}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="bidAmount">
-              Bid Amount
+              Final Bid Amount ($)
             </Label>
             <Input
               id="bidAmount"
@@ -111,24 +119,8 @@ export function EnterWinningBidDialog({
               onChange={(e) => setBidAmount(e.target.value)}
               placeholder="e.g. 150.00"
               required
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="winner">
-              Winner
-            </Label>
-            <Select onValueChange={setWinnerId} value={winnerId} required>
-              <SelectTrigger id="winner" className="w-full">
-                <SelectValue placeholder="Select a patron" />
-              </SelectTrigger>
-              <SelectContent>
-                {patrons.map((patron) => (
-                  <SelectItem key={patron.id} value={patron.id}>
-                    {patron.firstName} {patron.lastName} (Bidder #: {patron.biddingNumber})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
         <DialogFooter>

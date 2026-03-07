@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -74,16 +73,12 @@ export function AddAuctionDonationDialog({
     }
     
     onSubmit(donationAmount, patron);
-    toast({
-        title: "Donation Recorded",
-        description: `A donation of ${donationAmount} for ${patron.firstName} ${patron.lastName} has been recorded.`
-    })
     onClose();
   };
 
   const patronOptions = patrons.map(p => ({
       value: p.id,
-      label: `${p.firstName} ${p.lastName} (#${p.biddingNumber})`
+      label: `${p.biddingNumber ? `#${p.biddingNumber}` : 'N/A'} - ${p.firstName} ${p.lastName}`
   }));
 
   return (
@@ -92,23 +87,10 @@ export function AddAuctionDonationDialog({
         <DialogHeader>
           <DialogTitle>Record a Donation</DialogTitle>
           <DialogDescription>
-            Select a registered patron and enter the donation amount.
+            Search for a registered patron and enter the donation amount.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="amount">
-              Amount
-            </Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 500.00"
-              required
-            />
-          </div>
           <div className="space-y-2">
             <Label>
               Patron
@@ -117,11 +99,26 @@ export function AddAuctionDonationDialog({
                 options={patronOptions}
                 value={patronId}
                 onChange={setPatronId}
-                placeholder="Select a patron..."
-                searchPlaceholder="Search patrons..."
-                noResultsText="No patron found."
+                placeholder="Search Bidder # or Name..."
+                searchPlaceholder="Type bidder # or name..."
+                noResultsText="No registered patron found."
                 className="w-full"
+                autoFocusSearch={true}
              />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="amount">
+              Amount ($)
+            </Label>
+            <Input
+              id="amount"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 500.00"
+              required
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
           </div>
         </div>
         <DialogFooter>
