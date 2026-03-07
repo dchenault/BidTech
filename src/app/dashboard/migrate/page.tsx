@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -9,7 +8,6 @@ import {
   setDoc,
   collection,
   getDocs,
-  DocumentData,
 } from 'firebase/firestore';
 import {
   Card,
@@ -23,12 +21,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowRight, AlertCircle, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function MigrationPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [oldAccountId, setOldAccountId] = useState('nBCLno0wwiW5rTGlJXPWBB72Wa02');
   const [oldAuctionId, setOldAuctionId] = useState('60saMmh0FFHI64Smw02O');
@@ -40,6 +40,10 @@ export default function MigrationPage() {
 
   const addLog = (message: string) => {
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+  };
+
+  const handleBack = () => {
+    router.push('/dashboard');
   };
 
   const runMigration = async () => {
@@ -157,6 +161,12 @@ export default function MigrationPage() {
 
   return (
     <div className="container mx-auto py-10 max-w-4xl">
+      <div className="mb-6">
+        <Button variant="ghost" onClick={handleBack} className="gap-2">
+          <ChevronLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      </div>
       <Card className="shadow-xl">
         <CardHeader>
           <div className="flex items-center gap-2">

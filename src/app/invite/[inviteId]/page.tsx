@@ -1,195 +1,27 @@
-
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useFirebase, useUser } from '@/firebase';
-import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Gavel, Loader2, AlertTriangle } from 'lucide-react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import type { Invitation } from '@/lib/types';
-import Link from 'next/link';
-import { setupNewUser } from '@/firebase/user-setup';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-type Status = 'loading' | 'requires_login' | 'error' | 'success' | 'processing';
-
-export default function InvitePage() {
-  const { firestore, auth, isUserLoading } = useFirebase();
-  const { user } = useUser();
-  const params = useParams();
+/**
+ * Legacy invitation route. Redirects to the dashboard.
+ * New invitations use the /[accountId]/[token] structure.
+ */
+export default function LegacyInvitePage() {
   const router = useRouter();
-  const { toast } = useToast();
-  const inviteId = Array.isArray(params.inviteId) ? params.inviteId[0] : params.inviteId;
-
-  const [status, setStatus] = useState<Status>('loading');
-  const [error, setError] = useState<string | null>(null);
-  const [isAuthCallLoading, setIsAuthCallLoading] = useState(false);
-  const [inviteData, setInviteData] = useState<Invitation | null>(null);
-
-  const processInvitation = useCallback(async () => {
-    if (!firestore || !inviteId || !auth) {
-      return;
-    }
-
-    if (isUserLoading) {
-      setStatus('loading');
-      return;
-    }
-
-    if (!user) {
-      setStatus('requires_login');
-      return;
-    }
-    
-    setStatus('processing');
-
-    try {
-      // Step 1: Fetch the invitation document.
-      // A user can only read an invite if their email matches (per security rules).
-      const inviteRef = doc(firestore, 'invitations', inviteId);
-      const inviteSnap = await getDoc(inviteRef);
-
-      if (!inviteSnap.exists()) {
-        throw new Error('This invitation is invalid or has been revoked.');
-      }
-      
-      const fetchedInviteData = inviteSnap.data() as Invitation;
-      setInviteData(fetchedInviteData);
-
-      if (fetchedInviteData.status === 'accepted' && fetchedInviteData.acceptedBy === user.uid) {
-        toast({ title: "Invitation already accepted", description: "Redirecting to your dashboard." });
-        router.push(`/dashboard`);
-        return;
-      }
-
-      if (fetchedInviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
-        throw new Error(`This invitation is for ${fetchedInviteData.email}. You are logged in as ${user.email}. Please log in with the correct account.`);
-      }
-      
-      // Step 2: Ensure user profile exists. If not, create it.
-      const userRef = doc(firestore, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (!userSnap.exists()) {
-        // User is brand new to the app. Create their profile and personal account.
-        await setupNewUser(firestore, user);
-      }
-      
-      // Step 3: Add membership to the invited account AND set it as the active account.
-      // This is a single, self-contained update to the user's own profile, which is allowed by rules.
-      await updateDoc(userRef, { 
-        [`accounts.${fetchedInviteData.accountId}`]: 'manager',
-        activeAccountId: fetchedInviteData.accountId,
-      });
-
-      // Step 4: Now that membership is established, update the auction's manager list.
-      // This is a separate write, which relies on the previous write completing successfully.
-      const auctionRef = doc(firestore, 'accounts', fetchedInviteData.accountId, 'auctions', fetchedInviteData.auctionId);
-      await updateDoc(auctionRef, { [`managers.${user.uid}`]: true });
-
-      // Step 5: Finally, mark the invitation as accepted.
-      const updatedInviteRef = doc(firestore, 'invitations', inviteId);
-      await updateDoc(updatedInviteRef, { status: 'accepted', acceptedBy: user.uid });
-
-      setStatus('success');
-      toast({
-        title: 'Invitation Accepted!',
-        description: "You've been granted access to the auction. Welcome aboard!",
-      });
-      router.push(`/dashboard`);
-
-    } catch (e: any) {
-      console.error("Error processing invitation:", e);
-      setError(e.message || 'An error occurred while trying to accept the invitation.');
-      setStatus('error');
-    }
-  }, [user, isUserLoading, firestore, inviteId, router, toast, auth]);
 
   useEffect(() => {
-    // This effect will run whenever the user's auth state is resolved or changes.
-    processInvitation();
-  }, [processInvitation]);
-
-  const handleGoogleLogin = () => {
-    if (!auth) return;
-    setIsAuthCallLoading(true);
-    const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider).catch((error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Error',
-        description: error.message || 'Could not sign in with Google.',
-      });
-    }).finally(() => {
-        setIsAuthCallLoading(false);
-    });
-  };
-
-  const renderContent = () => {
-    switch (status) {
-      case 'loading':
-      case 'processing':
-        return (
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">{status === 'loading' ? 'Verifying invitation...' : 'Finalizing permissions...'}</p>
-          </div>
-        );
-      case 'requires_login':
-        return (
-            <>
-            <CardHeader>
-                <CardTitle className="text-2xl">You're Invited!</CardTitle>
-                <CardDescription>To accept your invitation, please sign in or create an account.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <Button onClick={handleGoogleLogin} className="w-full" size="lg" disabled={isAuthCallLoading}>
-                    {isAuthCallLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign In with Google
-                </Button>
-                <Link href="/login" passHref>
-                    <Button variant="outline" className="w-full" size="lg" disabled={isAuthCallLoading}>
-                        Sign In with Email
-                    </Button>
-                </Link>
-                 <Link href="/signup" passHref>
-                    <Button variant="link" className="w-full">
-                        Don't have an account? Sign up
-                    </Button>
-                </Link>
-            </CardContent>
-            </>
-        );
-      case 'error':
-        return (
-          <div className="flex flex-col items-center gap-4 text-center">
-            <AlertTriangle className="h-12 w-12 text-destructive" />
-            <h2 className="text-xl font-semibold">Invitation Error</h2>
-            <p className="text-muted-foreground">{error}</p>
-            <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
-          </div>
-        );
-      case 'success':
-         return (
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">Success! Redirecting you now...</p>
-          </div>
-        );
-    }
-  };
+    // Redirect all traffic from legacy [inviteId] routes to the dashboard
+    router.replace('/dashboard');
+  }, [router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-      <Card className="w-full max-w-md text-center shadow-lg">
-        <div className="mx-auto my-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-            <Gavel className="h-8 w-8 text-primary-foreground" />
-        </div>
-        {renderContent()}
-      </Card>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-muted-foreground">Redirecting to dashboard...</p>
+      </div>
     </div>
   );
 }
