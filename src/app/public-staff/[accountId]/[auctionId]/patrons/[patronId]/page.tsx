@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -151,7 +150,10 @@ export default function PublicStaffPatronDetailsPage() {
   };
   
     const handleSaveNotes = async () => {
-        if (!firestore || !accountId || !patronId) return;
+        if (!firestore || !accountId || !patronId) {
+            if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+            return;
+        }
         const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
         try {
             await updateDoc(patronRef, { notes });
@@ -168,7 +170,10 @@ export default function PublicStaffPatronDetailsPage() {
     };
 
     const handlePatronUpdated = async (values: PatronFormValues) => {
-        if (!firestore || !accountId || !patronId) return;
+        if (!firestore || !accountId || !patronId) {
+            if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+            return;
+        }
         const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
         try {
             await updateDoc(patronRef, values);
@@ -184,7 +189,10 @@ export default function PublicStaffPatronDetailsPage() {
     };
     
     const handleAddDonation = async (amount: number, selectedAuctionId: string) => {
-        if (!firestore || !accountId || !patron) return;
+        if (!firestore || !accountId || !patron) {
+            if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+            return;
+        }
     
         try {
             await runTransaction(firestore, async (transaction) => {

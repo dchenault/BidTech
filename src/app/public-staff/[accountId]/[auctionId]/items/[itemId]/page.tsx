@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -132,10 +131,13 @@ export default function PublicStaffItemDetailsPage() {
   }
 
   const handleItemUpdate = async (itemData: ItemFormValues) => {
-    if (!firestore || !accountId || !storage) return;
+    if (!firestore || !accountId || !storage) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     try {
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:')
-            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, `items/${accountId}/${auctionId}`)
+            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, undefined)
             : (itemData.imageUrl === "" ? deleteField() : itemData.imageUrl);
         
         if (itemData.imageUrl === "" && item.imageUrl) await deleteFileByUrl(storage, item.imageUrl);
@@ -172,7 +174,10 @@ export default function PublicStaffItemDetailsPage() {
   };
 
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
-    if (!firestore || !accountId) return;
+    if (!firestore || !accountId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
     try {
       await updateDoc(itemRef, { 

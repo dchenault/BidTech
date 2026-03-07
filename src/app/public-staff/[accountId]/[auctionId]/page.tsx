@@ -150,13 +150,19 @@ export default function PublicStaffAuctionPage() {
   }, [isAuthorized, firestore, accountId, auctionId, mounted]);
   
   const updateAuction = useCallback(async (updatedAuctionData: Partial<Auction>) => {
-    if (!firestore || !accountId || !auctionId) return;
+    if (!firestore || !accountId || !auctionId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     await updateDoc(auctionDocRef, updatedAuctionData);
   }, [firestore, accountId, auctionId]);
   
   const addDonationToAuction = useCallback(async (patron: Patron, amount: number, isPaid: boolean = false) => {
-      if (!firestore || !accountId || !auctionId) throw new Error("Missing context");
+      if (!firestore || !accountId || !auctionId) {
+          if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+          throw new Error("Missing context");
+      }
 
       await runTransaction(firestore, async (transaction) => {
           const accountRef = doc(firestore, 'accounts', accountId);
@@ -349,7 +355,10 @@ export default function PublicStaffAuctionPage() {
   const handleOpenWinningBidDialog = (item: Item) => { setSelectedItem(item); setIsWinningBidDialogOpen(true); };
   
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
-    if (!selectedItem || !firestore || !accountId) return;
+    if (!selectedItem || !firestore || !accountId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', selectedItem.id);
     await updateDoc(itemRef, { winningBid: winningBid, winnerId: winner.id, winner: winner, metadata: { updatedBy: staffName, updatedAt: serverTimestamp() } });
     setIsWinningBidDialogOpen(false);
@@ -357,10 +366,13 @@ export default function PublicStaffAuctionPage() {
   };
 
   const handleItemAdd = async (itemData: any) => {
-    if (!firestore || !accountId || !storage) throw new Error('Cannot add item: missing context.');
+    if (!firestore || !accountId || !storage) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        throw new Error('Cannot add item: missing context.');
+    }
     try {
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:') 
-            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, `items/${accountId}/${auctionId}`)
+            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, undefined)
             : undefined;
 
         if (itemData.sku && itemData.sku.trim() !== '') {
@@ -403,10 +415,13 @@ export default function PublicStaffAuctionPage() {
   };
 
   const handleItemUpdate = async (itemData: any) => {
-    if (!selectedItem || !firestore || !accountId || !storage) return;
+    if (!selectedItem || !firestore || !accountId || !storage) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     try {
         const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:')
-            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, `items/${accountId}/${auctionId}`)
+            ? await uploadDataUriAndGetURL(storage, accountId, auctionId, itemData.imageUrl, selectedItem.imageUrl)
             : (itemData.imageUrl === "" ? deleteField() : itemData.imageUrl);
         
         if (itemData.imageUrl === "" && selectedItem.imageUrl) await deleteFileByUrl(storage, selectedItem.imageUrl);
@@ -442,7 +457,10 @@ export default function PublicStaffAuctionPage() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!itemToDelete || !firestore || !accountId || !storage) return;
+    if (!itemToDelete || !firestore || !accountId || !storage) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     try {
       if (itemToDelete.imageUrl) await deleteFileByUrl(storage, itemToDelete.imageUrl).catch(() => {});
       const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemToDelete.id);
@@ -461,7 +479,10 @@ export default function PublicStaffAuctionPage() {
   };
 
   const handleAddCategory = async (values: any) => {
-    if (!firestore || !accountId || !auctionId) return;
+    if (!firestore || !accountId || !auctionId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
     const newCategory = { ...values, id: `cat-${Date.now()}` };
     await updateDoc(auctionDocRef, { categories: arrayUnion(newCategory) });
@@ -470,7 +491,10 @@ export default function PublicStaffAuctionPage() {
   };
   
   const handleUpdateCategory = async (values: any) => {
-      if (!auction || !firestore || !accountId || !selectedCategory) return;
+      if (!auction || !firestore || !accountId || !selectedCategory) {
+          if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+          return;
+      }
       const oldCategory = auction.categories.find(c => c.id === selectedCategory.id);
       if (oldCategory) {
           const updatedCategory = { ...oldCategory, name: values.name };
@@ -486,7 +510,10 @@ export default function PublicStaffAuctionPage() {
   };
   
   const handleConfirmDeleteCategory = async () => {
-      if (!categoryToDelete || !firestore || !accountId || !auctionId) return;
+      if (!categoryToDelete || !firestore || !accountId || !auctionId) {
+          if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+          return;
+      }
   
       const isCategoryInUse = items.some(item => item.categoryId === categoryToDelete.id);
   
@@ -520,7 +547,10 @@ export default function PublicStaffAuctionPage() {
   }
 
   const addPatron = async (patronData: any): Promise<Patron | void> => {
-    if (!firestore || !accountId) return;
+    if (!firestore || !accountId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
     const newPatron: Omit<Patron, 'id'> = { ...patronData, accountId, totalSpent: 0, itemsWon: 0, createdInAuction: auctionId };
     const docRef = await addDoc(patronsRef, newPatron);
@@ -528,14 +558,20 @@ export default function PublicStaffAuctionPage() {
   };
 
   const handleRegisterPatron = async (patron: Patron, bidderNumber: number) => {
-    if (!firestore || !accountId || !auctionId) return;
+    if (!firestore || !accountId || !auctionId) {
+        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+        return;
+    }
     const regRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
     await addDoc(regRef, { accountId, auctionId, patronId: patron.id, bidderNumber, metadata: { updatedBy: staffName, updatedAt: serverTimestamp() } });
     setIsRegisterPatronDialogOpen(false);
   };
   
     const handleUnregisterPatron = async (patron: any) => {
-        if (!firestore || !accountId || !auctionId) return;
+        if (!firestore || !accountId || !auctionId) {
+            if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
+            return;
+        }
         const itemsWithWinnerQuery = query(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items'), where('winnerId', '==', patron.id));
         const wonItemsSnapshot = await getDocs(itemsWithWinnerQuery);
         if(!wonItemsSnapshot.empty) {
