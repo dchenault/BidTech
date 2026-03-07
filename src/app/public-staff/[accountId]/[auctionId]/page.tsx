@@ -207,6 +207,9 @@ export default function PublicStaffAuctionPage() {
       sortableItems.sort((a: Item, b: Item) => {
         let aValue: any, bValue: any;
         switch (sortConfig.key) {
+          case 'sku':
+            const res = a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
+            return sortConfig.direction === 'ascending' ? res : -res;
           case 'winner': aValue = a.winner ? `${a.winner.firstName} ${a.winner.lastName}`.toLowerCase() : ''; bValue = b.winner ? `${b.winner.firstName} ${b.winner.lastName}`.toLowerCase() : ''; break;
           case 'category': aValue = a.category?.name.toLowerCase() || ''; bValue = b.category?.name.toLowerCase() || ''; break;
           default: aValue = a[sortConfig.key as keyof Item]; bValue = b[sortConfig.key as keyof Item]; if (typeof aValue === 'string') aValue = aValue.toLowerCase(); if (typeof bValue === 'string') bValue = bValue.toLowerCase();
@@ -252,7 +255,7 @@ export default function PublicStaffAuctionPage() {
       amountDueInAuction: number;
       paymentStatus: 'Paid' | 'Unpaid' | 'N/A';
   })[] = useMemo(() => {
-    return registeredPatrons
+    let results = registeredPatrons
       .map((rp: RegisteredPatron) => {
         const patronDetails = patrons.find((p: Patron) => p.id === rp.patronId);
         if (!patronDetails) return null;
@@ -277,6 +280,11 @@ export default function PublicStaffAuctionPage() {
         };
       })
       .filter((p): p is any => p !== null);
+
+    // Default staff view sort for patrons: by Bidder # Ascending
+    results.sort((a, b) => a.biddingNumber - b.biddingNumber);
+    
+    return results;
   }, [registeredPatrons, patrons, items]);
 
 

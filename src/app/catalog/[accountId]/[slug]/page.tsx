@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -168,6 +167,9 @@ export default function PublicCatalogPage() {
         let bValue: any;
 
         switch (sortConfig.key) {
+            case 'sku':
+                const res = a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
+                return sortConfig.direction === 'ascending' ? res : -res;
             case 'category':
                 aValue = a.category?.name.toLowerCase() || '';
                 bValue = b.category?.name.toLowerCase() || '';

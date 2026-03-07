@@ -97,6 +97,7 @@ export default function AuctionDetailsPage() {
 
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
+  const [patronSortConfig, setPatronSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'biddingNumber', direction: 'ascending' });
   
   const auctionId = typeof params.id === 'string' ? params.id : '';
   
@@ -137,6 +138,9 @@ export default function AuctionDetailsPage() {
         let bValue: any;
 
         switch (sortConfig.key) {
+          case 'sku':
+            const res = a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
+            return sortConfig.direction === 'ascending' ? res : -res;
           case 'winner':
             aValue = a.winner ? `${a.winner.firstName} ${a.winner.lastName}`.toLowerCase() : '';
             bValue = b.winner ? `${b.winner.firstName} ${b.winner.lastName}`.toLowerCase() : '';
@@ -207,7 +211,7 @@ export default function AuctionDetailsPage() {
   })[] = useMemo(() => {
     if (!registeredPatronsData || isLoadingPatrons || isLoadingItems) return [];
     
-    return registeredPatronsData
+    let results = registeredPatronsData
       .map(rp => {
         const patronDetails = patrons.find(p => p.id === rp.patronId);
         if (!patronDetails) return null;
@@ -232,7 +236,32 @@ export default function AuctionDetailsPage() {
         };
       })
       .filter((p): p is any => p !== null);
-  }, [registeredPatronsData, patrons, items, isLoadingPatrons, isLoadingItems]);
+
+    if (patronSortConfig) {
+        results.sort((a, b) => {
+            let res = 0;
+            switch(patronSortConfig.key) {
+                case 'biddingNumber':
+                    res = a.biddingNumber - b.biddingNumber;
+                    break;
+                case 'firstName':
+                    res = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+                    break;
+                case 'itemsWonInAuction':
+                    res = a.itemsWonInAuction - b.itemsWonInAuction;
+                    break;
+                case 'amountDueInAuction':
+                    res = a.amountDueInAuction - b.amountDueInAuction;
+                    break;
+                default:
+                    res = 0;
+            }
+            return patronSortConfig.direction === 'ascending' ? res : -res;
+        });
+    }
+
+    return results;
+  }, [registeredPatronsData, patrons, items, isLoadingPatrons, isLoadingItems, patronSortConfig]);
 
 
   const filteredRegisteredPatrons = useMemo(() => {
@@ -260,6 +289,14 @@ export default function AuctionDetailsPage() {
         direction = 'descending';
     }
     setSortConfig({ key, direction });
+  };
+
+  const requestPatronSort = (key: string) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (patronSortConfig && patronSortConfig.key === key && patronSortConfig.direction === 'ascending') {
+        direction = 'descending';
+    }
+    setPatronSortConfig({ key, direction });
   };
 
   const handleToggleAuctionStatus = () => {
@@ -972,10 +1009,26 @@ export default function AuctionDetailsPage() {
                     <Table>
                         <TableHeader>
                         <TableRow>
-                            <TableHead>#</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead className="hidden md:table-cell text-center">Items Won</TableHead>
-                            <TableHead className="hidden lg:table-cell text-right">Amount Due</TableHead>
+                            <TableHead>
+                                <Button variant="ghost" onClick={() => requestPatronSort('biddingNumber')} className="-ml-4 h-8">
+                                    # {patronSortConfig?.key === 'biddingNumber' && (patronSortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                                </Button>
+                            </TableHead>
+                            <TableHead>
+                                <Button variant="ghost" onClick={() => requestPatronSort('firstName')} className="-ml-4 h-8">
+                                    Name {patronSortConfig?.key === 'firstName' && (patronSortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                                </Button>
+                            </TableHead>
+                            <TableHead className="hidden md:table-cell text-center">
+                                <Button variant="ghost" onClick={() => requestPatronSort('itemsWonInAuction')} className="h-8">
+                                    Items Won {patronSortConfig?.key === 'itemsWonInAuction' && (patronSortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                                </Button>
+                            </TableHead>
+                            <TableHead className="hidden lg:table-cell text-right">
+                                <Button variant="ghost" onClick={() => requestPatronSort('amountDueInAuction')} className="h-8">
+                                    Amount Due {patronSortConfig?.key === 'amountDueInAuction' && (patronSortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                                </Button>
+                            </TableHead>
                             <TableHead className="hidden lg:table-cell text-center">Payment Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
