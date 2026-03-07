@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuctions } from '@/hooks/use-auctions';
@@ -232,7 +231,7 @@ export default function DashboardPage() {
                                 <div className="text-3xl font-black text-pink-600 tracking-tighter">
                                     {formatCurrency(commandCenterStats.donations)}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground mt-1">Paddle raises & cash gifts</p>
+                                <p className="text-[10px] text-muted-foreground mt-1 leading-tight">Charitable donations from patrons</p>
                             </CardContent>
                         </Card>
                     </div>
