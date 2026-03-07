@@ -46,6 +46,7 @@ export type Item = {
   paymentMethod?: PaymentMethod;
   donorId?: string;
   donor?: Donor;
+  donorName?: string;
   imageUrl?: string;
   thumbnailUrl?: string;
   metadata?: {

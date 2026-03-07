@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
@@ -121,6 +122,9 @@ export function ImportItemsCsvDialog({
       const lotsSnap = await getDocs(collection(auctionRef, 'lots'));
       const lots = lotsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
+      // Cache for donors during this import session to minimize redundant lookups
+      const donorCache = new Map<string, Donor>();
+
       // Process in small batches to respect Firestore limits and keep UI responsive
       const batchSize = 25;
       for (let i = 0; i < parsedData.length; i += batchSize) {
@@ -134,47 +138,52 @@ export function ImportItemsCsvDialog({
           let donorObj: Donor | undefined;
 
           if (donorName) {
-            const donorsRef = collection(firestore, 'accounts', accountId, 'donors');
-            const q = query(donorsRef, where('name', '==', donorName)); // Simplistic exact match, case-sensitivity depends on Firestore config
-            const donorSnap = await getDocs(q);
-
-            if (!donorSnap.empty) {
-              const existingDonorDoc = donorSnap.docs[0];
-              donorId = existingDonorDoc.id;
-              donorObj = { id: donorId, ...existingDonorDoc.data() } as Donor;
-              
-              // Update missing donor info if provided in CSV
-              const updatePayload: any = {};
-              if (row.DonorPhone && !donorObj.phone) updatePayload.phone = row.DonorPhone;
-              if (!donorObj.address) donorObj.address = {};
-              if (row.DonorStreet && !donorObj.address.street) updatePayload['address.street'] = row.DonorStreet;
-              if (row.DonorCity && !donorObj.address.city) updatePayload['address.city'] = row.DonorCity;
-              if (row.DonorState && !donorObj.address.state) updatePayload['address.state'] = row.DonorState;
-              if (row.DonorZip && !donorObj.address.zip) updatePayload['address.zip'] = row.DonorZip;
-
-              if (Object.keys(updatePayload).length > 0) {
-                batch.update(existingDonorDoc.ref, updatePayload);
-                updatedDonorsCount++;
-              }
+            if (donorCache.has(donorName.toLowerCase())) {
+                donorObj = donorCache.get(donorName.toLowerCase());
+                donorId = donorObj?.id;
             } else {
-              // Create new donor
-              const newDonorRef = doc(collection(firestore, 'accounts', accountId, 'donors'));
-              donorId = newDonorRef.id;
-              donorObj = {
-                id: donorId,
-                accountId,
-                name: donorName,
-                type: 'Individual',
-                phone: row.DonorPhone || '',
-                address: {
-                  street: row.DonorStreet || '',
-                  city: row.DonorCity || '',
-                  state: row.DonorState || '',
-                  zip: row.DonorZip || '',
+                const donorsRef = collection(firestore, 'accounts', accountId, 'donors');
+                const q = query(donorsRef, where('name', '==', donorName)); 
+                const donorSnap = await getDocs(q);
+
+                if (!donorSnap.empty) {
+                  const existingDonorDoc = donorSnap.docs[0];
+                  donorId = existingDonorDoc.id;
+                  donorObj = { id: donorId, ...existingDonorDoc.data() } as Donor;
+                  
+                  const updatePayload: any = {};
+                  if (row.DonorPhone && !donorObj.phone) updatePayload.phone = row.DonorPhone;
+                  if (!donorObj.address) donorObj.address = {};
+                  if (row.DonorStreet && !donorObj.address.street) updatePayload['address.street'] = row.DonorStreet;
+                  if (row.DonorCity && !donorObj.address.city) updatePayload['address.city'] = row.DonorCity;
+                  if (row.DonorState && !donorObj.address.state) updatePayload['address.state'] = row.DonorState;
+                  if (row.DonorZip && !donorObj.address.zip) updatePayload['address.zip'] = row.DonorZip;
+
+                  if (Object.keys(updatePayload).length > 0) {
+                    batch.update(existingDonorDoc.ref, updatePayload);
+                    updatedDonorsCount++;
+                  }
+                } else {
+                  // Create new donor
+                  const newDonorRef = doc(collection(firestore, 'accounts', accountId, 'donors'));
+                  donorId = newDonorRef.id;
+                  donorObj = {
+                    id: donorId,
+                    accountId,
+                    name: donorName,
+                    type: 'Individual',
+                    phone: row.DonorPhone || '',
+                    address: {
+                      street: row.DonorStreet || '',
+                      city: row.DonorCity || '',
+                      state: row.DonorState || '',
+                      zip: row.DonorZip || '',
+                    }
+                  };
+                  batch.set(newDonorRef, donorObj);
+                  newDonorsCount++;
                 }
-              };
-              batch.set(newDonorRef, donorObj);
-              newDonorsCount++;
+                donorCache.set(donorName.toLowerCase(), donorObj!);
             }
           }
 
@@ -198,7 +207,9 @@ export function ImportItemsCsvDialog({
             auctionId: selectedAuctionId,
             accountId,
             paid: false,
-            ...(donorId && { donorId, donor: donorObj }),
+            donorId: donorId || '',
+            donorName: donorName || '',
+            ...(donorObj && { donor: donorObj }),
             ...(lot && { lotId: lot.id }),
           };
 

@@ -5,7 +5,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDonors } from '@/hooks/use-donors';
 import { useAuctions } from '@/hooks/use-auctions';
-import type { Item } from '@/lib/types';
+import type { Item, Donor } from '@/lib/types';
 
 import {
   Card,
@@ -27,36 +27,45 @@ import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, Gift, Mail, Phone, Building, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { useAccount } from '@/hooks/use-account';
+import { query, collectionGroup, where } from 'firebase/firestore';
 
 export default function DonorDetailsPage() {
     const params = useParams();
     const router = useRouter();
+    const firestore = useFirestore();
+    const { accountId } = useAccount();
     const donorId = typeof params.id === 'string' ? params.id : '';
 
     const { donors, isLoading: isLoadingDonors } = useDonors();
-    const { auctions, isLoading: isLoadingAuctions, fetchAllItems } = useAuctions();
+    const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     
-    const [donatedItems, setDonatedItems] = useState<(Item & { auctionName?: string })[]>([]);
-    const [isLoadingItems, setIsLoadingItems] = useState(true);
+    // Targeted query for items belonging to this donor across all auctions in this account.
+    const itemsQuery = useMemoFirebase(
+        () => (firestore && accountId && donorId
+            ? query(
+                collectionGroup(firestore, 'items'),
+                where('accountId', '==', accountId),
+                where('donorId', '==', donorId)
+              )
+            : null),
+        [firestore, accountId, donorId]
+    );
+
+    const { data: donorItems, isLoading: isLoadingItems } = useCollection<Item>(itemsQuery);
 
     const donor = useMemo(() => {
         return donors.find(d => d.id === donorId);
     }, [donors, donorId]);
     
-    useEffect(() => {
-        if (!isLoadingAuctions) {
-            fetchAllItems().then(items => {
-                const itemsFromThisDonor = items.filter(item => item.donorId === donorId);
-                const itemsWithAuctionName = itemsFromThisDonor.map(item => {
-                    const auction = auctions.find(a => a.id === item.auctionId);
-                    return { ...item, auctionName: auction?.name || 'Unknown Auction' };
-                })
-                setDonatedItems(itemsWithAuctionName);
-                setIsLoadingItems(false);
-            })
-        }
-    }, [isLoadingAuctions, fetchAllItems, donorId, auctions]);
-
+    const itemsWithAuctionName = useMemo(() => {
+        if (!donorItems || !auctions) return [];
+        return donorItems.map(item => {
+            const auction = auctions.find(a => a.id === item.auctionId);
+            return { ...item, auctionName: auction?.name || 'Unknown Auction' };
+        });
+    }, [donorItems, auctions]);
 
     if (isLoadingDonors || isLoadingAuctions || isLoadingItems) {
         return (
@@ -76,7 +85,7 @@ export default function DonorDetailsPage() {
         );
     }
 
-    const totalValueDonated = donatedItems.reduce((sum, item) => sum + item.estimatedValue, 0);
+    const totalValueDonated = itemsWithAuctionName.reduce((sum, item) => sum + item.estimatedValue, 0);
 
     return (
         <div className="grid gap-6">
@@ -125,7 +134,7 @@ export default function DonorDetailsPage() {
                         <CardContent className="space-y-2">
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Items Donated</span>
-                                <span className="font-medium">{donatedItems.length}</span>
+                                <span className="font-medium">{itemsWithAuctionName.length}</span>
                             </div>
                              <div className="flex justify-between font-semibold">
                                 <span>Total Value Donated</span>
@@ -152,8 +161,8 @@ export default function DonorDetailsPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {donatedItems.length > 0 ? (
-                                        donatedItems.map(item => (
+                                    {itemsWithAuctionName.length > 0 ? (
+                                        itemsWithAuctionName.map(item => (
                                             <TableRow key={item.id} onClick={() => router.push(`/dashboard/auctions/${item.auctionId}/items/${item.id}`)} className="cursor-pointer">
                                                 <TableCell className="font-medium">{item.name}</TableCell>
                                                 <TableCell>{item.auctionName}</TableCell>
@@ -176,4 +185,3 @@ export default function DonorDetailsPage() {
         </div>
     );
 }
-
