@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -24,7 +23,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2, BarChart3 } from 'lucide-react';
+import { Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Frown, Loader2, BarChart3, PlusCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -41,12 +40,9 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Item, Patron, RegisteredPatron, Lot, Auction, Account, Donor } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
-import { AddItemDialog } from '@/components/add-item-dialog';
 import { doc, collection, addDoc, updateDoc, serverTimestamp, deleteDoc, increment, onSnapshot, query, where, deleteField, getDocs, runTransaction } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { RegisterPatronDialog } from '@/components/register-patron-dialog';
-import { exportAuctionCatalogToHTML } from '@/lib/export';
-import { AuctionCatalog } from '@/components/auction-catalog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -79,13 +75,11 @@ export default function PublicStaffAuctionPage() {
   const [registeredPatrons, setRegisteredPatrons] = useState<RegisteredPatron[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
@@ -450,28 +444,6 @@ export default function PublicStaffAuctionPage() {
     setSortConfig({ key, direction });
   };
   
-  const handleExportCatalog = () => {
-    if (!auction || !items) return;
-    setIsExporting(true);
-    setTimeout(() => {
-        exportAuctionCatalogToHTML({ ...auction, items, lots });
-        setIsExporting(false);
-        toast({
-            title: 'Catalog Generated',
-            description: 'The print-ready catalog has been opened in a new tab.'
-        });
-    }, 1000);
-  };
-  
-  const handleShareCatalog = () => {
-    if (!auction?.isPublic || !auction?.slug) {
-        toast({ variant: 'destructive', title: 'Catalog is not public.'});
-        return;
-    }
-    const url = `${window.location.origin}/catalog/${auction?.accountId}/${auction?.slug}`;
-    navigator.clipboard.writeText(url).then(() => toast({ title: 'Public Link Copied!' })).catch(err => toast({ variant: 'destructive', title: 'Failed to Copy Link'}));
-  }
-
   const handleOpenWinningBidDialog = (item: Item) => { setSelectedItem(item); setIsWinningBidDialogOpen(true); };
   
   const handleWinningBidSubmit = async (winningBid: number, winner: Patron) => {
@@ -483,56 +455,6 @@ export default function PublicStaffAuctionPage() {
     await updateDoc(itemRef, { winningBid: winningBid, winnerId: winner.id, winner: winner, metadata: { updatedBy: staffName, updatedAt: serverTimestamp() } });
     setIsWinningBidDialogOpen(false);
     setSelectedItem(null);
-  };
-
-  const handleItemAdd = async (itemData: any) => {
-    if (!firestore || !accountId || !storage) {
-        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
-        throw new Error('Cannot add item: missing context.');
-    }
-    try {
-        const storagePath = `items/${accountId}/${auctionId}`;
-        const finalImageUrl = itemData.imageUrl && itemData.imageUrl.startsWith('data:') 
-            ? await uploadDataUriAndGetURL(storage, itemData.imageUrl, storagePath)
-            : undefined;
-
-        if (itemData.sku && itemData.sku.trim() !== '') {
-            const skuQuery = query(collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'items'), where('sku', '==', itemData.sku.trim()));
-            if (!(await getDocs(skuQuery)).empty) throw new Error(`SKU "${itemData.sku.trim()}" is already in use.`);
-        }
-
-        await runTransaction(firestore, async (transaction) => {
-            const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-            const accountRef = doc(firestore, 'accounts', accountId);
-            const [auctionSnap, accountSnap] = await Promise.all([transaction.get(auctionRef), transaction.get(accountRef)]);
-            if (!auctionSnap.exists()) throw new Error("Auction not found");
-            if (!accountSnap.exists()) throw new Error("Account not found");
-
-            const auctionData = auctionSnap.data() as Auction;
-            const accountData = accountSnap.data() as Account;
-            let newSku: string | number = itemData.sku?.trim() || (accountData.lastItemSku || 999) + 1;
-            
-            const category = auctionData.categories.find(c => c.name === itemData.categoryId) || {id: 'cat-misc', name: 'Misc'};
-            let donor: Donor | undefined;
-            if (itemData.donorId) {
-                const donorSnap = await transaction.get(doc(firestore, 'accounts', accountId, 'donors', itemData.donorId));
-                if (donorSnap.exists()) donor = { id: donorSnap.id, ...donorSnap.data() } as Donor;
-            }
-
-            const newItemPayload: Omit<Item, 'id'> = {
-                name: itemData.name, description: itemData.description || "", estimatedValue: itemData.estimatedValue, sku: newSku, category, auctionId, accountId, paid: false, categoryId: category.id,
-                ...(itemData.lotId && { lotId: itemData.lotId }), ...(itemData.donorId && { donorId: itemData.donorId }), ...(donor && { donor: donor }), ...(finalImageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl }),
-            };
-            
-            transaction.set(doc(collection(auctionRef, 'items')), newItemPayload);
-            transaction.update(auctionRef, { itemCount: increment(1) });
-            if (typeof newSku === 'number') transaction.update(accountRef, { lastItemSku: newSku });
-        });
-        toast({ title: "Success", description: `"${itemData.name}" added successfully.` });
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Error", description: error.message });
-        throw error;
-    }
   };
 
   const handleItemUpdate = async (itemData: any) => {
@@ -666,17 +588,6 @@ export default function PublicStaffAuctionPage() {
                             View Live Stats
                         </Link>
                     </Button>
-                     {auction?.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
-                    <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={handleExportCatalog}
-                        disabled={isExporting}
-                    >
-                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        {isExporting ? 'Generating...' : 'Export Catalog'}
-                    </Button>
-                    <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
               </div>
             </div>
@@ -757,9 +668,7 @@ export default function PublicStaffAuctionPage() {
             </Tabs>
         </div>
       </div>
-      <div className="hidden print:block">{auction && <AuctionCatalog auction={{...auction, items, lots}} />}</div>
 
-      <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction?.categories || []} lots={lots || []} auctionType={auction?.type || 'Live'} accountId={accountId} />
       {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => { setIsWinningBidDialogOpen(false); setSelectedItem(null); }} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
       {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction?.categories || []} lots={lots || []} auctionType={auction?.type || 'Live'} accountId={accountId} />)}
       
