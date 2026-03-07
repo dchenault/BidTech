@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuctions } from '@/hooks/use-auctions';
@@ -8,7 +7,7 @@ import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft
 import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
 import type { Item, RegisteredPatron } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -70,7 +69,7 @@ export default function DashboardPage() {
         () => (firestore && accountId && selectedActiveAuctionId ? collection(firestore, 'accounts', accountId, 'auctions', selectedActiveAuctionId, 'registered_patrons') : null),
         [firestore, accountId, selectedActiveAuctionId]
     );
-    const { data: registeredPatronsData, isLoading: isLoadingRegPatrons } = useCollection<RegisteredPatron>(regPatronsRef);
+    const { data: registeredPatronsData } = useCollection<RegisteredPatron>(regPatronsRef);
 
     // Command Center Calculations
     const commandCenterStats = useMemo(() => {
@@ -218,7 +217,7 @@ export default function DashboardPage() {
                                 <LivePulse />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-green-600 tracking-tighter">
+                                <div className="text-3xl font-black text-green-600 tracking-tighter transition-all">
                                     {formatCurrency(commandCenterStats.revenue)}
                                 </div>
                                 <p className="text-[10px] text-muted-foreground mt-1">Winning Bids + Cash Donations</p>
@@ -229,7 +228,7 @@ export default function DashboardPage() {
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Catalog Progress</CardTitle>
                                 <LivePulse />
-                            </Header>
+                            </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-black text-orange-600 tracking-tighter">
                                     {commandCenterStats.soldCount} <span className="text-lg text-muted-foreground font-medium">/ {commandCenterStats.totalPhysicalCount}</span>
