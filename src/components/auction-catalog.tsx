@@ -1,202 +1,91 @@
+
 "use client";
 
+import { useMemo } from 'react';
 import type { Auction, Item } from '@/lib/types';
-import { formatCurrency } from '@/lib/utils';
 
 interface AuctionCatalogProps {
   auction: Auction;
 }
 
-const renderItemRow = (item: Item) => (
-    <tr key={item.id} className="item-row">
-        <td className="image-cell">
-          {item.thumbnailUrl ? (
-            <img src={item.thumbnailUrl} alt={item.name} className="thumbnail" />
-          ) : null}
-        </td>
-        <td className="sku-cell">{item.sku}</td>
-        <td className="name-cell">{item.name}</td>
-        <td className="description-cell">{item.description}</td>
-        <td className="value-cell">Estimated Value: {formatCurrency(item.estimatedValue)}</td>
-        <td className="notes-cell"></td>
-    </tr>
-);
-
-const renderCategoryGroup = (categoryName: string, items: Item[]) => (
-    <tbody key={categoryName}>
-        <tr>
-            <td colSpan={6} className="category-header">
-                <h3>Category: {categoryName}</h3>
-            </td>
-        </tr>
-        {items.map(renderItemRow)}
-    </tbody>
-);
-
-
 export function AuctionCatalog({ auction }: AuctionCatalogProps) {
-  const lotsById = new Map((auction.lots || []).map(l => [l.id, l.name]));
+  const sortedItems = useMemo(() => {
+    if (!auction.items) return [];
+    const nonDonations = auction.items.filter(item => !item.sku.toString().startsWith('DON-'));
+    
+    // Pass 1: Strictly Numeric SKUs
+    const numericItems = nonDonations.filter(item => /^\d+$/.test(item.sku.toString()));
+    // Pass 2: Lots or Alpha-Numeric SKUs
+    const alphaItems = nonDonations.filter(item => !/^\d+$/.test(item.sku.toString()));
 
-  const { liveItemsByCategory, silentItemsByLotThenCategory } = (auction.items || [])
-    .filter(item => !item.sku.toString().startsWith('DON-'))
-    .reduce((acc, item) => {
-      const categoryName = item.category?.name || 'Uncategorized';
-      if (item.lotId) {
-        const lotName = lotsById.get(item.lotId) || 'Unassigned Silent Items';
-        if (!acc.silentItemsByLotThenCategory[lotName]) {
-          acc.silentItemsByLotThenCategory[lotName] = {};
-        }
-        if (!acc.silentItemsByLotThenCategory[lotName][categoryName]) {
-          acc.silentItemsByLotThenCategory[lotName][categoryName] = [];
-        }
-        acc.silentItemsByLotThenCategory[lotName][categoryName].push(item);
-      } else {
-        if (!acc.liveItemsByCategory[categoryName]) {
-          acc.liveItemsByCategory[categoryName] = [];
-        }
-        acc.liveItemsByCategory[categoryName].push(item);
-      }
-      return acc;
-    }, {
-      liveItemsByCategory: {} as { [key: string]: Item[] },
-      silentItemsByLotThenCategory: {} as { [key: string]: { [key: string]: Item[] } }
+    const sorter = (a: Item, b: Item) => 
+        a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
+
+    return [...numericItems.sort(sorter), ...alphaItems.sort(sorter)];
+  }, [auction.items]);
+
+  const formattedStartDate = useMemo(() => {
+    if (!auction.startDate) return '';
+    const date = typeof (auction.startDate as any).toDate === 'function' 
+        ? (auction.startDate as any).toDate() 
+        : new Date(auction.startDate);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
     });
-
-    const formattedStartDate = (() => {
-        if (!auction.startDate) return '';
-        // Handle Firestore Timestamp or string/Date
-        const date = typeof (auction.startDate as any).toDate === 'function' 
-            ? (auction.startDate as any).toDate() 
-            : new Date(auction.startDate);
-
-        if (isNaN(date.getTime())) return ''; // Invalid date
-        
-        return date.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-    })();
-
+  }, [auction.startDate]);
 
   return (
-    <div className="p-4 bg-white text-black text-xs">
-      <header className="mb-4 text-center print-header-container">
-        <h1 className="text-4xl font-bold">{auction.name}</h1>
-        <p className="text-lg text-gray-600">{auction.description}</p>
-        <p className="text-md text-gray-500">
-            {formattedStartDate}
-        </p>
+    <div className="p-8 bg-white text-black font-sans min-h-screen">
+      <header className="mb-10 text-center border-b-4 border-black pb-8">
+        <h1 className="text-5xl font-black uppercase tracking-tighter mb-2">{auction.name}</h1>
+        {auction.description && (
+            <p className="text-xl text-gray-700 italic mb-4 max-w-3xl mx-auto">{auction.description}</p>
+        )}
+        <p className="text-xl font-bold">{formattedStartDate}</p>
       </header>
 
       <main>
-        {Object.keys(liveItemsByCategory).length > 0 && (
-          <section className="items-section">
-            <h2 className="section-header">Live Auction Items</h2>
-            <table className="catalog-table">
-              {Object.entries(liveItemsByCategory).map(([categoryName, items]) =>
-                renderCategoryGroup(categoryName, items)
-              )}
-            </table>
-          </section>
-        )}
-
-        {Object.keys(silentItemsByLotThenCategory).length > 0 && (
-          <section className="page-break items-section">
-            <h2 className="section-header">Silent Auction Items</h2>
-            {Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => (
-              <div key={lotName} className="lot-group">
-                <h3>Lot: {lotName}</h3>
-                <table className="catalog-table">
-                  {Object.entries(categories).map(([categoryName, items]) =>
-                    renderCategoryGroup(categoryName, items)
-                  )}
-                </table>
-              </div>
+        <table className="w-full border-collapse">
+            <thead>
+            <tr className="border-b-4 border-black">
+                <th className="text-left py-4 px-2 w-24 text-xl">SKU</th>
+                <th className="text-left py-4 px-2 text-xl">Item & Donor</th>
+                <th className="text-left py-4 px-2 text-xl">Description</th>
+                <th className="text-left py-4 px-2 w-48 text-xl border-l-2 border-black">Winning Bid Info</th>
+            </tr>
+            </thead>
+            <tbody>
+            {sortedItems.map((item) => (
+                <tr key={item.id} className="border-b border-gray-300 page-break-inside-avoid">
+                <td className="py-6 px-2 font-black text-3xl align-top">{item.sku}</td>
+                <td className="py-6 px-2 align-top">
+                    <div className="font-bold text-2xl mb-1">{item.name}</div>
+                    {item.donor?.name && (
+                    <div className="text-lg text-gray-600 italic">Donated by: {item.donor.name}</div>
+                    )}
+                </td>
+                <td className="py-6 px-2 align-top text-lg leading-relaxed">{item.description}</td>
+                <td className="py-6 px-2 align-top border-l-2 border-gray-300 bg-gray-50/50"></td>
+                </tr>
             ))}
-          </section>
-        )}
+            </tbody>
+        </table>
       </main>
 
        <style jsx global>{`
-            .page-break {
-                page-break-before: always;
-            }
-            .section-header {
-                font-size: 1.5rem; /* 24px */
-                font-weight: 700;
-                border-bottom: 2px solid black;
-                padding-bottom: 0.25rem; /* 4px */
-                margin-bottom: 1rem; /* 16px */
-            }
-            .lot-group h3 {
-                font-size: 1.25rem; /* 20px */
-                font-weight: 700;
-                margin-bottom: 0.5rem; /* 8px */
-            }
-            .category-header h3 {
-                font-size: 1.125rem; /* 18px */
-                font-weight: 700;
-                font-style: italic;
-                padding: 0.125rem 0; /* 2px */
-            }
-            .category-header {
-                padding: 0;
-            }
-            .catalog-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 0.25rem; /* 4px */
-            }
-            .item-row td {
-                padding: 0.25rem 0.25rem;
-                vertical-align: middle;
-                border-bottom: 1px solid #e5e7eb; /* gray-200 */
-            }
-            .image-cell {
-                width: 10%;
-                padding-right: 0.5rem;
-            }
-            .thumbnail {
-                width: 64px;
-                height: 64px;
-                object-fit: cover;
-                border-radius: 4px;
-            }
-            .sku-cell {
-                width: 10%;
-                font-weight: 700;
-                font-family: monospace;
-            }
-            .name-cell {
-                width: 15%;
-                font-weight: 600;
-            }
-            .description-cell {
-                width: 30%;
-                color: #4b5563; /* gray-600 */
-            }
-            .value-cell {
-                width: 10%;
-                white-space: nowrap;
-            }
-            .notes-cell {
-                width: 25%;
-                border-left: 1px solid #e5e7eb;
-            }
             @media print {
-                .print-header-container { 
-                    margin-bottom: 0;
-                    padding-bottom: 0;
+                .page-break-inside-avoid {
+                    page-break-inside: avoid;
                 }
-                .items-section {
-                    page-break-before: avoid;
-                    margin-top: 10px;
+                body {
+                    -webkit-print-color-adjust: exact;
                 }
-                .thumbnail {
-                    height: 48px !important;
-                    width: 48px !important;
+                @page {
+                    margin: 0.5in;
                 }
             }
         `}</style>

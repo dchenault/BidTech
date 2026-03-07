@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel, Upload } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel, Upload, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -55,7 +56,6 @@ import { useSearch } from '@/hooks/use-search';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import { useAccount } from '@/hooks/use-account';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -72,7 +72,7 @@ export default function AuctionDetailsPage() {
   const { accountId, isLoading: isAccountLoading } = useAccount();
   const { toast } = useToast();
 
-  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, moveItemToLot, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
+  const { getAuction, getAuctionItems, getAuctionLots, addItemToAuction, updateItemInAuction, addCategoryToAuction, updateCategoryInAuction, deleteCategoryFromAuction, addLotToAuction, updateLotInAuction, deleteLotFromAuction, updateAuction, deleteItemFromAuction, unregisterPatronFromAuction, addDonationToAuction } = useAuctions();
   const { patrons, addPatron, isLoading: isLoadingPatrons } = usePatrons();
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -81,8 +81,8 @@ export default function AuctionDetailsPage() {
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
   const [isImportItemsDialogOpen, setIsImportItemsDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
-  const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -305,10 +305,18 @@ export default function AuctionDetailsPage() {
     updateAuction(auction.id, { status: newStatus });
   };
 
-  const handleExportCatalog = (orderedItems: Item[], finalLots: Lot[]) => {
-    if (auction) {
-      exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
-    }
+  const handleExportCatalog = () => {
+    if (!auction || !items) return;
+    setIsExporting(true);
+    // Simulate generation delay for user feedback
+    setTimeout(() => {
+        exportAuctionCatalogToHTML({ ...auction, items, lots });
+        setIsExporting(false);
+        toast({
+            title: 'Catalog Generated',
+            description: 'The print-ready catalog has been opened in a new tab.'
+        });
+    }, 1000);
   };
 
   const handleShareCatalog = () => {
@@ -864,9 +872,14 @@ export default function AuctionDetailsPage() {
                             Share Catalog
                         </Button>
                     )}
-                    <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Export Catalog
+                    <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={handleExportCatalog}
+                        disabled={isExporting}
+                    >
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        {isExporting ? 'Generating...' : 'Export Catalog'}
                     </Button>
                     {(auction.type === 'Silent' || auction.type === 'Hybrid') && (
                         <Button size="sm" variant="outline" onClick={() => setIsAddLotDialogOpen(true)}>
@@ -1385,15 +1398,6 @@ export default function AuctionDetailsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ExportCatalogDialog
-        isOpen={isExportCatalogDialogOpen}
-        onClose={() => setIsExportCatalogDialogOpen(false)}
-        items={items}
-        lots={lots}
-        onSubmit={(orderedItems) => handleExportCatalog(orderedItems, lots)}
-        isLoading={isLoadingItems || isLoadingLots}
-      />
 
       <ImportItemsCsvDialog
         isOpen={isImportItemsDialogOpen}

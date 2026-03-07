@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -49,7 +50,6 @@ import { AuctionCatalog } from '@/components/auction-catalog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ExportCatalogDialog } from '@/components/export-catalog-dialog';
 import Image from 'next/image';
 import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dialog';
 import { useStorage } from '@/firebase/provider';
@@ -79,6 +79,7 @@ export default function PublicStaffAuctionPage() {
   const [registeredPatrons, setRegisteredPatrons] = useState<RegisteredPatron[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -87,7 +88,6 @@ export default function PublicStaffAuctionPage() {
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddDonationDialogOpen, setIsAddDonationDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
-  const [isExportCatalogDialogOpen, setIsExportCatalogDialogOpen] = useState(false);
   const [isRegisterPatronDialogOpen, setIsRegisterPatronDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'sku', direction: 'ascending' });
 
@@ -461,10 +461,18 @@ export default function PublicStaffAuctionPage() {
   };
   
   const handleToggleAuctionStatus = () => updateAuction({ status: auction?.status === 'completed' ? 'active' : 'completed' });
-  const handleExportCatalog = (orderedItems: Item[], finalLots: Lot[]) => {
-    if (auction) {
-      exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
-    }
+  
+  const handleExportCatalog = () => {
+    if (!auction || !items) return;
+    setIsExporting(true);
+    setTimeout(() => {
+        exportAuctionCatalogToHTML({ ...auction, items, lots });
+        setIsExporting(false);
+        toast({
+            title: 'Catalog Generated',
+            description: 'The print-ready catalog has been opened in a new tab.'
+        });
+    }, 1000);
   };
   
   const handleShareCatalog = () => {
@@ -665,7 +673,15 @@ export default function PublicStaffAuctionPage() {
                         {auction?.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
                     </Button>
                      {auction?.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
-                    <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}><Download className="mr-2 h-4 w-4" />Export Catalog</Button>
+                    <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={handleExportCatalog}
+                        disabled={isExporting}
+                    >
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        {isExporting ? 'Generating...' : 'Export Catalog'}
+                    </Button>
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
               </div>
@@ -757,8 +773,6 @@ export default function PublicStaffAuctionPage() {
       <AddAuctionDonationDialog isOpen={isAddDonationDialogOpen} onClose={() => setIsAddDonationDialogOpen(false)} patrons={registeredPatronsWithDetails} onSubmit={handleAddDonation}/>
       
       <AlertDialog open={!!itemToDelete} onOpenChange={(isOpen) => !isOpen && setItemToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete "{itemToDelete?.name}".</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      
-      <ExportCatalogDialog isOpen={isExportCatalogDialogOpen} onClose={() => setIsExportCatalogDialogOpen(false)} items={items} lots={lots} onSubmit={(orderedItems) => handleExportCatalog(orderedItems, lots)} isLoading={isLoading}/>
     </>
   );
 }

@@ -22,9 +22,23 @@ function openHtmlInNewTab(htmlContent: string) {
     newWindow.document.write(htmlContent);
     newWindow.document.close();
   } else {
-    // A simple alert is enough as a fallback for popup blockers.
     alert('Could not open a new tab. Please check your browser\'s popup blocker settings.');
   }
+}
+
+// Helper for natural sort: Numerics first, then Alpha/Lots
+function getSortedItemsForCatalog(items: Item[]) {
+  const nonDonations = items.filter(item => !item.sku.toString().startsWith('DON-'));
+  
+  // Pass 1: Strictly Numeric SKUs
+  const numericItems = nonDonations.filter(item => /^\d+$/.test(item.sku.toString()));
+  // Pass 2: Lots or Alpha-Numeric SKUs
+  const alphaItems = nonDonations.filter(item => !/^\d+$/.test(item.sku.toString()));
+
+  const sorter = (a: Item, b: Item) => 
+    a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
+
+  return [...numericItems.sort(sorter), ...alphaItems.sort(sorter)];
 }
 
 // 1. Export All Patrons (Master List)
@@ -103,19 +117,16 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 }
 
 
-// 4. Export Auction Items
+// 4. Export Auction Items (Simplified CSV)
 export function exportItemsToCSV(items: Item[], auctionName: string) {
-  const csvHeader = [
-    'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Name'
-  ].join(',');
+  const sorted = getSortedItemsForCatalog(items);
+  const csvHeader = ['SKU', 'Name', 'Description', 'Donor'].join(',');
 
-  const csvRows = items.map(item => 
+  const csvRows = sorted.map(item => 
     [
-      item.sku,
-      `"${item.name}"`,
+      `"${item.sku}"`,
+      `"${item.name.replace(/"/g, '""')}"`,
       `"${item.description?.replace(/"/g, '""') || ''}"`,
-      `"${item.category.name}"`,
-      item.estimatedValue,
       `"${item.donor?.name || ''}"`
     ].join(',')
   );
@@ -214,34 +225,9 @@ export function exportAllWinningBidsToCSV(items: (Item & { auctionName?: string 
 }
 
 
-// 8. Export Auction Catalog to HTML
+// 8. Export Auction Catalog to HTML (Simplified, Flat List, Natural Sort)
 export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], lots: Lot[] }) {
-    const lotsById = new Map((auction.lots || []).map(l => [l.id, l]));
-
-    const { liveItemsByCategory, silentItemsByLotThenCategory } = (auction.items || [])
-        .filter(item => !item.sku.toString().startsWith('DON-'))
-        .reduce((acc, item) => {
-            const categoryName = item.category?.name || 'Uncategorized';
-            if (item.lotId) {
-                const lotName = lotsById.get(item.lotId)?.name || 'Unassigned Silent Items';
-                if (!acc.silentItemsByLotThenCategory[lotName]) {
-                    acc.silentItemsByLotThenCategory[lotName] = {};
-                }
-                if (!acc.silentItemsByLotThenCategory[lotName][categoryName]) {
-                    acc.silentItemsByLotThenCategory[lotName][categoryName] = [];
-                }
-                acc.silentItemsByLotThenCategory[lotName][categoryName].push(item);
-            } else {
-                if (!acc.liveItemsByCategory[categoryName]) {
-                    acc.liveItemsByCategory[categoryName] = [];
-                }
-                acc.liveItemsByCategory[categoryName].push(item);
-            }
-            return acc;
-        }, {
-            liveItemsByCategory: {} as { [key: string]: Item[] },
-            silentItemsByLotThenCategory: {} as { [key: string]: { [key: string]: Item[] } }
-        });
+    const sortedItems = getSortedItemsForCatalog(auction.items || []);
     
     const safeFormatDate = (dateInput: any, options: Intl.DateTimeFormatOptions) => {
         if (!dateInput) return '';
@@ -250,110 +236,67 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         return date.toLocaleDateString('en-US', options);
     };
 
-    const safeFormatDateTime = (dateInput: any) => {
-        if (!dateInput) return '';
-        const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
-        if (isNaN(date.getTime())) return '';
-        return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-    };
-
-
   const styles = `
     <style>
         @page { size: letter portrait; margin: 0.5in; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.4; color: #333; font-size: 9pt; }
-        header { text-align: center; margin-bottom: 20px; page-break-after: avoid; }
-        h1 { font-size: 2em; margin: 0; }
-        .section-header { font-size: 1.5rem; font-weight: 700; border-bottom: 2px solid black; padding-bottom: 0.25rem; margin-top: 1.5rem; margin-bottom: 1rem; }
-        .lot-group > h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; margin-top: 1.5rem; }
-        .lot-closing-date { font-size: 0.9em; color: #555; margin-bottom: 0.5rem; font-style: italic; }
-        .category-header > h3 { font-size: 1.125rem; font-weight: 700; font-style: italic; padding: 0.125rem 0; }
-        .catalog-table { width: 100%; border-collapse: collapse; margin-bottom: 0.25rem; page-break-inside: avoid; }
-        .item-row td { padding: 0.25rem 0.25rem; vertical-align: middle; border-bottom: 1px solid #e5e7eb; }
-        .category-header { padding: 0; }
-        .category-header td { border: none; }
-        .image-cell { width: 10%; padding-right: 8px; }
-        .thumbnail { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; }
-        .sku-cell { width: 10%; font-weight: 700; font-family: monospace; }
-        .name-cell { width: 15%; font-weight: 600; }
-        .description-cell { width: 40%; color: #4b5563; }
-        .notes-cell { width: 25%; border-left: 1px solid #e5e7eb; }
-        .page-break { page-break-before: always; }
-        @media print { body { font-size: 9pt; } }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.4; color: #333; font-size: 10pt; }
+        header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 20px; }
+        h1 { font-size: 2.5em; margin: 0; text-transform: uppercase; }
+        .catalog-table { width: 100%; border-collapse: collapse; }
+        .catalog-table th { text-align: left; padding: 12px 8px; border-bottom: 3px solid #000; font-size: 1.1em; text-transform: uppercase; }
+        .catalog-table td { padding: 12px 8px; border-bottom: 1px solid #ccc; vertical-align: top; }
+        .sku-cell { font-weight: bold; width: 10%; font-size: 1.4em; }
+        .name-cell { width: 25%; font-weight: bold; font-size: 1.2em; }
+        .donor-info { font-style: italic; color: #555; font-size: 0.9em; margin-top: 4px; }
+        .description-cell { width: 40%; line-height: 1.5; }
+        .notes-cell { width: 25%; border-left: 2px solid #eee; background: #fafafa; }
+        tr { page-break-inside: avoid; }
     </style>
   `;
-    const renderItemRow = (item: Item) => `
-        <tr class="item-row">
-            <td class="image-cell">
-                ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="${item.name}" class="thumbnail" />` : ''}
-            </td>
-            <td class="sku-cell">${item.sku}</td>
-            <td class="name-cell">${item.name}</td>
-            <td class="description-cell">${item.description}</td>
-            <td class="notes-cell"></td>
-        </tr>
-    `;
 
-    const renderCategoryGroup = (categoryName: string, items: Item[]) => `
-        <tbody>
-            <tr class="category-header">
-                <td colspan="5"><h3>Category: ${categoryName}</h3></td>
-            </tr>
-            ${items.map(renderItemRow).join('')}
-        </tbody>
-    `;
-
-
-    let liveItemsHtml = '';
-    if (Object.keys(liveItemsByCategory).length > 0) {
-        liveItemsHtml += '<h2 class="section-header">Live Auction Items</h2>';
-        liveItemsHtml += '<table class="catalog-table">';
-        liveItemsHtml += Object.entries(liveItemsByCategory).map(([categoryName, items]) =>
-            renderCategoryGroup(categoryName, items)
-        ).join('');
-        liveItemsHtml += '</table>';
-    }
-
-    let silentItemsHtml = '';
-    if (Object.keys(silentItemsByLotThenCategory).length > 0) {
-        silentItemsHtml += '<h2 class="section-header page-break">Silent Auction Items</h2>';
-        silentItemsHtml += Object.entries(silentItemsByLotThenCategory).map(([lotName, categories]) => {
-          const lot = Array.from(lotsById.values()).find(l => l.name === lotName);
-          const closingDateHtml = lot?.closingDate ? `<p class="lot-closing-date">Closes: ${safeFormatDateTime(lot.closingDate)}</p>` : '';
-          return `
-            <div class="lot-group">
-                <h3>Lot: ${lotName}</h3>
-                ${closingDateHtml}
-                <table class="catalog-table">
-                    ${Object.entries(categories).map(([categoryName, items]) =>
-                        renderCategoryGroup(categoryName, items)
-                    ).join('')}
-                </table>
-            </div>
-        `}).join('');
-    }
+  const rows = sortedItems.map(item => `
+    <tr>
+        <td class="sku-cell">${item.sku}</td>
+        <td class="name-cell">
+            ${item.name}
+            ${item.donor?.name ? `<div class="donor-info">Donated by: ${item.donor.name}</div>` : ''}
+        </td>
+        <td class="description-cell">${item.description}</td>
+        <td class="notes-cell"></td>
+    </tr>
+  `).join('');
 
   const fullHtml = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Auction Catalog: ${auction.name}</title>
+      <title>Catalog: ${auction.name}</title>
       ${styles}
     </head>
     <body>
       <div class="container">
         <header>
           <h1>${auction.name}</h1>
-          <p>${auction.description}</p>
-          <p>${safeFormatDate(auction.startDate, {
+          <p style="font-size: 1.2em; margin: 10px 0;">${auction.description || ''}</p>
+          <p style="font-weight: bold;">${safeFormatDate(auction.startDate, {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
           })}</p>
         </header>
         <main>
-          ${liveItemsHtml}
-          ${silentItemsHtml}
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Item / Donor</th>
+                <th>Description</th>
+                <th>Winning Bid Info</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
         </main>
       </div>
     </body>
@@ -498,11 +441,13 @@ export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })
     return [
       `"${item.auctionName || 'N/A'}"`,
       item.sku,
-      item.winningBid || 0,
-      item.winner ? `"${item.winner.firstName} ${item.winner.lastName}"` : 'N/A',
-      item.winner?.email || 'N/A'
-    ].join(',');
-  });
+      `"${item.name}"`,
+      `"${item.description?.replace(/"/g, '""') || ''}"`,
+      `"${item.category.name}"`,
+      item.estimatedValue,
+      `"${item.donor?.name || ''}"`
+    ].join(',')
+  );
 
   const footer = `\nTotal,${totalDonations}`;
   const csvContent = [csvHeader, ...csvRows, footer].join('\n');
