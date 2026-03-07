@@ -51,7 +51,7 @@ const ItemsTable = ({ items, requestSort, renderSortArrow }: { items: Item[], re
                         </Button>
                     </TableHead>
                     <TableHead className="hidden md:table-cell">Description</TableHead>
-                    <TableHead className="text-right font-bold text-foreground">Value/Bid</TableHead>
+                    <TableHead className="text-right font-bold text-foreground">Donated By</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -65,8 +65,8 @@ const ItemsTable = ({ items, requestSort, renderSortArrow }: { items: Item[], re
                         <TableCell className="hidden md:table-cell text-muted-foreground text-sm max-w-md">
                             {item.description}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-lg text-primary whitespace-nowrap">
-                            {formatCurrency(item.winningBid || item.estimatedValue)}
+                        <TableCell className="text-right font-medium text-primary">
+                            {item.business || '—'}
                         </TableCell>
                     </TableRow>
                 ))}
