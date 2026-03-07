@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Frown, Loader2, BarChart3, PlusCircle } from 'lucide-react';
+import { Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Frown, Loader2, BarChart3, PlusCircle, FileText } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -51,6 +52,7 @@ import { AddAuctionDonationDialog } from '@/components/add-auction-donation-dial
 import { useStorage } from '@/firebase/provider';
 import { deleteFileByUrl, uploadDataUriAndGetURL } from '@/firebase/storage';
 import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function PublicStaffAuctionPage() {
   const params = useParams();
@@ -652,9 +654,28 @@ export default function PublicStaffAuctionPage() {
                             <TableCell className="hidden md:table-cell text-center">{patron.itemsWonInAuction}</TableCell>
                             <TableCell className="hidden lg:table-cell text-right">{formatCurrency(patron.amountDueInAuction)}</TableCell>
                              <TableCell className="hidden lg:table-cell text-center">
-                                <Badge variant={patron.paymentStatus === 'Paid' ? 'secondary' : patron.paymentStatus === 'Unpaid' ? 'destructive' : 'outline'} className="capitalize">
-                                    {patron.paymentStatus}
-                                </Badge>
+                                {patron.notes && patron.notes.trim() !== '' ? (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="flex items-center justify-center gap-1 cursor-help">
+                                                    <Badge variant={patron.paymentStatus === 'Paid' ? 'secondary' : patron.paymentStatus === 'Unpaid' ? 'destructive' : 'outline'} className="capitalize">
+                                                        {patron.paymentStatus}
+                                                    </Badge>
+                                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                                <p className="text-xs font-bold mb-1 border-b pb-1">Patron Notes</p>
+                                                <p className="text-xs">{patron.notes}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                ) : (
+                                    <Badge variant={patron.paymentStatus === 'Paid' ? 'secondary' : patron.paymentStatus === 'Unpaid' ? 'destructive' : 'outline'} className="capitalize">
+                                        {patron.paymentStatus}
+                                    </Badge>
+                                )}
                             </TableCell>
                             <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleUnregisterPatron(patron); }}><Trash2 className="h-4 w-4" /><span className="sr-only">Remove</span></Button></TableCell>
                             </TableRow>
