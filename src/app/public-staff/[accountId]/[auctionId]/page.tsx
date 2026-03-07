@@ -295,6 +295,132 @@ export default function PublicStaffAuctionPage() {
       p.biddingNumber?.toString().includes(searchQuery)
     );
   }, [registeredPatronsWithDetails, searchQuery]);
+
+  const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
+    <>
+      {itemsToRender.length > 0 ? (
+      <Table>
+          <TableHeader>
+          <TableRow>
+              <TableHead className="hidden sm:table-cell w-[80px]">Image</TableHead>
+              <TableHead>
+                  <Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4 h-8">
+                      SKU {sortConfig?.key === 'sku' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                  </Button>
+              </TableHead>
+              <TableHead>
+                  <Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4 h-8">Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
+              </TableHead>
+              <TableHead className="hidden md:table-cell">
+                  <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
+              </TableHead>
+              <TableHead className="hidden lg:table-cell">
+                  <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
+              </TableHead>
+              <TableHead className="hidden lg:table-cell">
+                  <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
+              </TableHead>
+              <TableHead className="text-right">Action</TableHead>
+          </TableRow>
+          </TableHeader>
+          <TableBody>
+          {itemsToRender.map((item: Item) => (
+              <TableRow 
+                  key={item.id} 
+                  className="cursor-pointer" 
+                  onClick={() => router.push(`/public-staff/${accountId}/${auctionId}/items/${item.id}`)}
+              >
+                <TableCell className="hidden sm:table-cell">
+                  <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                    {item.thumbnailUrl ? (<Image alt={item.name} className="aspect-square rounded-md object-cover" height="64" src={item.thumbnailUrl} width="64"/>) : (<ImageIcon className="h-6 w-6 text-muted-foreground" />)}
+                  </div>
+                </TableCell>
+              <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
+              <TableCell className="font-medium">{item.name}</TableCell>
+              <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
+              <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
+              <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
+              <TableCell className="text-right">
+                  {item.winningBid ? (
+                      <Button 
+                          size="sm" 
+                          variant="secondary"
+                          className="h-8 w-24"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenWinningBidDialog(item);
+                          }}
+                      >
+                          Edit Bid
+                      </Button>
+                  ) : (
+                      <Button 
+                          size="sm" 
+                          className="h-8 w-24 bg-green-600 hover:bg-green-700 text-white"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenWinningBidDialog(item);
+                          }}
+                      >
+                          Winning Bid
+                      </Button>
+                  )}
+              </TableCell>
+              </TableRow>
+          ))}
+          </TableBody>
+      </Table>
+      ) : (
+      <div className="text-center text-muted-foreground py-8">No items found{searchQuery && ` for "${searchQuery}"`}.</div>
+      )}
+    </>
+  );
+
+  const renderLiveAuctionView = () => (<Card><CardHeader><CardTitle>Auction Items</CardTitle><CardDescription>Manage the items for this auction.</CardDescription></CardHeader><CardContent><ItemsTable itemsToRender={sortedAndSearchedItems} /></CardContent></Card>);
+
+  const renderSilentAuctionView = () => (
+    <div className="space-y-6">
+      {lots.length === 0 ? (
+        <Card><CardHeader><CardTitle>All Items</CardTitle><CardDescription>Manage all items for this silent auction.</CardDescription></CardHeader><CardContent><ItemsTable itemsToRender={sortedAndSearchedItems} /></CardContent></Card>
+      ) : (
+        <>
+          {lots.map((lot: Lot) => {
+            const lotItems = silentItemsByLot.get(lot.id) || [];
+            return (<Card key={lot.id}><CardHeader>{lot.name}</CardHeader><CardContent><ItemsTable itemsToRender={lotItems} /></CardContent></Card>);
+          })}
+          {liveItems.length > 0 && (<Card className="mt-8"><CardHeader><CardTitle>Unassigned Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></Card>)}
+        </>
+      )}
+    </div>
+  );
+
+  const renderHybridAuctionView = () => (
+    <Tabs defaultValue="live">
+      <div className="flex items-center"><TabsList><TabsTrigger value="live">Live Items</TabsTrigger><TabsTrigger value="silent">Silent Items</TabsTrigger></TabsList></div>
+      <div className="relative mt-4">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
+      </div>
+      <TabsContent value="live" className="mt-4"><Card><CardHeader><CardTitle>Live Auction Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></Card></TabsContent>
+      <TabsContent value="silent" className="mt-4 space-y-6">
+        {lots.length > 0 ? (
+          <>
+            {lots.map((lot: Lot) => (<Card key={lot.id}><CardHeader><CardTitle>{lot.name}</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={silentItemsByLot.get(lot.id) || []} /></CardContent></Card>))}
+          </>
+        ) : (
+          <div className="text-center text-muted-foreground py-8 border rounded-lg"><p>No silent lots have been created.</p></div>
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+
+  const renderAuctionContent = () => {
+    switch (auction.type) {
+      case 'Silent': return renderSilentAuctionView();
+      case 'Hybrid': return renderHybridAuctionView();
+      case 'Live': default: return renderLiveAuctionView();
+    }
+  }
   
   if (!mounted) {
     return null;
@@ -514,132 +640,6 @@ export default function PublicStaffAuctionPage() {
         await deleteDoc(doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons', patron.registeredPatronDocId));
         toast({ title: 'Patron Unregistered' });
     };
-    
-    const ItemsTable = ({ itemsToRender }: { itemsToRender: Item[] }) => (
-      <>
-        {itemsToRender.length > 0 ? (
-        <Table>
-            <TableHeader>
-            <TableRow>
-                <TableHead className="hidden sm:table-cell w-[80px]">Image</TableHead>
-                <TableHead>
-                    <Button variant="ghost" onClick={() => requestSort('sku')} className="-ml-4 h-8">
-                        SKU {sortConfig?.key === 'sku' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                    </Button>
-                </TableHead>
-                <TableHead>
-                    <Button variant="ghost" onClick={() => requestSort('name')} className="-ml-4 h-8">Name {sortConfig?.key === 'name' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                    <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
-                </TableHead>
-                <TableHead className="hidden lg:table-cell">
-                    <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
-                </TableHead>
-                <TableHead className="hidden lg:table-cell">
-                    <Button variant="ghost" onClick={() => requestSort('winner')} className="-ml-4 h-8">Winner {sortConfig?.key === 'winner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
-                </TableHead>
-                <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-            </TableHeader>
-            <TableBody>
-            {itemsToRender.map((item: Item) => (
-                <TableRow 
-                    key={item.id} 
-                    className="cursor-pointer" 
-                    onClick={() => router.push(`/public-staff/${accountId}/${auctionId}/items/${item.id}`)}
-                >
-                  <TableCell className="hidden sm:table-cell">
-                    <div className="relative h-16 w-16 bg-muted rounded-md flex items-center justify-center">
-                      {item.thumbnailUrl ? (<Image alt={item.name} className="aspect-square rounded-md object-cover" height="64" src={item.thumbnailUrl} width="64"/>) : (<ImageIcon className="h-6 w-6 text-muted-foreground" />)}
-                    </div>
-                  </TableCell>
-                <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
-                <TableCell className="font-medium">{item.name}</TableCell>
-                <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
-                <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
-                <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
-                <TableCell className="text-right">
-                    {item.winningBid ? (
-                        <Button 
-                            size="sm" 
-                            variant="secondary"
-                            className="h-8 w-24"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenWinningBidDialog(item);
-                            }}
-                        >
-                            Edit Bid
-                        </Button>
-                    ) : (
-                        <Button 
-                            size="sm" 
-                            className="h-8 w-24 bg-green-600 hover:bg-green-700 text-white"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenWinningBidDialog(item);
-                            }}
-                        >
-                            Winning Bid
-                        </Button>
-                    )}
-                </TableCell>
-                </TableRow>
-            ))}
-            </TableBody>
-        </Table>
-        ) : (
-        <div className="text-center text-muted-foreground py-8">No items found{searchQuery && ` for "${searchQuery}"`}.</div>
-        )}
-      </>
-    );
-
-  const renderLiveAuctionView = () => (<Card><CardHeader><CardTitle>Auction Items</CardTitle><CardDescription>Manage the items for this auction.</CardDescription></CardHeader><CardContent><ItemsTable itemsToRender={sortedAndSearchedItems} /></CardContent></Card>);
-
-  const renderSilentAuctionView = () => (
-    <div className="space-y-6">
-      {lots.length === 0 ? (
-        <Card><CardHeader><CardTitle>All Items</CardTitle><CardDescription>Manage all items for this silent auction.</CardDescription></CardHeader><CardContent><ItemsTable itemsToRender={sortedAndSearchedItems} /></CardContent></Card>
-      ) : (
-        <>
-          {lots.map((lot: Lot) => {
-            const lotItems = silentItemsByLot.get(lot.id) || [];
-            return (<Card key={lot.id}><CardHeader>{lot.name}</CardHeader><CardContent><ItemsTable itemsToRender={lotItems} /></CardContent></Card>);
-          })}
-          {liveItems.length > 0 && (<Card className="mt-8"><CardHeader><CardTitle>Unassigned Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></Card>)}
-        </>
-      )}
-    </div>
-  );
-
-  const renderHybridAuctionView = () => (
-    <Tabs defaultValue="live">
-      <div className="flex items-center"><TabsList><TabsTrigger value="live">Live Items</TabsTrigger><TabsTrigger value="silent">Silent Items</TabsTrigger></TabsList></div>
-      <div className="relative mt-4">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
-      </div>
-      <TabsContent value="live" className="mt-4"><Card><CardHeader><CardTitle>Live Auction Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></TabsContent>
-      <TabsContent value="silent" className="mt-4 space-y-6">
-        {lots.length > 0 ? (
-          <>
-            {lots.map((lot: Lot) => (<Card key={lot.id}><CardHeader><CardTitle>{lot.name}</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={silentItemsByLot.get(lot.id) || []} /></CardContent></Card>))}
-          </>
-        ) : (
-          <div className="text-center text-muted-foreground py-8 border rounded-lg"><p>No silent lots have been created.</p></div>
-        )}
-      </TabsContent>
-    </Tabs>
-  );
-
-  const renderAuctionContent = () => {
-    switch (auction.type) {
-      case 'Silent': return renderSilentAuctionView();
-      case 'Hybrid': return renderHybridAuctionView();
-      case 'Live': default: return renderLiveAuctionView();
-    }
-  }
 
   return (
     <>
@@ -744,7 +744,6 @@ export default function PublicStaffAuctionPage() {
       </div>
       <div className="hidden print:block">{auction && <AuctionCatalog auction={{...auction, items, lots}} />}</div>
 
-      {/* DIALOGS */}
       <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />
       {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => { setIsWinningBidDialogOpen(false); setSelectedItem(null); }} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
       {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />)}
