@@ -1,14 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { useAccount } from '@/hooks/use-account';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Database, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Database, CheckCircle2, AlertCircle, Upload, Download, FileJson, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import Papa from 'papaparse';
 
 const BUSINESS_MAPPING: Record<string, string> = {
   "B1": "Jerry Mitchell",
@@ -171,8 +174,86 @@ export default function UpdateBusinessPage() {
   const { toast } = useToast();
   const [isUpdating, setIsProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [parsedCsvData, setParsedCsvData] = useState<Record<string, string> | null>(null);
 
   const addLog = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCsvFile(file);
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const mapping: Record<string, string> = {};
+          let skuKey = '';
+          let businessKey = '';
+
+          // Look for likely column headers
+          if (results.meta.fields) {
+            skuKey = results.meta.fields.find(f => f.toLowerCase().includes('sku')) || '';
+            businessKey = results.meta.fields.find(f => f.toLowerCase().includes('business') || f.toLowerCase().includes('donor')) || '';
+          }
+
+          if (!skuKey || !businessKey) {
+            toast({
+              variant: 'destructive',
+              title: 'Invalid CSV',
+              description: 'Could not find "SKU" and "Business" columns. Please check your headers.'
+            });
+            return;
+          }
+
+          results.data.forEach((row: any) => {
+            if (row[skuKey] && row[businessKey]) {
+              mapping[row[skuKey].toString().trim()] = row[businessKey].toString().trim();
+            }
+          });
+
+          setParsedCsvData(mapping);
+          toast({ title: 'CSV Parsed', description: `Found ${Object.keys(mapping).length} items to update.` });
+        }
+      });
+    }
+  };
+
+  const downloadTemplate = async () => {
+    if (!firestore || !accountId) return;
+    setIsProcessing(true);
+    addLog('Generating template from current auction items...');
+
+    try {
+      const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', TARGET_AUCTION_ID, 'items');
+      const snapshot = await getDocs(itemsRef);
+      
+      const data = snapshot.docs.map(doc => ({
+        SKU: doc.data().sku,
+        ItemName: doc.data().name,
+        Business: doc.data().business || ''
+      }));
+
+      // Sort by SKU naturally
+      data.sort((a, b) => a.SKU.toString().localeCompare(b.SKU.toString(), undefined, { numeric: true }));
+
+      const csv = Papa.unparse(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `auction_business_template.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      addLog('Template downloaded successfully.');
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Download Failed', description: e.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleUpdate = async () => {
     if (!firestore || !accountId) {
@@ -180,9 +261,13 @@ export default function UpdateBusinessPage() {
       return;
     }
 
+    const mappingToUse = parsedCsvData || BUSINESS_MAPPING;
+    const isCsv = !!parsedCsvData;
+
     setIsProcessing(true);
     setLogs([]);
-    addLog('Fetching items for auction s3VnbScgvA5TgsLy6vRn...');
+    addLog(`Starting update using ${isCsv ? 'uploaded CSV' : 'hardcoded mapping'}...`);
+    addLog(`Targeting auction: ${TARGET_AUCTION_ID}`);
 
     try {
       const itemsRef = collection(firestore, 'accounts', accountId, 'auctions', TARGET_AUCTION_ID, 'items');
@@ -192,29 +277,34 @@ export default function UpdateBusinessPage() {
         throw new Error('No items found in this auction.');
       }
 
-      addLog(`Found ${snapshot.size} items. Checking SKU matches...`);
+      addLog(`Found ${snapshot.size} items in auction. Processing matches...`);
       
       const batch = writeBatch(firestore);
       let matchCount = 0;
+      let missingCount = 0;
 
       snapshot.docs.forEach(itemDoc => {
         const itemData = itemDoc.data();
         const sku = itemData.sku?.toString().trim();
         
-        if (sku && BUSINESS_MAPPING[sku]) {
-          batch.update(itemDoc.ref, { business: BUSINESS_MAPPING[sku] });
+        if (sku && mappingToUse[sku]) {
+          batch.update(itemDoc.ref, { business: mappingToUse[sku] });
           matchCount++;
+        } else {
+          missingCount++;
         }
       });
 
       if (matchCount > 0) {
         addLog(`Applying updates to ${matchCount} items...`);
         await batch.commit();
-        addLog('UPDATE SUCCESSFUL!');
+        addLog(`SUCCESS: Updated ${matchCount} items.`);
+        if (missingCount > 0) addLog(`NOTE: ${missingCount} items in auction did not have a match in the update list.`);
+        
         toast({ title: 'Success!', description: `Updated ${matchCount} items with business names.` });
       } else {
-        addLog('No matching SKUs found in the provided table.');
-        toast({ variant: 'default', title: 'No Changes', description: 'None of the items in this auction matched the SKUs in the list.' });
+        addLog('ERROR: No matching SKUs found between your list and the auction.');
+        toast({ variant: 'default', title: 'No Changes', description: 'None of the items in this auction matched the SKUs in your provided list.' });
       }
 
     } catch (e: any) {
@@ -235,27 +325,55 @@ export default function UpdateBusinessPage() {
             <CardTitle>Bulk Business Name Update</CardTitle>
           </div>
           <CardDescription>
-            This tool will match SKUs in Auction <strong>{TARGET_AUCTION_ID}</strong> 
-            and update them with the business names from your provided table.
+            Match SKUs in Auction <strong>{TARGET_AUCTION_ID}</strong> 
+            and update them with donor business names.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md bg-muted p-4">
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label>Step 1: Get your data</Label>
+              <Button variant="outline" onClick={downloadTemplate} disabled={isUpdating} className="w-full justify-start">
+                <Download className="mr-2 h-4 w-4" />
+                Download Current Item List (CSV)
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Edit the "Business" column in the downloaded file and save it.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="csv-upload">Step 2: Upload revised data</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="csv-upload" 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={handleFileChange} 
+                  disabled={isUpdating}
+                  className="flex-1"
+                />
+                {parsedCsvData && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md bg-muted p-4 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              Mapping Summary
+              Pre-flight Status
             </h3>
             <ul className="text-xs space-y-1 text-muted-foreground">
-              <li>• Total SKUs in List: {Object.keys(BUSINESS_MAPPING).length}</li>
-              <li>• Target Auction: {TARGET_AUCTION_ID}</li>
-              <li>• New Field: <code>business</code></li>
+              <li>• Mode: <strong>{parsedCsvData ? 'CSV Revision' : 'Legacy Hardcoded'}</strong></li>
+              <li>• SKUs in Queue: {Object.keys(parsedCsvData || BUSINESS_MAPPING).length}</li>
+              <li>• Action: Update field <code>business</code> on match</li>
             </ul>
           </div>
 
           <div className="border rounded-md overflow-hidden">
-            <ScrollArea className="h-48 w-full p-4 font-mono text-xs bg-slate-950 text-green-400">
+            <ScrollArea className="h-40 w-full p-4 font-mono text-xs bg-slate-950 text-green-400">
               {logs.length === 0 ? (
-                <span className="text-slate-500 italic">Ready to run...</span>
+                <span className="text-slate-500 italic">Logs will appear here once you run the update...</span>
               ) : (
                 logs.map((log, i) => <div key={i}>{log}</div>)
               )}
@@ -265,8 +383,8 @@ export default function UpdateBusinessPage() {
         <CardFooter className="flex justify-between">
           <Button variant="ghost" onClick={() => window.history.back()}>Back</Button>
           <Button onClick={handleUpdate} disabled={isUpdating}>
-            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
-            Run Bulk Update
+            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            {parsedCsvData ? 'Run CSV Update' : 'Run Legacy Update'}
           </Button>
         </CardFooter>
       </Card>
