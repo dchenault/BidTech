@@ -156,23 +156,6 @@ export default function DashboardPage() {
 
     return (
         <div className="flex flex-col gap-8">
-            {/* Bulk Update Notice */}
-            <Card className="border-l-4 border-l-primary bg-primary/5">
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-primary" />
-                  <p className="text-sm font-medium">
-                    New Business Name data is ready to be applied to Auction s3VnbScgvA5TgsLy6vRn.
-                  </p>
-                </div>
-                <Button size="sm" asChild>
-                  <Link href="/dashboard/update-business">
-                    Run Update Utility <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
             {/* Command Center - Active Auction Focused */}
             {activeAuctions.length > 0 && commandCenterStats && (
                 <section className="space-y-4">
