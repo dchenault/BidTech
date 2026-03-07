@@ -3,13 +3,14 @@
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft } from 'lucide-react';
+import { DollarSign, Gavel, Users, HeartHandshake, TrendingUp, Circle, ArrowLeft, Wallet } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
 import type { Item, RegisteredPatron } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { Bar, BarChart, XAxis, YAxis, Tooltip } from 'recharts';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
@@ -83,12 +84,22 @@ export default function DashboardPage() {
         const totalPhysicalCount = physicalItems.length;
         const totalDonations = donations.reduce((sum, i) => sum + (i.winningBid || 0), 0);
 
+        // Payment Tracking (Physical Items Only)
+        const totalPhysicalRevenue = physicalItems.reduce((sum, i) => sum + (i.winningBid || 0), 0);
+        const paidPhysicalRevenue = physicalItems.filter(i => i.paid).reduce((sum, i) => sum + (i.winningBid || 0), 0);
+        const unpaidPhysicalRevenue = totalPhysicalRevenue - paidPhysicalRevenue;
+        const paymentProgress = totalPhysicalRevenue > 0 ? (paidPhysicalRevenue / totalPhysicalRevenue) * 100 : 0;
+
         return {
             revenue: revenueItems,
             soldCount,
             totalPhysicalCount,
             donations: totalDonations,
-            registeredCount: registeredPatronsData?.length || 0
+            registeredCount: registeredPatronsData?.length || 0,
+            totalPhysicalRevenue,
+            paidPhysicalRevenue,
+            unpaidPhysicalRevenue,
+            paymentProgress
         };
     }, [selectedActiveAuctionId, allItems, registeredPatronsData]);
 
@@ -182,7 +193,7 @@ export default function DashboardPage() {
                         </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                         <Card className="border-l-4 border-l-green-500 shadow-md">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Live Revenue</CardTitle>
@@ -222,9 +233,31 @@ export default function DashboardPage() {
                             </CardContent>
                         </Card>
 
+                        <Card className="border-l-4 border-l-amber-500 shadow-md bg-amber-50/30 dark:bg-amber-950/10">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-xs font-bold uppercase text-amber-600">Unpaid Balance</CardTitle>
+                                <Wallet className="h-4 w-4 text-amber-500" />
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="text-3xl font-black text-amber-600 tracking-tighter">
+                                    {formatCurrency(commandCenterStats.unpaidPhysicalRevenue)}
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] font-bold text-muted-foreground">
+                                        <span>Collection Progress</span>
+                                        <span>{Math.round(commandCenterStats.paymentProgress)}%</span>
+                                    </div>
+                                    <Progress value={commandCenterStats.paymentProgress} className="h-1.5 bg-amber-200 dark:bg-amber-900/30" />
+                                    <p className="text-[9px] text-muted-foreground leading-tight">
+                                        {formatCurrency(commandCenterStats.paidPhysicalRevenue)} Paid / {formatCurrency(commandCenterStats.totalPhysicalRevenue)} Total Items
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         <Card className="border-l-4 border-l-pink-500 shadow-md bg-pink-50/30 dark:bg-pink-950/10">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Direct Donations</CardTitle>
+                                <CardTitle className="text-xs font-bold uppercase text-pink-600">Direct Donations</CardTitle>
                                 <HeartHandshake className="h-4 w-4 text-pink-500" />
                             </CardHeader>
                             <CardContent>
