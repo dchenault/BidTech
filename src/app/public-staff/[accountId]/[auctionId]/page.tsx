@@ -62,7 +62,7 @@ export default function PublicStaffAuctionPage() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  const { isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
@@ -386,7 +386,7 @@ export default function PublicStaffAuctionPage() {
         <>
           {lots.map((lot: Lot) => {
             const lotItems = silentItemsByLot.get(lot.id) || [];
-            return (<Card key={lot.id}><CardHeader>{lot.name}</CardHeader><CardContent><ItemsTable itemsToRender={lotItems} /></CardContent></Card>);
+            return (<Card key={lot.id}><CardHeader className="flex-row items-center justify-between"><CardTitle>{lot.name}</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={lotItems} /></CardContent></Card>);
           })}
           {liveItems.length > 0 && (<Card className="mt-8"><CardHeader><CardTitle>Unassigned Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></Card>)}
         </>
@@ -416,7 +416,7 @@ export default function PublicStaffAuctionPage() {
 
   const renderAuctionContent = () => {
     if (!auction) return <div className="text-center p-8">Loading auction data...</div>;
-    switch (auction.type) {
+    switch (auction?.type) {
       case 'Silent': return renderSilentAuctionView();
       case 'Hybrid': return renderHybridAuctionView();
       case 'Live': default: return renderLiveAuctionView();
@@ -753,7 +753,7 @@ export default function PublicStaffAuctionPage() {
                                 className="cursor-pointer"
                             >
                             <TableCell className="font-medium">{patron.biddingNumber}</TableCell>
-                            <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell(
+                            <TableCell className="font-medium">{patron.firstName} {patron.lastName}</TableCell>
                             <TableCell className="hidden md:table-cell text-center">{patron.itemsWonInAuction}</TableCell>
                             <TableCell className="hidden lg:table-cell text-right">{formatCurrency(patron.amountDueInAuction)}</TableCell>
                              <TableCell className="hidden lg:table-cell text-center">
