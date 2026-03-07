@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2, BarChart3 } from 'lucide-react';
+import { PlusCircle, Download, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Frown, Loader2, BarChart3 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import type { Item, Patron, Category, RegisteredPatron, Lot, Auction, Account, Donor } from '@/lib/types';
+import type { Item, Patron, RegisteredPatron, Lot, Auction, Account, Donor } from '@/lib/types';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { EditItemDialog } from '@/components/edit-item-dialog';
 import { AddItemDialog } from '@/components/add-item-dialog';
@@ -62,7 +62,7 @@ export default function PublicStaffAuctionPage() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
+  const { isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   
   const accountId = typeof params.accountId === 'string' ? params.accountId : '';
@@ -141,15 +141,6 @@ export default function PublicStaffAuctionPage() {
     setIsLoading(false);
     return () => unsubscribers.forEach(unsub => unsub());
   }, [isAuthorized, firestore, accountId, auctionId, mounted]);
-  
-  const updateAuction = useCallback(async (updatedAuctionData: Partial<Auction>) => {
-    if (!firestore || !accountId || !auctionId) {
-        if (!accountId) console.error("Developer Error: accountId is missing from the save handler");
-        return;
-    }
-    const auctionDocRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-    await updateDoc(auctionDocRef, updatedAuctionData);
-  }, [firestore, accountId, auctionId]);
   
   const addDonationToAuction = useCallback(async (patron: Patron, amount: number, isPaid: boolean = false) => {
       if (!firestore || !accountId || !auctionId) {
@@ -280,7 +271,6 @@ export default function PublicStaffAuctionPage() {
       })
       .filter((p): p is any => p !== null);
 
-    // Default staff view sort for patrons: by Bidder # Ascending
     results.sort((a, b) => a.biddingNumber - b.biddingNumber);
     
     return results;
@@ -459,8 +449,6 @@ export default function PublicStaffAuctionPage() {
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
     setSortConfig({ key, direction });
   };
-  
-  const handleToggleAuctionStatus = () => updateAuction({ status: auction?.status === 'completed' ? 'active' : 'completed' });
   
   const handleExportCatalog = () => {
     if (!auction || !items) return;
@@ -677,10 +665,6 @@ export default function PublicStaffAuctionPage() {
                             <BarChart3 className="mr-2 h-4 w-4" />
                             View Live Stats
                         </Link>
-                    </Button>
-                    <Button size="sm" variant={auction?.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
-                        {auction?.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
-                        {auction?.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
                     </Button>
                      {auction?.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
                     <Button 
