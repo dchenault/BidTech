@@ -415,6 +415,7 @@ export default function PublicStaffAuctionPage() {
   );
 
   const renderAuctionContent = () => {
+    if (!auction) return <div className="text-center p-8">Loading auction data...</div>;
     switch (auction.type) {
       case 'Silent': return renderSilentAuctionView();
       case 'Hybrid': return renderHybridAuctionView();
@@ -459,15 +460,19 @@ export default function PublicStaffAuctionPage() {
     setSortConfig({ key, direction });
   };
   
-  const handleToggleAuctionStatus = () => updateAuction({ status: auction.status === 'completed' ? 'active' : 'completed' });
-  const handleExportCatalog = (orderedItems: Item[], finalLots: Lot[]) => exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
+  const handleToggleAuctionStatus = () => updateAuction({ status: auction?.status === 'completed' ? 'active' : 'completed' });
+  const handleExportCatalog = (orderedItems: Item[], finalLots: Lot[]) => {
+    if (auction) {
+      exportAuctionCatalogToHTML({ ...auction, items: orderedItems, lots: finalLots });
+    }
+  };
   
   const handleShareCatalog = () => {
-    if (!auction.isPublic || !auction.slug) {
+    if (!auction?.isPublic || !auction?.slug) {
         toast({ variant: 'destructive', title: 'Catalog is not public.'});
         return;
     }
-    const url = `${window.location.origin}/catalog/${auction.accountId}/${auction.slug}`;
+    const url = `${window.location.origin}/catalog/${auction?.accountId}/${auction?.slug}`;
     navigator.clipboard.writeText(url).then(() => toast({ title: 'Public Link Copied!' })).catch(err => toast({ variant: 'destructive', title: 'Failed to Copy Link'}));
   }
 
@@ -647,19 +652,19 @@ export default function PublicStaffAuctionPage() {
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-y-4">
               <div>
-                  <h1 className="text-3xl font-bold tracking-tight">{auction.name}</h1>
-                  <p className="text-muted-foreground">{auction.description}</p>
+                  <h1 className="text-3xl font-bold tracking-tight">{auction?.name}</h1>
+                  <p className="text-muted-foreground">{auction?.description}</p>
               </div>
                <div className="flex flex-col items-end gap-2 text-right">
                 <p className="text-sm font-medium text-muted-foreground">
                   Logged in as: <span className="font-semibold text-foreground">{displayName}</span>
                 </p>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <Button size="sm" variant={auction.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
-                        {auction.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
-                        {auction.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
+                    <Button size="sm" variant={auction?.status === 'completed' ? 'default' : 'destructive'} onClick={handleToggleAuctionStatus}>
+                        {auction?.status === 'completed' ? <Power className="mr-2 h-3.5 w-3.5" /> : <PowerOff className="mr-2 h-3.5 w-3.5" />}
+                        {auction?.status === 'completed' ? 'Re-open Auction' : 'Close Auction'}
                     </Button>
-                     {auction.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
+                     {auction?.isPublic && (<Button size="sm" variant="outline" onClick={handleShareCatalog}><Share2 className="mr-2 h-4 w-4" />Share Catalog</Button>)}
                     <Button size="sm" variant="outline" onClick={() => setIsExportCatalogDialogOpen(true)}><Download className="mr-2 h-4 w-4" />Export Catalog</Button>
                     <Button size="sm" onClick={() => setIsAddItemDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add Item</Button>
                 </div>
@@ -669,7 +674,7 @@ export default function PublicStaffAuctionPage() {
             <Tabs defaultValue="items">
             <div className="flex items-center"><TabsList><TabsTrigger value="items">Items</TabsTrigger><TabsTrigger value="donations">Donations</TabsTrigger><TabsTrigger value="patrons">Patrons</TabsTrigger></TabsList></div>
             <TabsContent value="items" className="mt-4 space-y-4">
-                 {auction.type !== 'Hybrid' && (<div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>)}
+                 {auction?.type !== 'Hybrid' && (<div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>)}
                 {renderAuctionContent()}
             </TabsContent>
               <TabsContent value="donations" className="space-y-4">
@@ -744,9 +749,9 @@ export default function PublicStaffAuctionPage() {
       </div>
       <div className="hidden print:block">{auction && <AuctionCatalog auction={{...auction, items, lots}} />}</div>
 
-      <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />
+      <AddItemDialog isOpen={isAddItemDialogOpen} onClose={() => setIsAddItemDialogOpen(false)} onSubmit={handleItemAdd} categories={auction?.categories || []} lots={lots || []} auctionType={auction?.type || 'Live'} accountId={accountId} />
       {selectedItem && (<EnterWinningBidDialog isOpen={isWinningBidDialogOpen} onClose={() => { setIsWinningBidDialogOpen(false); setSelectedItem(null); }} item={selectedItem} patrons={registeredPatronsWithDetails} onSubmit={handleWinningBidSubmit}/>)}
-      {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction.categories || []} lots={lots || []} auctionType={auction.type} accountId={accountId} />)}
+      {selectedItem && (<EditItemDialog isOpen={isEditDialogOpen} onClose={() => { setIsEditDialogOpen(false); setSelectedItem(null); }} item={selectedItem} onSubmit={handleItemUpdate} categories={auction?.categories || []} lots={lots || []} auctionType={auction?.type || 'Live'} accountId={accountId} />)}
       
       <RegisterPatronDialog isOpen={isRegisterPatronDialogOpen} onClose={() => setIsRegisterPatronDialogOpen(false)} allPatrons={patrons} registeredPatrons={registeredPatronsWithDetails} onRegister={handleRegisterPatron} onAddNewPatron={addPatron} isLoadingPatrons={isLoading}/>
       <AddAuctionDonationDialog isOpen={isAddDonationDialogOpen} onClose={() => setIsAddDonationDialogOpen(false)} patrons={registeredPatronsWithDetails} onSubmit={handleAddDonation}/>
