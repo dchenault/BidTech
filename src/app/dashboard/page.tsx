@@ -1,19 +1,18 @@
-
 'use client';
 
-import { useAuctions, fetchAuctionItems } from '@/hooks/use-auctions';
+import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { DollarSign, Gavel, Users, Activity } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { DollarSign, Gavel, Users } from 'lucide-react';
+import { formatCurrency, cn } from '@/lib/utils';
 import { useMemo, useEffect, useState } from 'react';
 import type { Item } from '@/lib/types';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, XAxis, YAxis, Tooltip } from 'recharts';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/hooks/use-account';
 import {
@@ -23,32 +22,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import { query, collectionGroup, where } from 'firebase/firestore';
 
 export default function DashboardPage() {
     const firestore = useFirestore();
     const { accountId } = useAccount();
     const { auctions, isLoading: isLoadingAuctions } = useAuctions();
     const { patrons, isLoading: isLoadingPatrons } = usePatrons();
-    const [allItems, setAllItems] = useState<Item[]>([]);
-    const [isLoadingAllItems, setIsLoadingAllItems] = useState(true);
-    const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
+    
+    // Real-time listener for all items in the account
+    const itemsQuery = useMemoFirebase(
+        () => (firestore && accountId ? query(collectionGroup(firestore, 'items'), where('accountId', '==', accountId)) : null),
+        [firestore, accountId]
+    );
+    const { data: allItemsData, isLoading: isLoadingItems } = useCollection<Item>(itemsQuery);
+    const allItems = useMemo(() => allItemsData || [], [allItemsData]);
 
-    useEffect(() => {
-        if (firestore && accountId && auctions.length > 0) {
-            setIsLoadingAllItems(true);
-            Promise.all(
-                auctions.map(auction => fetchAuctionItems(firestore, accountId, auction.id))
-            ).then(itemArrays => {
-                setAllItems(itemArrays.flat());
-                setIsLoadingAllItems(false);
-            }).catch(() => {
-                setIsLoadingAllItems(false);
-            });
-        } else if (!isLoadingAuctions) {
-            setIsLoadingAllItems(false);
-        }
-    }, [firestore, accountId, auctions, isLoadingAuctions]);
+    const [selectedActiveAuctionId, setSelectedActiveAuctionId] = useState<string | undefined>(undefined);
+    
+    // Animation states for pulsing metrics
+    const [animateTotal, setAnimateTotal] = useState(false);
+    const [animateActive, setAnimateActive] = useState(false);
+    const [animatePatrons, setAnimatePatrons] = useState(false);
+    const [animateItems, setAnimateItems] = useState(false);
 
     const stats = useMemo(() => {
         const totalRevenue = allItems.reduce((sum, item) => sum + (item.winningBid || 0), 0);
@@ -76,6 +72,11 @@ export default function DashboardPage() {
             .reduce((sum, item) => sum + (item.winningBid || 0), 0);
     }, [allItems, selectedActiveAuctionId]);
 
+    // Trigger pulse animations on value changes
+    useEffect(() => { if (stats.totalRevenue > 0) { setAnimateTotal(true); const t = setTimeout(() => setAnimateTotal(false), 600); return () => clearTimeout(t); } }, [stats.totalRevenue]);
+    useEffect(() => { if (selectedAuctionRevenue > 0) { setAnimateActive(true); const t = setTimeout(() => setAnimateActive(false), 600); return () => clearTimeout(t); } }, [selectedAuctionRevenue]);
+    useEffect(() => { if (stats.totalPatrons > 0) { setAnimatePatrons(true); const t = setTimeout(() => setAnimatePatrons(false), 600); return () => clearTimeout(t); } }, [stats.totalPatrons]);
+    useEffect(() => { if (allItems.length > 0) { setAnimateItems(true); const t = setTimeout(() => setAnimateItems(false), 600); return () => clearTimeout(t); } }, [allItems.length]);
 
     const chartData = useMemo(() => {
         return auctions
@@ -103,7 +104,7 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     }, [auctions]);
 
-    const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingAllItems;
+    const isLoading = isLoadingAuctions || isLoadingPatrons || isLoadingItems;
 
     if (isLoading) {
         return (
@@ -149,8 +150,10 @@ export default function DashboardPage() {
                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
-                    <p className="text-xs text-muted-foreground">From all completed bids</p>
+                    <div className={cn("text-2xl font-bold transition-all", animateTotal && "animate-value-change")}>
+                        {formatCurrency(stats.totalRevenue)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">From all completed bids & donations</p>
                 </CardContent>
             </Card>
             <Card>
@@ -159,7 +162,9 @@ export default function DashboardPage() {
                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(selectedAuctionRevenue)}</div>
+                    <div className={cn("text-2xl font-bold transition-all", animateActive && "animate-value-change")}>
+                        {formatCurrency(selectedAuctionRevenue)}
+                    </div>
                     {activeAuctions.length > 0 ? (
                         <Select onValueChange={setSelectedActiveAuctionId} value={selectedActiveAuctionId}>
                             <SelectTrigger className="text-xs border-none shadow-none focus:ring-0 p-0 h-auto mt-1 w-auto bg-transparent">
@@ -184,7 +189,9 @@ export default function DashboardPage() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{stats.totalPatrons}</div>
+                    <div className={cn("text-2xl font-bold transition-all", animatePatrons && "animate-value-change")}>
+                        {stats.totalPatrons}
+                    </div>
                     <p className="text-xs text-muted-foreground">In your master list</p>
                 </CardContent>
             </Card>
@@ -194,7 +201,9 @@ export default function DashboardPage() {
                     <Gavel className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{allItems.length}</div>
+                    <div className={cn("text-2xl font-bold transition-all", animateItems && "animate-value-change")}>
+                        {allItems.length}
+                    </div>
                     <p className="text-xs text-muted-foreground">Across all auctions</p>
                 </CardContent>
             </Card>
