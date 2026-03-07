@@ -92,7 +92,7 @@ export function useAuctions() {
         name: auctionData.name,
         description: auctionData.description,
         type: auctionData.type,
-        startDate: auctionData.startDate,
+        startDate: auctionData.startDate.toISOString(),
         isPublic: auctionData.isPublic || false,
         slug: slug,
         accountId: accountId,
@@ -113,9 +113,11 @@ export function useAuctions() {
     if (updatedAuctionData.name) {
       payload.slug = generateSlug(updatedAuctionData.name);
     }
-     if (updatedAuctionData.startDate && typeof updatedAuctionData.startDate !== 'string') {
-      // @ts-ignore
-      payload.startDate = updatedAuctionData.startDate.toISOString();
+     if (updatedAuctionData.startDate) {
+      const date = new Date(updatedAuctionData.startDate as any);
+      if (!isNaN(date.getTime())) {
+        payload.startDate = date.toISOString();
+      }
     }
 
     await updateDoc(auctionDocRef, payload);

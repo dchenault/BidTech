@@ -32,6 +32,17 @@ import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { auctionFormSchema } from "@/lib/types";
 
+// Helper to safely convert Firestore Timestamp or string to a JS Date
+const parseFirestoreDate = (dateInput: any): Date => {
+  if (!dateInput) return new Date();
+  // Check if it's a Firestore Timestamp
+  if (dateInput && typeof dateInput.toDate === 'function') {
+    return dateInput.toDate();
+  }
+  // Try parsing as a standard date
+  const date = new Date(dateInput);
+  return isNaN(date.getTime()) ? new Date() : date;
+};
 
 export function CreateAuctionForm({
   onSuccess,
@@ -48,13 +59,13 @@ export function CreateAuctionForm({
     name: auction.name,
     description: auction.description,
     type: auction.type,
-    startDate: new Date(auction.startDate),
+    startDate: parseFirestoreDate(auction.startDate),
     isPublic: auction.isPublic || false,
   } : {
     name: "",
     description: "",
     type: "Silent",
-    startDate: undefined,
+    startDate: new Date(),
     isPublic: false,
   };
 
@@ -70,7 +81,7 @@ export function CreateAuctionForm({
         name: auction.name,
         description: auction.description,
         type: auction.type,
-        startDate: new Date(auction.startDate),
+        startDate: parseFirestoreDate(auction.startDate),
         isPublic: auction.isPublic || false,
       });
     } else {
@@ -79,7 +90,7 @@ export function CreateAuctionForm({
         description: "",
         type: "Silent",
         // @ts-ignore
-        startDate: undefined,
+        startDate: new Date(),
         isPublic: false,
       });
     }
