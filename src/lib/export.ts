@@ -1,4 +1,3 @@
-
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -62,7 +61,7 @@ export function exportPatronsToCSV(patrons: Patron[]) {
   );
 
   const csvContent = [csvHeader, ...csvRows].join('\n');
-  downloadFile(csvContent, 'all_patrons.csv', 'text/csv;charset=utf-s8;');
+  downloadFile(csvContent, 'all_patrons.csv', 'text/csv;charset=utf-8;');
 }
 
 // 2. Export All Donors
@@ -113,11 +112,11 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 
   const csvContent = [csvHeader, ...csvRows].join('\n');
   const fileName = `patrons_${auctionName.replace(/\s+/g, '_').toLowerCase()}.csv`;
-  downloadFile(csvContent, fileName, 'text/csv;charset=utf-s8;');
+  downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
 }
 
 
-// 4. Export Auction Items (Simplified CSV)
+// 4. Export Auction Items (Simplified CSV - SKU, Name, Description, Donor)
 export function exportItemsToCSV(items: Item[], auctionName: string) {
   const sorted = getSortedItemsForCatalog(items);
   const csvHeader = ['SKU', 'Name', 'Description', 'Donor'].join(',');
@@ -441,13 +440,11 @@ export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })
     return [
       `"${item.auctionName || 'N/A'}"`,
       item.sku,
-      `"${item.name}"`,
-      `"${item.description?.replace(/"/g, '""') || ''}"`,
-      `"${item.category.name}"`,
-      item.estimatedValue,
-      `"${item.donor?.name || ''}"`
-    ].join(',')
-  );
+      item.winningBid || 0,
+      item.winner ? `"${item.winner.firstName} ${item.winner.lastName}"` : 'N/A',
+      item.winner?.email || 'N/A'
+    ].join(',');
+  });
 
   const footer = `\nTotal,${totalDonations}`;
   const csvContent = [csvHeader, ...csvRows, footer].join('\n');
