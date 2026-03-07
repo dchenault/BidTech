@@ -1,4 +1,3 @@
-
 'use client';
 import {
   collection,
@@ -302,7 +301,9 @@ export function useAuctions() {
       if (!itemDoc.exists()) throw new Error("Item not found");
       const itemData = itemDoc.data() as Item;
 
-      if (itemData.winnerId) throw new Error("Cannot delete won items.");
+      // Allow deletion of donations even if they have a winner (for data correction)
+      const isDonation = itemData.sku?.toString().startsWith('DON-');
+      if (itemData.winnerId && !isDonation) throw new Error("Cannot delete won items.");
 
       if (itemData.imageUrl) {
         await deleteFileByUrl(storage, itemData.imageUrl).catch(() => {});

@@ -12,7 +12,7 @@ export default function PublicStaffLayout({
   return (
     <div className="flex flex-col min-h-screen bg-muted/40">
       <header className="px-4 lg:px-6 h-14 flex items-center bg-background border-b shrink-0">
-        <Link href="/" className="flex items-center justify-center">
+        <Link href="#" className="flex items-center justify-center">
           <Gavel className="h-6 w-6 text-primary" />
           <span className="ml-2 text-lg font-semibold">BidTech</span>
         </Link>

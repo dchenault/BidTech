@@ -376,14 +376,14 @@ export default function AuctionDetailsPage() {
     try {
       await deleteItemFromAuction(auction.id, itemToDelete.id);
       toast({
-        title: "Item Deleted",
+        title: itemToDelete.sku.toString().startsWith('DON-') ? "Donation Deleted" : "Item Deleted",
         description: `"${itemToDelete.name}" has been successfully deleted.`
       });
       setItemToDelete(null);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error Deleting Item",
+        title: "Error Deleting",
         description: error.message || "An unexpected error occurred."
       });
     }
@@ -941,6 +941,7 @@ export default function AuctionDetailsPage() {
                                           <TableHead>Patron</TableHead>
                                           <TableHead>Amount</TableHead>
                                           <TableHead>SKU</TableHead>
+                                          <TableHead className="text-right">Actions</TableHead>
                                       </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -966,6 +967,20 @@ export default function AuctionDetailsPage() {
                                               </TableCell>
                                               <TableCell className="font-medium text-green-600">{formatCurrency(donation.winningBid || 0)}</TableCell>
                                               <TableCell className="font-mono text-muted-foreground">{donation.sku}</TableCell>
+                                              <TableCell className="text-right">
+                                                  <Button
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          setItemToDelete(donation);
+                                                      }}
+                                                  >
+                                                      <Trash2 className="h-4 w-4" />
+                                                      <span className="sr-only">Delete Donation</span>
+                                                  </Button>
+                                              </TableCell>
                                           </TableRow>
                                       ))}
                                   </TableBody>
@@ -1306,7 +1321,8 @@ export default function AuctionDetailsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the item
+              This action cannot be undone. This will permanently delete the 
+              {itemToDelete?.sku.toString().startsWith('DON-') ? ' donation ' : ' item '}
               "{itemToDelete?.name}" from the auction.
             </AlertDialogDescription>
           </AlertDialogHeader>
