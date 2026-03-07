@@ -25,7 +25,11 @@ function openHtmlInNewTab(htmlContent: string) {
   }
 }
 
-// Helper for natural sort: Numerics first, then Alpha/Lots
+// Shared Natural Sort Logic
+const naturalSort = (a: string | number, b: string | number) => 
+  a.toString().localeCompare(b.toString(), undefined, { numeric: true, sensitivity: 'base' });
+
+// Helper for natural sort: Numerics first, then Alpha/Lots (Used for CSV)
 function getSortedItemsForCatalog(items: Item[]) {
   const nonDonations = items.filter(item => !item.sku.toString().startsWith('DON-'));
   
@@ -34,10 +38,10 @@ function getSortedItemsForCatalog(items: Item[]) {
   // Pass 2: Lots or Alpha-Numeric SKUs
   const alphaItems = nonDonations.filter(item => !/^\d+$/.test(item.sku.toString()));
 
-  const sorter = (a: Item, b: Item) => 
-    a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' });
-
-  return [...numericItems.sort(sorter), ...alphaItems.sort(sorter)];
+  return [
+    ...numericItems.sort((a, b) => naturalSort(a.sku, b.sku)), 
+    ...alphaItems.sort((a, b) => naturalSort(a.sku, b.sku))
+  ];
 }
 
 // 1. Export All Patrons (Master List)
@@ -224,10 +228,34 @@ export function exportAllWinningBidsToCSV(items: (Item & { auctionName?: string 
 }
 
 
-// 8. Export Auction Catalog to HTML (Simplified, Flat List, Natural Sort)
+// 8. Export Auction Catalog to HTML (Live vs Silent Grouping)
 export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], lots: Lot[] }) {
-    const sortedItems = getSortedItemsForCatalog(auction.items || []);
+    const { items, lots } = auction;
+    const nonDonations = items.filter(i => !i.sku.toString().startsWith('DON-'));
     
+    // 1. Resolve Lot Names
+    const lotMap = new Map(lots.map(l => [l.id, l.name]));
+    
+    // 2. Separate Live vs Silent
+    // Live items are those WITHOUT a lotId
+    const liveItems = nonDonations.filter(i => !i.lotId).sort((a, b) => naturalSort(a.sku, b.sku));
+    
+    // Silent items are grouped by Lot
+    const silentItems = nonDonations.filter(i => !!i.lotId);
+    const groupedSilent = silentItems.reduce((acc, item) => {
+        const lotName = lotMap.get(item.lotId!) || 'General Silent Auction';
+        if (!acc[lotName]) acc[lotName] = [];
+        acc[lotName].push(item);
+        return acc;
+    }, {} as Record<string, Item[]>);
+
+    // Sort items within each lot
+    Object.keys(groupedSilent).forEach(lotName => {
+        groupedSilent[lotName].sort((a, b) => naturalSort(a.sku, b.sku));
+    });
+
+    const sortedLotNames = Object.keys(groupedSilent).sort(naturalSort);
+
     const safeFormatDate = (dateInput: any, options: Intl.DateTimeFormatOptions) => {
         if (!dateInput) return '';
         const date = (typeof dateInput.toDate === 'function') ? dateInput.toDate() : new Date(dateInput);
@@ -235,13 +263,15 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         return date.toLocaleDateString('en-US', options);
     };
 
-  const styles = `
+    const styles = `
     <style>
         @page { size: letter portrait; margin: 0.5in; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.4; color: #333; font-size: 10pt; }
         header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 20px; }
         h1 { font-size: 2.5em; margin: 0; text-transform: uppercase; }
-        .catalog-table { width: 100%; border-collapse: collapse; }
+        h2 { font-size: 2em; margin: 40px 0 20px 0; padding-bottom: 10px; border-bottom: 4px solid #000; text-transform: uppercase; }
+        .lot-header { font-size: 1.5em; font-weight: bold; background: #f0f0f0; padding: 10px; margin: 30px 0 10px 0; border-left: 10px solid #000; }
+        .catalog-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
         .catalog-table th { text-align: left; padding: 12px 8px; border-bottom: 3px solid #000; font-size: 1.1em; text-transform: uppercase; }
         .catalog-table td { padding: 12px 8px; border-bottom: 1px solid #ccc; vertical-align: top; }
         .sku-cell { font-weight: bold; width: 10%; font-size: 1.4em; }
@@ -249,23 +279,38 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
         .donor-info { font-style: italic; color: #555; font-size: 0.9em; margin-top: 4px; }
         .description-cell { width: 40%; line-height: 1.5; }
         .notes-cell { width: 25%; border-left: 2px solid #eee; background: #fafafa; }
+        .page-break { page-break-before: always; }
         tr { page-break-inside: avoid; }
     </style>
-  `;
+    `;
 
-  const rows = sortedItems.map(item => `
-    <tr>
-        <td class="sku-cell">${item.sku}</td>
-        <td class="name-cell">
-            ${item.name}
-            ${item.donor?.name ? `<div class="donor-info">Donated by: ${item.donor.name}</div>` : ''}
-        </td>
-        <td class="description-cell">${item.description}</td>
-        <td class="notes-cell"></td>
-    </tr>
-  `).join('');
+    const renderTable = (itemsToRender: Item[]) => `
+        <table class="catalog-table">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Item / Donor</th>
+                    <th>Description</th>
+                    <th>Winning Bid Info</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsToRender.map(item => `
+                    <tr>
+                        <td class="sku-cell">${item.sku}</td>
+                        <td class="name-cell">
+                            ${item.name}
+                            ${item.donor?.name ? `<div class="donor-info">Donated by: ${item.donor.name}</div>` : ''}
+                        </td>
+                        <td class="description-cell">${item.description}</td>
+                        <td class="notes-cell"></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 
-  const fullHtml = `
+    let htmlContent = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -282,27 +327,29 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
           })}</p>
         </header>
+
         <main>
-          <table class="catalog-table">
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Item / Donor</th>
-                <th>Description</th>
-                <th>Winning Bid Info</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
+            ${liveItems.length > 0 ? `
+                <h2>Live Auction Items</h2>
+                ${renderTable(liveItems)}
+            ` : ''}
+
+            ${sortedLotNames.length > 0 ? `
+                <div class="page-break">
+                    <h2>Silent Auction Items</h2>
+                    ${sortedLotNames.map(lotName => `
+                        <div class="lot-header">Lot: ${lotName}</div>
+                        ${renderTable(groupedSilent[lotName])}
+                    `).join('')}
+                </div>
+            ` : ''}
         </main>
       </div>
     </body>
     </html>
-  `;
+    `;
   
-  openHtmlInNewTab(fullHtml);
+    openHtmlInNewTab(htmlContent);
 }
 
 // 9. Export Patron Receipt to HTML
