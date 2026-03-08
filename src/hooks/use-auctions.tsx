@@ -524,6 +524,12 @@ export const fetchAuctionItems = async (firestore: Firestore, accountId: string,
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
 };
 
+export const fetchAuctionLots = async (firestore: Firestore, accountId: string, auctionId: string): Promise<Lot[]> => {
+  const lotsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'lots');
+  const snapshot = await getDocs(lotsRef);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lot));
+};
+
 export const fetchRegisteredPatronsWithDetails = async (firestore: Firestore, accountId: string, auctionId: string): Promise<(Patron & { biddingNumber: number })[]> => {
   const registeredPatronsRef = collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons');
   const regSnapshot = await getDocs(registeredPatronsRef);

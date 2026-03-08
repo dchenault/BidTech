@@ -437,7 +437,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
           </table>
         </main>
         <footer class="footer">
-          <p>We sincerely thank you for your generous support of ${auction.name}.</p>
+          <p>We sincerely thank you for your generous support of {auction.name}.</p>
         </footer>
       </div>
     </body>
@@ -487,7 +487,7 @@ export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })
     return [
       `"${item.auctionName || 'N/A'}"`,
       item.sku,
-      item.winningBid || 0,
+      `"${item.winningBid || 0}"`,
       item.winner ? `"${item.winner.firstName} ${item.winner.lastName}"` : 'N/A',
       item.winner?.email || 'N/A'
     ].join(',');
@@ -580,4 +580,127 @@ export function exportAuctioneerSheetToHTML(item: Item, auction: Auction) {
   `;
 
   openHtmlInNewTab(htmlContent);
+}
+
+// 13. Export Full Auction Outcome (Comprehensive Report)
+export function exportFullAuctionOutcome(data: {
+  items: Item[],
+  lots: Lot[],
+  auctionName: string,
+}) {
+  const { items, lots, auctionName } = data;
+
+  const physicalItems = items.filter(i => !i.sku.toString().startsWith('DON-'));
+  const donations = items.filter(i => i.sku.toString().startsWith('DON-'));
+
+  const sortedPhysical = physicalItems.sort((a, b) => 
+    a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' })
+  );
+
+  const csvRows: string[] = [];
+
+  // Section A: Itemized Results
+  csvRows.push('SECTION A: ITEMIZED RESULTS');
+  csvRows.push(['SKU', 'Item Name', 'Business/Donor', 'Winner', 'Winning Bid', 'Status', 'Payment Method'].join(','));
+  sortedPhysical.forEach(i => {
+    csvRows.push([
+      i.sku,
+      `"${i.name.replace(/"/g, '""')}"`,
+      `"${(i.business || i.donor?.name || '').replace(/"/g, '""')}"`,
+      i.winner ? `"${i.winner.firstName} ${i.winner.lastName}"` : 'Unsold',
+      i.winningBid || 0,
+      i.winnerId ? 'Sold' : 'Unsold',
+      i.paymentMethod || 'N/A'
+    ].join(','));
+  });
+
+  csvRows.push('');
+  csvRows.push('');
+  
+  // Section B: Lot Summaries
+  csvRows.push('SECTION B: LOT SUMMARIES');
+  csvRows.push(['Lot Name', 'Total Revenue', 'Items Count'].join(','));
+  const lotMap = new Map(lots.map(l => [l.id, l.name]));
+  const revByLot = new Map<string, { total: number, count: number }>();
+  lots.forEach(l => revByLot.set(l.id, { total: 0, count: 0 }));
+  
+  let liveTotal = 0;
+  let liveCount = 0;
+  physicalItems.forEach(i => {
+    if (i.lotId && revByLot.has(i.lotId)) {
+      const current = revByLot.get(i.lotId)!;
+      revByLot.set(i.lotId, { total: current.total + (i.winningBid || 0), count: current.count + 1 });
+    } else {
+      liveTotal += (i.winningBid || 0);
+      liveCount += 1;
+    }
+  });
+
+  Array.from(revByLot.entries()).forEach(([id, d]) => {
+    csvRows.push([`"${lotMap.get(id) || 'Unknown Lot'}"`, d.total, d.count].join(','));
+  });
+  csvRows.push(['"LIVE AUCTION TOTAL"', liveTotal, liveCount].join(','));
+
+  csvRows.push('');
+  csvRows.push('');
+
+  // Section C: Charitable Donations
+  csvRows.push('SECTION C: CHARITABLE DONATIONS');
+  csvRows.push(['Donor Name', 'Amount', 'Payment Method'].join(','));
+  donations.forEach(d => {
+    csvRows.push([
+      d.winner ? `"${d.winner.firstName} ${d.winner.lastName}"` : 'Anonymous',
+      d.winningBid || 0,
+      d.paymentMethod || 'N/A'
+    ].join(','));
+  });
+
+  csvRows.push('');
+  csvRows.push('');
+
+  // KPI Summary Block
+  const totalItems = physicalItems.length;
+  const soldItems = physicalItems.filter(i => i.winnerId).length;
+  const auctionRev = physicalItems.reduce((s, i) => s + (i.winningBid || 0), 0);
+  const donationRev = donations.reduce((s, i) => s + (i.winningBid || 0), 0);
+  const cashTotal = items.filter(i => i.paymentMethod === 'Cash').reduce((s, i) => s + (i.winningBid || 0), 0);
+  const checkTotal = items.filter(i => i.paymentMethod === 'Check').reduce((s, i) => s + (i.winningBid || 0), 0);
+  const cardTotal = items.filter(i => i.paymentMethod === 'Card').reduce((s, i) => s + (i.winningBid || 0), 0);
+
+  const topItem = [...physicalItems].sort((a, b) => (b.winningBid || 0) - (a.winningBid || 0))[0];
+  const spenders = new Map<string, { name: string, total: number }>();
+  items.forEach(i => {
+    if (i.winnerId && i.winner) {
+      const current = spenders.get(i.winnerId) || { name: `${i.winner.firstName} ${i.winner.lastName}`, total: 0 };
+      spenders.set(i.winnerId, { name: current.name, total: current.total + (i.winningBid || 0) });
+    }
+  });
+  const biggestSpender = Array.from(spenders.values()).sort((a, b) => b.total - a.total)[0];
+  const topLotEntry = Array.from(revByLot.entries())
+    .map(([id, d]) => ({ name: lotMap.get(id), total: d.total }))
+    .sort((a, b) => b.total - a.total)[0];
+
+  csvRows.push('KPI SUMMARY REPORT');
+  csvRows.push(['Total Items in Catalog', totalItems].join(','));
+  csvRows.push(['Total Items Sold', soldItems].join(','));
+  csvRows.push(['Sell-through Rate', `${((soldItems / (totalItems || 1)) * 100).toFixed(1)}%`].join(','));
+  csvRows.push('');
+  csvRows.push('FINANCIAL BREAKDOWN');
+  csvRows.push(['Auction Item Revenue', auctionRev].join(','));
+  csvRows.push(['Donation Revenue', donationRev].join(','));
+  csvRows.push(['GRAND TOTAL REVENUE', auctionRev + donationRev].join(','));
+  csvRows.push('');
+  csvRows.push('PAYMENT METHOD TOTALS');
+  csvRows.push(['Cash', cashTotal].join(','));
+  csvRows.push(['Check', checkTotal].join(','));
+  csvRows.push(['Credit Card', cardTotal].join(','));
+  csvRows.push('');
+  csvRows.push('HALL OF FAME');
+  csvRows.push(['Highest Item Sold', topItem ? `"${topItem.sku}: ${topItem.name.replace(/"/g, '""')}" ($${topItem.winningBid})` : 'N/A'].join(','));
+  csvRows.push(['Biggest Spender', biggestSpender ? `"${biggestSpender.name}" ($${biggestSpender.total})` : 'N/A'].join(','));
+  csvRows.push(['Top Performing Lot', topLotEntry ? `"${topLotEntry.name}" ($${topLotEntry.total})` : 'N/A'].join(','));
+
+  const csvContent = csvRows.join('\n');
+  const fileName = `outcome_${auctionName.replace(/\s+/g, '_').toLowerCase()}.csv`;
+  downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
 }

@@ -8,9 +8,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Gift, Users, Package, FilePieChart } from 'lucide-react';
+import { Upload, FileText, Gift, Users, Package, FilePieChart, BarChart4 } from 'lucide-react';
 import { useState } from 'react';
-import { useAuctions, fetchAuctionItems, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
+import { useAuctions, fetchAuctionItems, fetchAuctionLots, fetchRegisteredPatronsWithDetails } from '@/hooks/use-auctions';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { usePatrons } from '@/hooks/use-patrons';
@@ -25,6 +25,7 @@ import {
   exportAuctionPatronsToCSV,
   exportDonationsToCSV,
   exportAllDonationsToCSV,
+  exportFullAuctionOutcome,
 } from '@/lib/export';
 import type { Item } from '@/lib/types';
 import { useAccount } from '@/hooks/use-account';
@@ -32,7 +33,7 @@ import { ImportCsvDialog } from '@/components/import-csv-dialog';
 import { ExportDialog, type ExportSelection } from '@/components/export-dialog';
 import { ImportItemsCsvDialog } from '@/components/import-items-csv-dialog';
 
-type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations';
+type ExportType = 'donors' | 'items' | 'reports' | 'patrons' | 'donations' | 'outcome';
 
 export default function SettingsPage() {
   const [isImportPatronsDialogOpen, setIsImportPatronsDialogOpen] = useState(false);
@@ -116,6 +117,16 @@ export default function SettingsPage() {
                     exportDonationsToCSV(items, getAuctionName(auctionId));
                 }
                 break;
+
+            case 'outcome':
+                if (auctionId) {
+                    const items = await fetchAuctionItems(firestore, accountId, auctionId);
+                    const lots = await fetchAuctionLots(firestore, accountId, auctionId);
+                    exportFullAuctionOutcome({ items, lots, auctionName: getAuctionName(auctionId) });
+                } else {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Please select a specific auction for the outcome report.' });
+                }
+                break;
         }
 
     } catch (error) {
@@ -162,7 +173,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
             <Button variant="outline" onClick={() => handleOpenExportDialog('donors', 'Donors')} disabled={isProcessingExport}>
                 <Gift className="mr-2 h-4 w-4" />Donors
             </Button>
@@ -177,6 +188,9 @@ export default function SettingsPage() {
             </Button>
              <Button variant="outline" onClick={() => handleOpenExportDialog('donations', 'Donations')} disabled={isProcessingExport}>
                 <FileText className="mr-2 h-4 w-4" />Donations
+            </Button>
+            <Button variant="outline" onClick={() => handleOpenExportDialog('outcome', 'Full Auction Outcome')} className="border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700" disabled={isProcessingExport}>
+                <BarChart4 className="mr-2 h-4 w-4" />Full Auction Outcome
             </Button>
           </div>
         </CardContent>
