@@ -1,4 +1,3 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
@@ -26,6 +25,35 @@ const nextConfig = {
         hostname: 'firebasestorage.googleapis.com',
       },
     ],
+  },
+  async redirects() {
+    return [
+      {
+        source: '/wp-login.php',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/wp-admin/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/xmlrpc.php',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/wp-content/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/wp-includes/:path*',
+        destination: '/',
+        permanent: true,
+      },
+    ]
   },
 };
 

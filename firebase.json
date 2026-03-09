@@ -2,6 +2,28 @@
   "hosting": {
     "site": "bidtech",
     "public": "public",
+    "redirects": [
+      {
+        "source": "/wp-login.php",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/wp-admin",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/xmlrpc.php",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "**/*.php",
+        "destination": "/",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",
