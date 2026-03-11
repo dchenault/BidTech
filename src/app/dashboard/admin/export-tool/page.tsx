@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, documentId, collectionGroup } from 'firebase/firestore';
 import { useAccount } from '@/hooks/use-account';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,11 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Download, FileJson, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Item, Patron, RegisteredPatron, Auction } from '@/lib/types';
+import type { Item, Patron, RegisteredPatron, Auction, User as UserProfile } from '@/lib/types';
 import Papa from 'papaparse';
 
 export default function UniversalExportPage() {
   const firestore = useFirestore();
-  const { accountId } = useAccount();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -38,7 +37,7 @@ export default function UniversalExportPage() {
   };
 
   const handleMasterExport = async () => {
-    if (!firestore || !accountId) return;
+    if (!firestore || !user) return;
     const auctionId = targetAuctionId.trim();
     if (!auctionId) {
       toast({ variant: 'destructive', title: 'Auction ID Required' });
@@ -47,18 +46,39 @@ export default function UniversalExportPage() {
 
     setIsProcessing(true);
     setLogs([]);
-    addLog(`Initiating Master Export for Auction: ${auctionId}`);
+    addLog(`Initiating Universal Master Export for ID: ${auctionId}`);
 
     try {
-      // 1. Verify Auction Existence
-      addLog('Verifying auction identity...');
-      const auctionRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId);
-      const auctionSnap = await getDoc(auctionRef);
-      if (!auctionSnap.exists()) throw new Error('Auction not found in this account.');
-      const auctionData = auctionSnap.data() as Auction;
-      addLog(`Connected to: ${auctionData.name}`);
+      // 1. Verify Admin Status
+      addLog('Verifying administrative privileges...');
+      const userProfileRef = doc(firestore, 'users', user.uid);
+      const userProfileSnap = await getDoc(userProfileRef);
+      const userProfile = userProfileSnap.data() as UserProfile;
 
-      // 2. Fetch Items
+      if (userProfile?.role !== 'admin') {
+        throw new Error('Access Denied: You do not have the required admin role to perform cross-account exports.');
+      }
+
+      // 2. Locate Auction Globally
+      addLog('Locating auction identity across all accounts...');
+      const auctionsQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
+      const auctionsSnapshot = await getDocs(auctionsQuery);
+
+      if (auctionsSnapshot.empty) {
+        throw new Error('Auction ID not found in database. Please verify the ID.');
+      }
+
+      const auctionDoc = auctionsSnapshot.docs[0];
+      const auctionData = auctionDoc.data() as Auction;
+      const auctionRef = auctionDoc.ref;
+      
+      // Extract accountId from path: /accounts/{accountId}/auctions/{auctionId}
+      const pathSegments = auctionRef.path.split('/');
+      const foundAccountId = pathSegments[1]; 
+      
+      addLog(`Connected to: ${auctionData.name} (Account: ${foundAccountId})`);
+
+      // 3. Fetch Items
       addLog('Fetching catalog items...');
       const itemsSnapshot = await getDocs(collection(auctionRef, 'items'));
       const allItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Item));
@@ -66,7 +86,7 @@ export default function UniversalExportPage() {
       const donations = allItems.filter(i => i.sku.toString().startsWith('DON-'));
       addLog(`Retrieved ${physicalItems.length} items and ${donations.length} donations.`);
 
-      // 3. Fetch Registered Patrons
+      // 4. Fetch Registered Patrons
       addLog('Reconciling bidder registry...');
       const regSnapshot = await getDocs(collection(auctionRef, 'registered_patrons'));
       const regData = regSnapshot.docs.map(d => d.data() as RegisteredPatron);
@@ -75,8 +95,8 @@ export default function UniversalExportPage() {
       let fullPatrons: Patron[] = [];
       
       if (patronIds.length > 0) {
-        // Chunk patron fetching (Firestore 'in' limit is 30)
-        const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
+        // Chunk patron fetching from the parent account (Firestore 'in' limit is 30)
+        const patronsRef = collection(firestore, 'accounts', foundAccountId, 'patrons');
         for (let i = 0; i < patronIds.length; i += 30) {
           const chunk = patronIds.slice(i, i + 30);
           const q = query(patronsRef, where(documentId(), 'in', chunk));
@@ -86,7 +106,7 @@ export default function UniversalExportPage() {
       }
       addLog(`Matched ${fullPatrons.length} registered patrons.`);
 
-      // 4. Generate CSVs
+      // 5. Generate CSVs
       addLog('Compiling data structures...');
 
       // Items CSV
@@ -128,7 +148,7 @@ export default function UniversalExportPage() {
         'Payment Method': d.paymentMethod || 'N/A'
       })));
 
-      // 5. Trigger Downloads
+      // 6. Trigger Downloads
       const safeName = auctionData.name.replace(/\s+/g, '_').toLowerCase();
       triggerDownload(itemsCsv, `master_items_${safeName}.csv`);
       triggerDownload(patronsCsv, `master_patrons_${safeName}.csv`);
@@ -154,12 +174,12 @@ export default function UniversalExportPage() {
             <CardTitle>Universal Auction Master Exporter</CardTitle>
           </div>
           <CardDescription>
-            Enter an Auction ID to extract a full data package including items, bidders, and donations.
+            Enter any Auction ID from the database to extract a full data package. This tool searches globally across all accounts.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="auction-id">Target Auction ID</Label>
+            <Label htmlFor="auction-id">Global Auction ID</Label>
             <div className="flex gap-2">
               <Input 
                 id="auction-id" 
@@ -194,7 +214,7 @@ export default function UniversalExportPage() {
         <CardFooter className="flex justify-between items-center bg-muted/30 py-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
-            Generating individual files avoids browser memory timeouts.
+            Admin authorization required for cross-account extraction.
           </div>
           <Button variant="ghost" onClick={() => window.history.back()}>Back</Button>
         </CardFooter>
