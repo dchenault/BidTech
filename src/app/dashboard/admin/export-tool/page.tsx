@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs, doc, getDoc, documentId, collectionGroup } from 'firebase/firestore';
-import { useAccount } from '@/hooks/use-account';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Download, FileJson, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Loader2, Download, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Item, Patron, RegisteredPatron, Auction, User as UserProfile } from '@/lib/types';
 import Papa from 'papaparse';
@@ -70,30 +69,40 @@ export default function UniversalExportPage() {
         addLog('Permissions verified.');
       }
 
-      // 2. Locate Auction Globally
-      addLog('Locating auction identity across all accounts...');
+      // 2. Locate Auction Globally using __name__ for collection group
+      addLog('Searching for auction identity across all accounts...');
       const auctionsQuery = query(collectionGroup(firestore, 'auctions'), where('__name__', '==', auctionId));
       const auctionsSnapshot = await getDocs(auctionsQuery);
 
       if (auctionsSnapshot.empty) {
-        throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes are deployed.');
+        // Fallback check: Some environments require the full path or specific indexing
+        addLog('Searching via documentId helper...');
+        const fallbackQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
+        const fallbackSnapshot = await getDocs(fallbackQuery);
+        if (fallbackSnapshot.empty) {
+            throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes for "__name__" are deployed.');
+        }
       }
 
       const auctionDoc = auctionsSnapshot.docs[0];
       const auctionData = auctionDoc.data() as Auction;
       const auctionRef = auctionDoc.ref;
       
-      // Extract accountId from parent.parent (Ref: /accounts/{accountId}/auctions/{auctionId})
+      // Extract the full path and found accountId
+      addLog(`Auction Discovered: ${auctionRef.path}`);
+      
+      // Path format is: accounts/{accountId}/auctions/{auctionId}
+      // Parent is the 'auctions' collection, parent of that is the account document
       const foundAccountId = auctionRef.parent?.parent?.id; 
       
       if (!foundAccountId) {
-        throw new Error('Could not resolve parent account from the found auction path.');
+        throw new Error('Could not resolve parent account from the discovered auction path.');
       }
       
       addLog(`Connected to: ${auctionData.name} (Account: ${foundAccountId})`);
 
-      // 3. Fetch Items
-      addLog('Fetching catalog items...');
+      // 3. Fetch Items & Donations (Donations are SKUs starting with DON- in the items subcollection)
+      addLog('Fetching catalog items and donations...');
       const itemsSnapshot = await getDocs(collection(auctionRef, 'items'));
       const allItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Item));
       const physicalItems = allItems.filter(i => !i.sku.toString().startsWith('DON-'));
@@ -118,10 +127,10 @@ export default function UniversalExportPage() {
           fullPatrons = [...fullPatrons, ...pSnap.docs.map(d => ({ id: d.id, ...d.data() } as Patron))];
         }
       }
-      addLog(`Matched ${fullPatrons.length} registered patrons.`);
+      addLog(`Matched ${fullPatrons.length} registered patrons with master profiles.`);
 
       // 5. Generate CSVs
-      addLog('Compiling data structures...');
+      addLog('Compiling final data packages...');
 
       // Items CSV
       const itemsCsv = Papa.unparse(physicalItems.map(i => ({
@@ -168,8 +177,8 @@ export default function UniversalExportPage() {
       triggerDownload(patronsCsv, `master_patrons_${safeName}.csv`);
       triggerDownload(donationsCsv, `master_donations_${safeName}.csv`);
 
-      addLog('MASTER EXPORT COMPLETE. Files downloaded.');
-      toast({ title: 'Export Successful', description: 'Three CSV files have been generated.' });
+      addLog('MASTER EXPORT COMPLETE. Downloads initiated.');
+      toast({ title: 'Export Successful', description: 'Catalog, Patron, and Donation files generated.' });
 
     } catch (e: any) {
       addLog(`ERROR: ${e.message}`);
@@ -188,7 +197,7 @@ export default function UniversalExportPage() {
             <CardTitle>Universal Auction Master Exporter</CardTitle>
           </div>
           <CardDescription>
-            Enter any Auction ID from the database to extract a full data package. This tool searches globally across all accounts.
+            Enter any Auction ID to extract its full data package. This tool searches globally across all accounts and resolves parent paths automatically.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -214,11 +223,11 @@ export default function UniversalExportPage() {
 
           <div className="border rounded-md overflow-hidden">
             <div className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wider border-b">
-              Export Status Log
+              Global Search Status Log
             </div>
             <ScrollArea className="h-64 w-full p-4 font-code text-xs bg-slate-950 text-green-400">
               {logs.length === 0 ? (
-                <span className="text-slate-500 italic">Enter an ID and click generate to begin...</span>
+                <span className="text-slate-500 italic">Ready for input...</span>
               ) : (
                 logs.map((log, i) => <div key={i} className="mb-1">{log}</div>)
               )}
