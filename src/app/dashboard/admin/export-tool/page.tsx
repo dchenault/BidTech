@@ -74,7 +74,7 @@ export default function UniversalExportPage() {
       const patronIds = regData.map(r => r.patronId);
       let fullPatrons: Patron[] = [];
       
-      if (patonIds.length > 0) {
+      if (patronIds.length > 0) {
         // Chunk patron fetching (Firestore 'in' limit is 30)
         const patronsRef = collection(firestore, 'accounts', accountId, 'patrons');
         for (let i = 0; i < patronIds.length; i += 30) {
