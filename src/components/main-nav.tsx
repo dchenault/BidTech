@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Gavel, LayoutDashboard, Settings, Users, Gift, Database, ChevronDown } from 'lucide-react';
+import { Gavel, LayoutDashboard, Settings, Users, Gift, Database, ChevronDown, FileOutput } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -113,6 +113,29 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                   </Tooltip>
                 ) : (
                   "Update Business Names"
+                )}
+              </Link>
+              
+              <Link
+                href="/dashboard/admin/export-tool"
+                className={cn(
+                  "flex items-center rounded-lg transition-all hover:text-primary",
+                  isCollapsed ? "h-10 w-10 justify-center mx-auto" : "px-3 py-2 pl-10 text-xs",
+                  pathname === "/dashboard/admin/export-tool" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
+              >
+                {isCollapsed ? (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <FileOutput className="h-4 w-4" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Universal Master Export</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <FileOutput className="h-3 w-3" />
+                    <span>Master Export Tool</span>
+                  </div>
                 )}
               </Link>
             </CollapsibleContent>
