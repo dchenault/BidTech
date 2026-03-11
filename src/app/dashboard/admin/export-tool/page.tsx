@@ -72,20 +72,23 @@ export default function UniversalExportPage() {
 
       // 2. Locate Auction Globally
       addLog('Locating auction identity across all accounts...');
-      const auctionsQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
+      const auctionsQuery = query(collectionGroup(firestore, 'auctions'), where('__name__', '==', auctionId));
       const auctionsSnapshot = await getDocs(auctionsQuery);
 
       if (auctionsSnapshot.empty) {
-        throw new Error('Auction ID not found in database. Please verify the ID.');
+        throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes are deployed.');
       }
 
       const auctionDoc = auctionsSnapshot.docs[0];
       const auctionData = auctionDoc.data() as Auction;
       const auctionRef = auctionDoc.ref;
       
-      // Extract accountId from path: /accounts/{accountId}/auctions/{auctionId}
-      const pathSegments = auctionRef.path.split('/');
-      const foundAccountId = pathSegments[1]; 
+      // Extract accountId from parent.parent (Ref: /accounts/{accountId}/auctions/{auctionId})
+      const foundAccountId = auctionRef.parent?.parent?.id; 
+      
+      if (!foundAccountId) {
+        throw new Error('Could not resolve parent account from the found auction path.');
+      }
       
       addLog(`Connected to: ${auctionData.name} (Account: ${foundAccountId})`);
 
