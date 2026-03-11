@@ -69,18 +69,32 @@ export default function UniversalExportPage() {
         addLog('Permissions verified.');
       }
 
-      // 2. Locate Auction Globally using __name__ for collection group
+      // 2. Locate Auction Globally using manual range filtering on __name__
       addLog('Searching for auction identity across all accounts...');
-      const auctionsQuery = query(collectionGroup(firestore, 'auctions'), where('__name__', '==', auctionId));
-      const auctionsSnapshot = await getDocs(auctionsQuery);
+      
+      // FIX: Use manual range query on __name__ to bypass the "segment" requirement.
+      // This allows Firestore to find the document ID without requiring the full path prefix.
+      const auctionsQuery = query(
+        collectionGroup(firestore, 'auctions'), 
+        where('__name__', '>=', 'auctions/' + auctionId), 
+        where('__name__', '<=', 'auctions/' + auctionId + '\uf8ff')
+      );
+      
+      let auctionsSnapshot = await getDocs(auctionsQuery);
 
       if (auctionsSnapshot.empty) {
-        // Fallback check: Some environments require the full path or specific indexing
-        addLog('Searching via documentId helper...');
-        const fallbackQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
-        const fallbackSnapshot = await getDocs(fallbackQuery);
-        if (fallbackSnapshot.empty) {
-            throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes for "__name__" are deployed.');
+        addLog('Range search yielded no results. Trying global equality fallback...');
+        const equalityQuery = query(collectionGroup(firestore, 'auctions'), where('__name__', '==', auctionId));
+        auctionsSnapshot = await getDocs(equalityQuery);
+        
+        if (auctionsSnapshot.empty) {
+            // DocumentId fallback for legacy compatibility
+            const docIdQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
+            auctionsSnapshot = await getDocs(docIdQuery);
+            
+            if (auctionsSnapshot.empty) {
+                throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes are deployed.');
+            }
         }
       }
 
@@ -88,12 +102,11 @@ export default function UniversalExportPage() {
       const auctionData = auctionDoc.data() as Auction;
       const auctionRef = auctionDoc.ref;
       
-      // Extract the full path and found accountId
+      // Extract the full path and found accountId from the ref path: accounts/{ACC_ID}/auctions/{AUC_ID}
       addLog(`Auction Discovered: ${auctionRef.path}`);
       
-      // Path format is: accounts/{accountId}/auctions/{auctionId}
-      // Parent is the 'auctions' collection, parent of that is the account document
-      const foundAccountId = auctionRef.parent?.parent?.id; 
+      const pathSegments = auctionRef.path.split('/');
+      const foundAccountId = pathSegments[1]; 
       
       if (!foundAccountId) {
         throw new Error('Could not resolve parent account from the discovered auction path.');
@@ -118,7 +131,7 @@ export default function UniversalExportPage() {
       let fullPatrons: Patron[] = [];
       
       if (patronIds.length > 0) {
-        // Chunk patron fetching from the parent account (Firestore 'in' limit is 30)
+        // Chunk patron fetching from the discovered parent account
         const patronsRef = collection(firestore, 'accounts', foundAccountId, 'patrons');
         for (let i = 0; i < patronIds.length; i += 30) {
           const chunk = patronIds.slice(i, i + 30);
