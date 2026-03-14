@@ -126,7 +126,9 @@ export default function AuctionDetailsPage() {
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         item.sku.toString().includes(searchQuery) ||
-        (item.assignedRunner && item.assignedRunner.toLowerCase().includes(searchQuery.toLowerCase()))
+        (item.assignedRunner && item.assignedRunner.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.donor?.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.business?.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [items, searchQuery]);
 
@@ -815,15 +817,16 @@ export default function AuctionDetailsPage() {
                                <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
                                  <Trash2 className="h-4 w-4" />
                                  <span className="sr-only">Delete Lot</span>
-                               </span>
-                             </TooltipTrigger>
-                             {hasItems && (
-                               <TooltipContent>
-                                 <p>Cannot delete lot with items. Unassign items first.</p>
-                               </TooltipContent>
-                             )}
-                           </Tooltip>
-                         </TooltipProvider>
+                               </Button>
+                             </span>
+                           </TooltipTrigger>
+                           {hasItems && (
+                             <TooltipContent>
+                               <p>Cannot delete lot with items. Unassign items first.</p>
+                             </TooltipContent>
+                           )}
+                         </Tooltip>
+                       </TooltipProvider>
                        </div>
                   </CardHeader>
                   <CardContent>
