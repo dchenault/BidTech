@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -24,7 +23,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Frown, Loader2, BarChart3, PlusCircle, FileText } from 'lucide-react';
+import { Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Frown, Loader2, BarChart3, PlusCircle, FileText, UserCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -183,7 +182,8 @@ export default function PublicStaffAuctionPage() {
     return actualItems.filter((item: Item) => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        item.sku.toString().includes(searchQuery)
+        item.sku.toString().includes(searchQuery) ||
+        (item.assignedRunner && item.assignedRunner.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [items, searchQuery]);
 
@@ -198,6 +198,7 @@ export default function PublicStaffAuctionPage() {
             return sortConfig.direction === 'ascending' ? res : -res;
           case 'winner': aValue = a.winner ? `${a.winner.firstName} ${a.winner.lastName}`.toLowerCase() : ''; bValue = b.winner ? `${b.winner.firstName} ${b.winner.lastName}`.toLowerCase() : ''; break;
           case 'category': aValue = a.category?.name.toLowerCase() || ''; bValue = b.category?.name.toLowerCase() || ''; break;
+          case 'assignedRunner': aValue = a.assignedRunner?.toLowerCase() || ''; bValue = b.assignedRunner?.toLowerCase() || ''; break;
           default: aValue = a[sortConfig.key as keyof Item]; bValue = b[sortConfig.key as keyof Item]; if (typeof aValue === 'string') aValue = aValue.toLowerCase(); if (typeof bValue === 'string') bValue = bValue.toLowerCase();
         }
         aValue = aValue ?? (typeof aValue === 'number' ? 0 : ''); bValue = bValue ?? (typeof bValue === 'number' ? 0 : '');
@@ -301,6 +302,9 @@ export default function PublicStaffAuctionPage() {
                   <Button variant="ghost" onClick={() => requestSort('category')} className="-ml-4 h-8">Category {sortConfig?.key === 'category' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
               </TableHead>
               <TableHead className="hidden lg:table-cell">
+                  <Button variant="ghost" onClick={() => requestSort('assignedRunner')} className="-ml-4 h-8">Runner {sortConfig?.key === 'assignedRunner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
+              </TableHead>
+              <TableHead className="hidden lg:table-cell">
                   <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}</Button>
               </TableHead>
               <TableHead className="hidden lg:table-cell">
@@ -324,6 +328,16 @@ export default function PublicStaffAuctionPage() {
               <TableCell className="font-mono text-muted-foreground">{item.sku}</TableCell>
               <TableCell className="font-medium">{item.name}</TableCell>
               <TableCell className="hidden md:table-cell"><Badge variant="outline">{item.category.name}</Badge></TableCell>
+              <TableCell className="hidden lg:table-cell">
+                  {item.assignedRunner ? (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <UserCircle className="h-3.5 w-3.5 text-primary" />
+                          {item.assignedRunner}
+                      </div>
+                  ) : (
+                      <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                  )}
+              </TableCell>
               <TableCell className="hidden lg:table-cell">{item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}</TableCell>
               <TableCell className="hidden lg:table-cell">{item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'N/A'}</TableCell>
               <TableCell className="text-right">
@@ -385,7 +399,7 @@ export default function PublicStaffAuctionPage() {
       <div className="flex items-center"><TabsList><TabsTrigger value="live">Live Items</TabsTrigger><TabsTrigger value="silent">Silent Items</TabsTrigger></TabsList></div>
       <div className="relative mt-4">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
+        <Input type="search" placeholder="Search items by SKU, name, description, or runner..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
       </div>
       <TabsContent value="live" className="mt-4"><Card><CardHeader><CardTitle>Live Auction Items</CardTitle></CardHeader><CardContent><ItemsTable itemsToRender={liveItems} /></CardContent></Card></TabsContent>
       <TabsContent value="silent" className="mt-4 space-y-6">
@@ -491,6 +505,7 @@ export default function PublicStaffAuctionPage() {
                 lotId: itemData.lotId === 'none' ? deleteField() : (itemData.lotId || deleteField()),
                 donor: donor === null ? deleteField() : donor,
                 donorId: itemData.donorId || deleteField(),
+                assignedRunner: itemData.assignedRunner || deleteField(),
                 ...(finalImageUrl !== selectedItem.imageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl })
             };
             transaction.update(itemRef, updatePayload);
@@ -597,7 +612,7 @@ export default function PublicStaffAuctionPage() {
             <Tabs defaultValue="items">
             <div className="flex items-center"><TabsList><TabsTrigger value="items">Items</TabsTrigger><TabsTrigger value="donations">Donations</TabsTrigger><TabsTrigger value="patrons">Patrons</TabsTrigger></TabsList></div>
             <TabsContent value="items" className="mt-4 space-y-4">
-                 {auction?.type !== 'Hybrid' && (<div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input type="search" placeholder="Search items..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>)}
+                 {auction?.type !== 'Hybrid' && (<div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input type="search" placeholder="Search items by SKU, name, description, or runner..." className="w-full rounded-lg bg-background pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>)}
                 {renderAuctionContent()}
             </TabsContent>
               <TabsContent value="donations" className="space-y-4">

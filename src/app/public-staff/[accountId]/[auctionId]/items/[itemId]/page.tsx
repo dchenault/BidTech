@@ -14,7 +14,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Loader2, Frown, Printer } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Loader2, Frown, Printer, UserCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { EditItemDialog } from '@/components/edit-item-dialog';
@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useStorage } from '@/firebase/provider';
 import { uploadDataUriAndGetURL, deleteFileByUrl } from '@/firebase/storage';
 import { exportAuctioneerSheetToHTML } from '@/lib/export';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function PublicStaffItemDetailsPage() {
   const params = useParams();
@@ -46,6 +48,7 @@ export default function PublicStaffItemDetailsPage() {
   const [patrons, setPatrons] = useState<Patron[]>([]);
   const [registeredPatrons, setRegisteredPatrons] = useState<RegisteredPatron[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [runnerName, setRunnerName] = useState('');
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
@@ -77,7 +80,9 @@ export default function PublicStaffItemDetailsPage() {
     const unsubscribers = [
       onSnapshot(doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId), (docSnap) => {
         if (docSnap.exists()) {
-          setItem({ id: docSnap.id, ...docSnap.data() } as Item);
+          const itemData = { id: docSnap.id, ...docSnap.data() } as Item;
+          setItem(itemData);
+          setRunnerName(itemData.assignedRunner || '');
         } else {
           setItem(null);
         }
@@ -164,6 +169,7 @@ export default function PublicStaffItemDetailsPage() {
                 lotId: itemData.lotId === 'none' ? deleteField() : (itemData.lotId || deleteField()),
                 donor: donor === null ? deleteField() : donor,
                 donorId: itemData.donorId || deleteField(),
+                assignedRunner: itemData.assignedRunner || deleteField(),
                 ...(finalImageUrl !== item.imageUrl && { imageUrl: finalImageUrl, thumbnailUrl: finalImageUrl })
             };
             transaction.update(itemRef, updatePayload);
@@ -200,6 +206,17 @@ export default function PublicStaffItemDetailsPage() {
     exportAuctioneerSheetToHTML(item, auction);
   };
 
+  const handleSaveRunner = async () => {
+    if (!firestore || !accountId || !auctionId || !itemId) return;
+    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+    try {
+      await updateDoc(itemRef, { assignedRunner: runnerName });
+      toast({ title: "Runner Assigned" });
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Save Failed" });
+    }
+  };
+
   return (
     <>
       <div className="grid gap-6">
@@ -210,10 +227,20 @@ export default function PublicStaffItemDetailsPage() {
               <span className="sr-only">Back</span>
             </Link>
           </Button>
-          <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
-            {item.name}
-          </h1>
-          <Badge variant="outline" className="shrink-0">{item.category.name}</Badge>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+                {item.name}
+            </h1>
+            <div className="flex items-center gap-2">
+                <Badge variant="outline">{item.category.name}</Badge>
+                {item.assignedRunner && (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                        <UserCircle className="h-3 w-3" />
+                        Runner: {item.assignedRunner}
+                    </Badge>
+                )}
+            </div>
+          </div>
           <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:ml-auto sm:w-auto">
             <Button
               size="sm"
@@ -256,6 +283,26 @@ export default function PublicStaffItemDetailsPage() {
             </Card>
           </div>
           <div className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Logistics</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="runner">Assigned Runner / Child</Label>
+                    <div className="flex gap-2">
+                        <Input 
+                            id="runner"
+                            placeholder="Enter name"
+                            value={runnerName}
+                            onChange={(e) => setRunnerName(e.target.value)}
+                            onBlur={handleSaveRunner}
+                        />
+                        <Button variant="ghost" size="icon" onClick={handleSaveRunner}>
+                            <UserCircle className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader><CardTitle>Valuation & Bidding</CardTitle></CardHeader>
               <CardContent className="grid gap-4">

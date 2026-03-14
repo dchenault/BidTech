@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,7 +15,7 @@ import { useAuctions } from '@/hooks/use-auctions';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Printer } from 'lucide-react';
+import { ChevronLeft, Gift, ImageIcon, Pencil, Gavel, Printer, UserCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { EditItemDialog } from '@/components/edit-item-dialog';
@@ -27,6 +27,8 @@ import { collection, doc, updateDoc } from 'firebase/firestore';
 import { EnterWinningBidDialog } from '@/components/enter-winning-bid-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { exportAuctioneerSheetToHTML } from '@/lib/export';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function ItemDetailsPage() {
   const params = useParams();
@@ -38,6 +40,7 @@ export default function ItemDetailsPage() {
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isWinningBidDialogOpen, setIsWinningBidDialogOpen] = useState(false);
+  const [runnerName, setRunnerName] = useState('');
 
   const auctionId = typeof params.id === 'string' ? params.id : '';
   const itemId = typeof params.itemId === 'string' ? params.itemId : '';
@@ -46,6 +49,12 @@ export default function ItemDetailsPage() {
   const item = getItem(auctionId, itemId);
   const { lots } = getAuctionLots(auctionId);
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
+
+  useEffect(() => {
+    if (item?.assignedRunner) {
+      setRunnerName(item.assignedRunner);
+    }
+  }, [item]);
 
   const registeredPatronsRef = useMemoFirebase(
     () => (firestore && accountId && auctionId ? collection(firestore, 'accounts', accountId, 'auctions', auctionId, 'registered_patrons') : null),
@@ -111,6 +120,20 @@ export default function ItemDetailsPage() {
     exportAuctioneerSheetToHTML(item, auction);
   };
 
+  const handleSaveRunner = async () => {
+    if (!firestore || !accountId || !auctionId || !itemId) return;
+    const itemRef = doc(firestore, 'accounts', accountId, 'auctions', auctionId, 'items', itemId);
+    try {
+      await updateDoc(itemRef, { assignedRunner: runnerName });
+      toast({
+        title: "Runner Assigned",
+        description: `"${runnerName}" has been assigned to this item.`
+      });
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Save Failed" });
+    }
+  };
+
 
   return (
     <>
@@ -122,10 +145,20 @@ export default function ItemDetailsPage() {
               <span className="sr-only">Back</span>
             </Link>
           </Button>
-          <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
-            {item.name}
-          </h1>
-          <Badge variant="outline" className="shrink-0">{item.category.name}</Badge>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+                {item.name}
+            </h1>
+            <div className="flex items-center gap-2">
+                <Badge variant="outline">{item.category.name}</Badge>
+                {item.assignedRunner && (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                        <UserCircle className="h-3 w-3" />
+                        Runner: {item.assignedRunner}
+                    </Badge>
+                )}
+            </div>
+          </div>
           <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:ml-auto sm:w-auto">
             <Button
               size="sm"
@@ -186,6 +219,28 @@ export default function ItemDetailsPage() {
             </Card>
           </div>
           <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Logistics</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="runner">Assigned Runner / Child</Label>
+                    <div className="flex gap-2">
+                        <Input 
+                            id="runner"
+                            placeholder="Enter name"
+                            value={runnerName}
+                            onChange={(e) => setRunnerName(e.target.value)}
+                            onBlur={handleSaveRunner}
+                        />
+                        <Button variant="ghost" size="icon" onClick={handleSaveRunner}>
+                            <UserCircle className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Valuation & Bidding</CardTitle>

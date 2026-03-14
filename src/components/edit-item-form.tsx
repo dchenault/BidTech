@@ -86,6 +86,7 @@ export function EditItemForm({
         lotId: item.lotId,
         donorId: item.donorId,
         imageUrl: item.imageUrl || "",
+        assignedRunner: item.assignedRunner || "",
       }
     : {
         sku: "",
@@ -96,6 +97,7 @@ export function EditItemForm({
         lotId: undefined,
         donorId: undefined,
         imageUrl: "",
+        assignedRunner: "",
       };
 
   const form = useForm<ItemFormValues>({
@@ -114,6 +116,7 @@ export function EditItemForm({
         lotId: item.lotId,
         donorId: item.donorId,
         imageUrl: item.imageUrl || "",
+        assignedRunner: item.assignedRunner || "",
       });
     }
   }, [item, form]);
@@ -278,31 +281,46 @@ export function EditItemForm({
             />
           </div>
           
-           <FormField
-            control={form.control}
-            name="donorId"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Donor (Optional)</FormLabel>
-                 <div className="flex items-center gap-2">
-                    <Combobox
-                      options={donorOptions}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Select a donor..."
-                      searchPlaceholder="Search donors..."
-                      noResultsText="No donor found."
-                      disabled={isLoadingDonors}
-                      className="w-full"
-                    />
-                    <Button type="button" size="sm" variant="outline" onClick={() => setIsAddDonorOpen(true)}>
-                       <PlusCircle className="mr-2 h-4 w-4" /> New Donor
-                    </Button>
-                 </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="donorId"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Donor (Optional)</FormLabel>
+                   <div className="flex items-center gap-2">
+                      <Combobox
+                        options={donorOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Select a donor..."
+                        searchPlaceholder="Search donors..."
+                        noResultsText="No donor found."
+                        disabled={isLoadingDonors}
+                        className="w-full"
+                      />
+                      <Button type="button" size="sm" variant="outline" onClick={() => setIsAddDonorOpen(true)}>
+                         <PlusCircle className="mr-2 h-4 w-4" /> New Donor
+                      </Button>
+                   </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="assignedRunner"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Assigned Runner (e.g. Assigned Child)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter runner name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           {showLotsDropdown && (
             <FormField

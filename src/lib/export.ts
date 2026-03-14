@@ -140,6 +140,7 @@ export function exportItemsToCSV(
     'Category',
     'Description',
     'Estimated Value',
+    'Assigned Runner',
     'Donor Business',
     'Donor First Name',
     'Donor Last Name',
@@ -180,6 +181,7 @@ export function exportItemsToCSV(
       `"${item.category?.name || 'Misc'}"`,
       `"${item.description?.replace(/"/g, '""') || ''}"`,
       item.estimatedValue || 0,
+      `"${item.assignedRunner || ''}"`,
       `"${item.business || (d?.type === 'Business' ? d.name : '')}"`,
       `"${d?.firstName || ''}"`,
       `"${d?.lastName || ''}"`,
@@ -211,7 +213,7 @@ export function exportItemsToCSV(
 // 5. Export All Items
 export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) {
   const csvHeader = [
-    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Business', 'Donor First Name', 'Donor Last Name'
+    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Assigned Runner', 'Donor Business', 'Donor First Name', 'Donor Last Name'
   ].join(',');
 
   const csvRows = items.map(item => 
@@ -222,6 +224,7 @@ export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) 
       `"${item.description?.replace(/"/g, '""') || ''}"`,
       `"${item.category.name}"`,
       item.estimatedValue,
+      `"${item.assignedRunner || ''}"`,
       `"${item.business || (item.donor?.type === 'Business' ? item.donor.name : '')}"`,
       `"${item.donor?.firstName || ''}"`,
       `"${item.donor?.lastName || ''}"`
@@ -676,11 +679,13 @@ export function exportFullAuctionOutcome(data: {
 
   // Section A: Itemized Results
   csvRows.push('SECTION A: ITEMIZED RESULTS');
-  csvRows.push(['SKU', 'Item Name', 'Business/Donor', 'Winner First Name', 'Winner Last Name', 'Winning Bid', 'Status', 'Payment Method'].join(','));
+  csvRows.push(['SKU', 'Item Name', 'Category', 'Assigned Runner', 'Business/Donor', 'Winner First Name', 'Winner Last Name', 'Winning Bid', 'Status', 'Payment Method'].join(','));
   sortedPhysical.forEach(i => {
     csvRows.push([
       i.sku,
       `"${i.name.replace(/"/g, '""')}"`,
+      `"${i.category?.name || 'Misc'}"`,
+      `"${i.assignedRunner || ''}"`,
       `"${(i.business || i.donor?.name || '').replace(/"/g, '""')}"`,
       i.winner ? `"${i.winner.firstName}"` : 'Unsold',
       i.winner ? `"${i.winner.lastName}"` : '',

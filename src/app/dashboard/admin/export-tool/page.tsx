@@ -158,6 +158,7 @@ export default function UniversalExportPage() {
           'Description': i.description || '',
           'Category': i.category?.name || 'Misc',
           'Estimated Value': i.estimatedValue || 0,
+          'Assigned Runner': i.assignedRunner || '',
           'Donor Business': i.business || (i.donor?.type === 'Business' ? i.donor.name : ''),
           'Donor First Name': i.donor?.firstName || '',
           'Donor Last Name': i.donor?.lastName || '',

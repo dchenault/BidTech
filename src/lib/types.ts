@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'z';
 
 export type User = {
   id: string;
@@ -49,6 +49,7 @@ export type Item = {
   business?: string; // New field for bulk update
   imageUrl?: string;
   thumbnailUrl?: string;
+  assignedRunner?: string;
   metadata?: {
       updatedBy: string;
       updatedAt: any;
@@ -205,6 +206,7 @@ export const itemFormSchema = z.object({
   lotId: z.string().optional(),
   donorId: z.string().optional(),
   imageUrl: z.string().optional(),
+  assignedRunner: z.string().optional(),
 });
 
 export type ItemFormValues = z.infer<typeof itemFormSchema>;

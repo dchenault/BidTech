@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -25,7 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel, Upload, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, Download, Pencil, Power, PowerOff, Search, Trash2, HeartHandshake, Image as ImageIcon, ArrowUp, ArrowDown, Share2, Copy, Gavel, Upload, Loader2, FileText, UserCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
@@ -126,7 +125,8 @@ export default function AuctionDetailsPage() {
     return actualItems.filter((item: Item) => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        item.sku.toString().includes(searchQuery)
+        item.sku.toString().includes(searchQuery) ||
+        (item.assignedRunner && item.assignedRunner.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [items, searchQuery]);
 
@@ -148,6 +148,10 @@ export default function AuctionDetailsPage() {
           case 'category':
             aValue = a.category?.name.toLowerCase() || '';
             bValue = b.category?.name.toLowerCase() || '';
+            break;
+          case 'assignedRunner':
+            aValue = a.assignedRunner?.toLowerCase() || '';
+            bValue = b.assignedRunner?.toLowerCase() || '';
             break;
           default:
             aValue = a[sortConfig.key as keyof Item];
@@ -554,6 +558,11 @@ export default function AuctionDetailsPage() {
                     </Button>
                 </TableHead>
                 <TableHead className="hidden lg:table-cell">
+                    <Button variant="ghost" onClick={() => requestSort('assignedRunner')} className="-ml-4 h-8">
+                        Runner {sortConfig?.key === 'assignedRunner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                    </Button>
+                </TableHead>
+                <TableHead className="hidden lg:table-cell">
                       <Button variant="ghost" onClick={() => requestSort('winningBid')} className="-ml-4 h-8">
                         Winning Bid {sortConfig?.key === 'winningBid' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
@@ -594,6 +603,16 @@ export default function AuctionDetailsPage() {
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                     <Badge variant="outline">{item.category.name}</Badge>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                    {item.assignedRunner ? (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                            <UserCircle className="h-3.5 w-3.5 text-primary" />
+                            {item.assignedRunner}
+                        </div>
+                    ) : (
+                        <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                    )}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
                     {item.winningBid ? formatCurrency(item.winningBid) : 'N/A'}
@@ -748,7 +767,7 @@ export default function AuctionDetailsPage() {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search items by SKU, name, or description..."
+          placeholder="Search items by SKU, name, description, or runner..."
           className="w-full rounded-lg bg-background pl-8"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -799,17 +818,16 @@ export default function AuctionDetailsPage() {
                                <Button variant="destructive" size="icon" disabled={hasItems} onClick={() => setLotToDelete(lot)}>
                                  <Trash2 className="h-4 w-4" />
                                  <span className="sr-only">Delete Lot</span>
-                               </Button>
-                             </span>
-                           </TooltipTrigger>
-                           {hasItems && (
-                             <TooltipContent>
-                               <p>Cannot delete lot with items. Unassign items first.</p>
-                             </TooltipContent>
-                           )}
-                         </Tooltip>
-                       </TooltipProvider>
-                     </div>
+                               </span>
+                             </TooltipTrigger>
+                             {hasItems && (
+                               <TooltipContent>
+                                 <p>Cannot delete lot with items. Unassign items first.</p>
+                               </TooltipContent>
+                             )}
+                           </Tooltip>
+                         </TooltipProvider>
+                       </div>
                   </CardHeader>
                   <CardContent>
                     {hasItems ? (
@@ -913,7 +931,7 @@ export default function AuctionDetailsPage() {
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="search"
-                            placeholder="Search items by SKU, name, or description..."
+                            placeholder="Search items by SKU, name, description, or runner..."
                             className="w-full rounded-lg bg-background pl-8"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
