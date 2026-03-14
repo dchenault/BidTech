@@ -110,7 +110,8 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                       <Database className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Update Business Names</TooltipContent>
-                  ) : (
+                  </Tooltip>
+                ) : (
                   "Update Business Names"
                 )}
               </Link>
@@ -129,7 +130,8 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                       <FileOutput className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Universal Master Export</TooltipContent>
-                  ) : (
+                  </Tooltip>
+                ) : (
                   <div className="flex items-center gap-3">
                     <FileOutput className="h-3 w-3" />
                     <span>Master Export Tool</span>
@@ -151,7 +153,8 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                       <RefreshCw className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Sync Donor Data</TooltipContent>
-                  ) : (
+                  </Tooltip>
+                ) : (
                   <div className="flex items-center gap-3">
                     <RefreshCw className="h-3 w-3" />
                     <span>Sync Donor Data</span>
