@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,6 +36,8 @@ export function EditDonorForm({
     if (!donor) {
       return {
         name: "",
+        firstName: "",
+        lastName: "",
         type: "Individual",
         contactPerson: "",
         email: "",
@@ -62,6 +63,8 @@ export function EditDonorForm({
 
     return {
       name: donor.name,
+      firstName: donor.firstName || "",
+      lastName: donor.lastName || "",
       type: donor.type,
       contactPerson: donor.contactPerson || '',
       email: donor.email || '',
@@ -129,12 +132,44 @@ export function EditDonorForm({
             </FormItem>
           )}
         />
+        
+        {donorType === 'Individual' && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="firstName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="lastName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Last Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
               <FormItem>
-              <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Full Name'}</FormLabel>
+              <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Display Name (Legacy)'}</FormLabel>
               <FormControl>
                   <Input {...field} />
               </FormControl>

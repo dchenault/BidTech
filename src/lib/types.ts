@@ -67,6 +67,8 @@ export type Donor = {
   id: string;
   accountId: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   type: 'Individual' | 'Business';
   contactPerson?: string;
   email?: string;
@@ -226,6 +228,8 @@ export type LotFormValues = z.infer<typeof lotFormSchema>;
 
 export const donorFormSchema = z.object({
   name: z.string().min(2, "Donor name is required."),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
   type: z.enum(['Individual', 'Business'], { required_error: "Donor type is required."}),
   contactPerson: z.string().optional(),
   email: z.string().email("Invalid email address.").optional().or(z.literal('')),

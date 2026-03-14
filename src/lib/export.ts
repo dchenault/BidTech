@@ -1,4 +1,3 @@
-
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -72,7 +71,7 @@ export function exportPatronsToCSV(patrons: Patron[]) {
 // 2. Export All Donors
 export function exportDonorsToCSV(donors: Donor[], fileName = 'all_donors.csv') {
   const csvHeader = [
-    'ID', 'Account ID', 'Name', 'Type', 'Contact Person', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
+    'ID', 'Account ID', 'Business Name', 'Donor First Name', 'Donor Last Name', 'Type', 'Contact Person', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
   ].join(',');
 
   const csvRows = donors.map((d) =>
@@ -80,6 +79,8 @@ export function exportDonorsToCSV(donors: Donor[], fileName = 'all_donors.csv') 
       d.id,
       d.accountId,
       `"${d.name}"`,
+      `"${d.firstName || ''}"`,
+      `"${d.lastName || ''}"`,
       d.type,
       `"${d.contactPerson || ''}"`,
       d.email || '',
@@ -139,7 +140,9 @@ export function exportItemsToCSV(
     'Category',
     'Description',
     'Estimated Value',
-    'Donor Business/Name',
+    'Donor Business',
+    'Donor First Name',
+    'Donor Last Name',
     'Donor Contact Person',
     'Donor Email',
     'Donor Phone',
@@ -147,7 +150,8 @@ export function exportItemsToCSV(
     'Donor City',
     'Donor State',
     'Donor Zip',
-    'Winner Name',
+    'Winner First Name',
+    'Winner Last Name',
     'Winner Bidder #',
     'Sold Price',
     'Winner Address',
@@ -163,7 +167,8 @@ export function exportItemsToCSV(
     const donorAddr = d?.address;
     
     const winner = item.winnerId ? patronMap.get(item.winnerId) : null;
-    const winnerName = winner ? `${winner.firstName} ${winner.lastName}` : 'Unsold';
+    const winnerFirstName = winner?.firstName || '';
+    const winnerLastName = winner?.lastName || '';
     const bidderNumber = winner ? (winner.biddingNumber || 'N/A') : 'N/A';
     const soldPrice = item.winningBid || 0;
 
@@ -175,7 +180,9 @@ export function exportItemsToCSV(
       `"${item.category?.name || 'Misc'}"`,
       `"${item.description?.replace(/"/g, '""') || ''}"`,
       item.estimatedValue || 0,
-      `"${d?.name || 'Anonymous'}"`,
+      `"${item.business || (d?.type === 'Business' ? d.name : '')}"`,
+      `"${d?.firstName || ''}"`,
+      `"${d?.lastName || ''}"`,
       `"${d?.contactPerson || ''}"`,
       `"${d?.email || ''}"`,
       `"${d?.phone || ''}"`,
@@ -183,7 +190,8 @@ export function exportItemsToCSV(
       `"${donorAddr?.city || ''}"`,
       `"${donorAddr?.state || ''}"`,
       `"${donorAddr?.zip || ''}"`,
-      `"${winnerName}"`,
+      `"${winnerFirstName}"`,
+      `"${winnerLastName}"`,
       `"${bidderNumber}"`,
       soldPrice,
       `"${winAddr?.street || ''}"`,
@@ -203,7 +211,7 @@ export function exportItemsToCSV(
 // 5. Export All Items
 export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) {
   const csvHeader = [
-    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Name'
+    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Donor Business', 'Donor First Name', 'Donor Last Name'
   ].join(',');
 
   const csvRows = items.map(item => 
@@ -214,7 +222,9 @@ export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) 
       `"${item.description?.replace(/"/g, '""') || ''}"`,
       `"${item.category.name}"`,
       item.estimatedValue,
-      `"${item.donor?.name || ''}"`
+      `"${item.business || (item.donor?.type === 'Business' ? item.donor.name : '')}"`,
+      `"${item.donor?.firstName || ''}"`,
+      `"${item.donor?.lastName || ''}"`
     ].join(',')
   );
 
@@ -231,7 +241,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
   );
 
   const csvHeader = [
-    'Item SKU', 'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email', 'Winner Phone', 'Winner Street', 'Winner City', 'Winner State', 'Winner ZIP'
+    'Item SKU', 'Item Name', 'Winning Bid', 'Winner First Name', 'Winner Last Name', 'Winner Email', 'Winner Phone', 'Winner Street', 'Winner City', 'Winner State', 'Winner ZIP'
   ].join(',');
   
   let totalRevenue = 0;
@@ -242,7 +252,8 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
       item.sku,
       `"${item.name}"`,
       item.winningBid || 0,
-      `"${item.winner!.firstName} ${item.winner!.lastName}"`,
+      `"${item.winner!.firstName}"`,
+      `"${item.winner!.lastName}"`,
       item.winner?.email || '',
       `"${item.winner?.phone || ''}"`,
       `"${item.winner?.address?.street || ''}"`,
@@ -267,7 +278,7 @@ export function exportAllWinningBidsToCSV(items: (Item & { auctionName?: string 
     );
 
     const csvHeader = [
-    'Auction Name', 'Item Name', 'Winning Bid', 'Winner Name', 'Winner Email'
+    'Auction Name', 'Item Name', 'Winning Bid', 'Winner First Name', 'Winner Last Name', 'Winner Email'
     ].join(',');
 
     let grandTotal = 0;
@@ -278,7 +289,8 @@ export function exportAllWinningBidsToCSV(items: (Item & { auctionName?: string 
         `"${item.auctionName || 'N/A'}"`,
         `"${item.name}"`,
         item.winningBid || 0,
-        `"${item.winner!.firstName} ${item.winner!.lastName}"`,
+        `"${item.winner!.firstName}"`,
+        `"${item.winner!.lastName}"`,
         item.winner?.email || ''
         ].join(',');
     });
@@ -513,7 +525,7 @@ export function exportDonationsToCSV(items: Item[], auctionName: string) {
   const donations = items.filter(item => item.sku.toString().startsWith('DON-'));
 
   const csvHeader = [
-    'Donation SKU', 'Amount', 'Winner Name', 'Winner Email'
+    'Donation SKU', 'Amount', 'Patron First Name', 'Patron Last Name', 'Patron Email'
   ].join(',');
   
   let totalDonations = 0;
@@ -523,7 +535,8 @@ export function exportDonationsToCSV(items: Item[], auctionName: string) {
     return [
       item.sku,
       item.winningBid || 0,
-      item.winner ? `"${item.winner.firstName} ${item.winner.lastName}"` : 'N/A',
+      item.winner ? `"${item.winner.firstName}"` : 'N/A',
+      item.winner ? `"${item.winner.lastName}"` : '',
       item.winner?.email || 'N/A'
     ].join(',');
   });
@@ -538,7 +551,7 @@ export function exportDonationsToCSV(items: Item[], auctionName: string) {
 export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })[]) {
   const donations = items.filter(item => item.sku.toString().startsWith('DON-'));
   const csvHeader = [
-    'Auction Name', 'Donation SKU', 'Amount', 'Winner Name', 'Winner Email'
+    'Auction Name', 'Donation SKU', 'Amount', 'Patron First Name', 'Patron Last Name', 'Patron Email'
   ].join(',');
   
   let totalDonations = 0;
@@ -549,7 +562,8 @@ export function exportAllDonationsToCSV(items: (Item & { auctionName?: string })
       `"${item.auctionName || 'N/A'}"`,
       item.sku,
       `"${item.winningBid || 0}"`,
-      item.winner ? `"${item.winner.firstName} ${item.winner.lastName}"` : 'N/A',
+      item.winner ? `"${item.winner.firstName}"` : 'N/A',
+      item.winner ? `"${item.winner.lastName}"` : '',
       item.winner?.email || 'N/A'
     ].join(',');
   });
@@ -662,13 +676,14 @@ export function exportFullAuctionOutcome(data: {
 
   // Section A: Itemized Results
   csvRows.push('SECTION A: ITEMIZED RESULTS');
-  csvRows.push(['SKU', 'Item Name', 'Business/Donor', 'Winner', 'Winning Bid', 'Status', 'Payment Method'].join(','));
+  csvRows.push(['SKU', 'Item Name', 'Business/Donor', 'Winner First Name', 'Winner Last Name', 'Winning Bid', 'Status', 'Payment Method'].join(','));
   sortedPhysical.forEach(i => {
     csvRows.push([
       i.sku,
       `"${i.name.replace(/"/g, '""')}"`,
       `"${(i.business || i.donor?.name || '').replace(/"/g, '""')}"`,
-      i.winner ? `"${i.winner.firstName} ${i.winner.lastName}"` : 'Unsold',
+      i.winner ? `"${i.winner.firstName}"` : 'Unsold',
+      i.winner ? `"${i.winner.lastName}"` : '',
       i.winningBid || 0,
       i.winnerId ? 'Sold' : 'Unsold',
       i.paymentMethod || 'N/A'
@@ -707,10 +722,11 @@ export function exportFullAuctionOutcome(data: {
 
   // Section C: Charitable Donations
   csvRows.push('SECTION C: CHARITABLE DONATIONS');
-  csvRows.push(['Donor Name', 'Amount', 'Payment Method'].join(','));
+  csvRows.push(['Patron First Name', 'Patron Last Name', 'Amount', 'Payment Method'].join(','));
   donations.forEach(d => {
     csvRows.push([
-      d.winner ? `"${d.winner.firstName} ${d.winner.lastName}"` : 'Anonymous',
+      d.winner ? `"${d.winner.firstName}"` : 'Anonymous',
+      d.winner ? `"${d.winner.lastName}"` : '',
       d.winningBid || 0,
       d.paymentMethod || 'N/A'
     ].join(','));

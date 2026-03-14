@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -74,6 +73,8 @@ export default function DonorDetailsPage() {
         resolver: zodResolver(donorFormSchema),
         defaultValues: {
             name: '',
+            firstName: '',
+            lastName: '',
             type: 'Individual',
             contactPerson: '',
             email: '',
@@ -83,11 +84,14 @@ export default function DonorDetailsPage() {
     });
 
     const { isDirty } = form.formState;
+    const donorType = form.watch('type');
 
     useEffect(() => {
         if (donor) {
             form.reset({
                 name: donor.name || '',
+                firstName: donor.firstName || '',
+                lastName: donor.lastName || '',
                 type: donor.type || 'Individual',
                 contactPerson: donor.contactPerson || '',
                 email: donor.email || '',
@@ -239,12 +243,44 @@ export default function DonorDetailsPage() {
                                             </FormItem>
                                         )}
                                     />
+                                    
+                                    {donorType === 'Individual' && (
+                                      <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                                        <FormField
+                                          control={form.control}
+                                          name="firstName"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>First Name</FormLabel>
+                                              <FormControl>
+                                                <Input {...field} />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={form.control}
+                                          name="lastName"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Last Name</FormLabel>
+                                              <FormControl>
+                                                <Input {...field} />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+                                    )}
+
                                     <FormField
                                         control={form.control}
                                         name="name"
                                         render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>{form.watch('type') === 'Business' ? 'Business Name' : 'Full Name'}</FormLabel>
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Display Name (Legacy)'}</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} />
                                                 </FormControl>
@@ -252,7 +288,7 @@ export default function DonorDetailsPage() {
                                             </FormItem>
                                         )}
                                     />
-                                    {form.watch('type') === 'Business' && (
+                                    {donorType === 'Business' && (
                                         <FormField
                                             control={form.control}
                                             name="contactPerson"

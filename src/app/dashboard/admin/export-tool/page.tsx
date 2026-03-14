@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -159,14 +158,17 @@ export default function UniversalExportPage() {
           'Description': i.description || '',
           'Category': i.category?.name || 'Misc',
           'Estimated Value': i.estimatedValue || 0,
-          'Donor Business/Name': i.business || i.donor?.name || 'Anonymous',
+          'Donor Business': i.business || (i.donor?.type === 'Business' ? i.donor.name : ''),
+          'Donor First Name': i.donor?.firstName || '',
+          'Donor Last Name': i.donor?.lastName || '',
           'Donor Email': i.donor?.email || '',
           'Donor Phone': i.donor?.phone || '',
           'Donor Street': donorAddr?.street || '',
           'Donor City': donorAddr?.city || '',
           'Donor State': donorAddr?.state || '',
           'Donor Zip': donorAddr?.zip || '',
-          'Winner Name': winner ? `${winner.firstName} ${winner.lastName}` : 'Unsold',
+          'Winner First Name': winner?.firstName || '',
+          'Winner Last Name': winner?.lastName || '',
           'Winner Bidder #': i.winnerId ? (bidderNumberMap.get(i.winnerId) || 'N/A') : 'N/A',
           'Sold Price': i.winningBid || 0,
           'Paid Status': i.paid ? 'PAID' : 'UNPAID',
@@ -200,7 +202,8 @@ export default function UniversalExportPage() {
       const donationsCsv = Papa.unparse(donations.map(d => ({
         'Donation SKU': d.sku,
         'Amount': d.winningBid || 0,
-        'Patron Name': d.winner ? `${d.winner.firstName} ${d.winner.lastName}` : 'Anonymous',
+        'Patron First Name': d.winner?.firstName || 'Anonymous',
+        'Patron Last Name': d.winner?.lastName || '',
         'Bidder #': d.winnerId ? (bidderNumberMap.get(d.winnerId) || 'N/A') : 'N/A',
         'Email': d.winner?.email || 'N/A',
         'Payment Method': d.paymentMethod || 'N/A'
