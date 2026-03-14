@@ -137,10 +137,17 @@ export function EditItemForm({
   
   const showLotsDropdown = (auctionType === 'Silent' || auctionType === 'Hybrid') && lots.length > 0;
   
-  const donorOptions = donors.map(donor => ({
-    value: donor.id,
-    label: donor.name,
-  }));
+  const donorOptions = donors.map(donor => {
+    const label = donor.businessName || 
+                 `${donor.firstName || ''} ${donor.lastName || ''}`.trim() || 
+                 donor.name || 
+                 'Unknown Donor';
+
+    return {
+      value: donor.id,
+      label: label
+    };
+  });
   
   const handleDonorAdded = (newDonor: Donor) => {
     form.setValue('donorId', newDonor.id);
@@ -312,9 +319,9 @@ export function EditItemForm({
               name="assignedRunner"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assigned Runner (e.g. Assigned Child)</FormLabel>
+                  <FormLabel>Item Custodian</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter runner name" {...field} />
+                    <Input placeholder="Enter custodian name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

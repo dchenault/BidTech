@@ -93,10 +93,17 @@ export function AddItemForm({
 
   const showLotsDropdown = (auctionType === 'Silent' || auctionType === 'Hybrid') && lots.length > 0;
 
-  const donorOptions = donors.map(donor => ({
-    value: donor.id,
-    label: donor.businessName || donor.name || `${donor.firstName} ${donor.lastName}`.trim() || 'Unnamed Donor',
-  }));
+  const donorOptions = donors.map(donor => {
+    const label = donor.businessName || 
+                 `${donor.firstName || ''} ${donor.lastName || ''}`.trim() || 
+                 donor.name || 
+                 'Unknown Donor';
+
+    return {
+      value: donor.id,
+      label: label
+    };
+  });
 
   const handleDonorAdded = (newDonor: Donor) => {
     form.setValue('donorId', newDonor.id);
