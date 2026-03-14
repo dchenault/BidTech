@@ -72,8 +72,6 @@ export default function UniversalExportPage() {
       // 2. Locate Auction Globally using manual range filtering on __name__
       addLog('Searching for auction identity across all accounts...');
       
-      // FIX: Use manual range query on __name__ to bypass the "segment" requirement.
-      // This allows Firestore to find the document ID without requiring the full path prefix.
       const auctionsQuery = query(
         collectionGroup(firestore, 'auctions'), 
         where('__name__', '>=', 'auctions/' + auctionId), 
@@ -88,12 +86,11 @@ export default function UniversalExportPage() {
         auctionsSnapshot = await getDocs(equalityQuery);
         
         if (auctionsSnapshot.empty) {
-            // DocumentId fallback for legacy compatibility
             const docIdQuery = query(collectionGroup(firestore, 'auctions'), where(documentId(), '==', auctionId));
             auctionsSnapshot = await getDocs(docIdQuery);
             
             if (auctionsSnapshot.empty) {
-                throw new Error('Auction ID not found in database. Please verify the ID and ensure collection group indexes are deployed.');
+                throw new Error('Auction ID not found in database. Please verify the ID.');
             }
         }
       }
@@ -101,9 +98,6 @@ export default function UniversalExportPage() {
       const auctionDoc = auctionsSnapshot.docs[0];
       const auctionData = auctionDoc.data() as Auction;
       const auctionRef = auctionDoc.ref;
-      
-      // Extract the full path and found accountId from the ref path: accounts/{ACC_ID}/auctions/{AUC_ID}
-      addLog(`Auction Discovered: ${auctionRef.path}`);
       
       const pathSegments = auctionRef.path.split('/');
       const foundAccountId = pathSegments[1]; 
@@ -114,7 +108,7 @@ export default function UniversalExportPage() {
       
       addLog(`Connected to: ${auctionData.name} (Account: ${foundAccountId})`);
 
-      // 3. Fetch Items & Donations (Donations are SKUs starting with DON- in the items subcollection)
+      // 3. Fetch Items & Donations
       addLog('Fetching catalog items and donations...');
       const itemsSnapshot = await getDocs(collection(auctionRef, 'items'));
       const allItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Item));
@@ -122,16 +116,18 @@ export default function UniversalExportPage() {
       const donations = allItems.filter(i => i.sku.toString().startsWith('DON-'));
       addLog(`Retrieved ${physicalItems.length} items and ${donations.length} donations.`);
 
-      // 4. Fetch Registered Patrons
+      // 4. Fetch Registered Patrons for winner mapping
       addLog('Reconciling bidder registry...');
       const regSnapshot = await getDocs(collection(auctionRef, 'registered_patrons'));
       const regData = regSnapshot.docs.map(d => d.data() as RegisteredPatron);
       
+      // Create a map for quick bidder number lookups
+      const bidderNumberMap = new Map(regData.map(r => [r.patronId, r.bidderNumber]));
+
       const patronIds = regData.map(r => r.patronId);
       let fullPatrons: Patron[] = [];
       
       if (patronIds.length > 0) {
-        // Chunk patron fetching from the discovered parent account
         const patronsRef = collection(firestore, 'accounts', foundAccountId, 'patrons');
         for (let i = 0; i < patronIds.length; i += 30) {
           const chunk = patronIds.slice(i, i + 30);
@@ -145,18 +141,33 @@ export default function UniversalExportPage() {
       // 5. Generate CSVs
       addLog('Compiling final data packages...');
 
-      // Items CSV
-      const itemsCsv = Papa.unparse(physicalItems.map(i => ({
-        SKU: i.sku,
-        Name: i.name,
-        Description: i.description,
-        Business: i.business || i.donor?.name || 'Anonymous',
-        'Winning Bid': i.winningBid || 0,
-        'Winner Name': i.winner ? `${i.winner.firstName} ${i.winner.lastName}` : 'Unsold',
-        'Winner ID': i.winnerId || 'N/A',
-        'Paid Status': i.paid ? 'PAID' : 'UNPAID',
-        'Payment Method': i.paymentMethod || 'N/A'
-      })));
+      // Items CSV with Detailed Mapping
+      // Sort items naturally by SKU
+      const sortedPhysicalItems = [...physicalItems].sort((a, b) => 
+        a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' })
+      );
+
+      const itemsCsv = Papa.unparse(sortedPhysicalItems.map(i => {
+        const addr = i.donor?.address;
+        const addressStr = addr ? `${addr.street || ''}, ${addr.city || ''}, ${addr.state || ''} ${addr.zip || ''}`.trim() : '';
+        
+        return {
+          'SKU': i.sku,
+          'Item Name': i.name,
+          'Description': i.description || '',
+          'Category': i.category?.name || 'Misc',
+          'Estimated Value': i.estimatedValue || 0,
+          'Donor Business/Name': i.business || i.donor?.name || 'Anonymous',
+          'Donor Email': i.donor?.email || '',
+          'Donor Phone': i.donor?.phone || '',
+          'Donor Address': addressStr,
+          'Winner Name': i.winner ? `${i.winner.firstName} ${i.winner.lastName}` : 'Unsold',
+          'Winner Bidder #': i.winnerId ? (bidderNumberMap.get(i.winnerId) || 'N/A') : 'N/A',
+          'Sold Price': i.winningBid || 0,
+          'Paid Status': i.paid ? 'PAID' : 'UNPAID',
+          'Payment Method': i.paymentMethod || 'N/A'
+        };
+      }));
 
       // Patrons CSV
       const patronMap = new Map(fullPatrons.map(p => [p.id, p]));
@@ -180,6 +191,7 @@ export default function UniversalExportPage() {
         'Donation SKU': d.sku,
         'Amount': d.winningBid || 0,
         'Patron Name': d.winner ? `${d.winner.firstName} ${d.winner.lastName}` : 'Anonymous',
+        'Bidder #': d.winnerId ? (bidderNumberMap.get(d.winnerId) || 'N/A') : 'N/A',
         'Email': d.winner?.email || 'N/A',
         'Payment Method': d.paymentMethod || 'N/A'
       })));
@@ -210,7 +222,7 @@ export default function UniversalExportPage() {
             <CardTitle>Universal Auction Master Exporter</CardTitle>
           </div>
           <CardDescription>
-            Enter any Auction ID to extract its full data package. This tool searches globally across all accounts and resolves parent paths automatically.
+            Enter any Auction ID to extract its full data package. This tool now includes detailed donor contact info and winner bidder numbers.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
