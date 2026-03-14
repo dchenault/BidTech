@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,25 +33,46 @@ export function EditDonorForm({
   isSubmitting?: boolean;
 }) {
   
-  const defaultValues = useMemo<DonorFormValues>(() => donor ? {
-    name: donor.name,
-    type: donor.type,
-    contactPerson: donor.contactPerson || '',
-    email: donor.email || '',
-    phone: donor.phone || '',
-    address: {
-      street: donor.address?.street || '',
-      city: donor.address?.city || '',
-      state: donor.address?.state || '',
-      zip: donor.address?.zip || ''
+  const defaultValues = useMemo<DonorFormValues>(() => {
+    if (!donor) {
+      return {
+        name: "",
+        type: "Individual",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        address: { street: "", city: "", state: "ID", zip: "" }
+      };
     }
-  } : {
-    name: "",
-    type: "Individual",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    address: { street: "", city: "", state: "", zip: "" }
+
+    // Migration Logic: Handle legacy string-based address field
+    let street = "";
+    let city = "";
+    let state = "ID";
+    let zip = "";
+
+    if (typeof donor.address === 'string') {
+      street = donor.address;
+    } else if (donor.address) {
+      street = donor.address.street || "";
+      city = donor.address.city || "";
+      state = donor.address.state || "ID";
+      zip = donor.address.zip || "";
+    }
+
+    return {
+      name: donor.name,
+      type: donor.type,
+      contactPerson: donor.contactPerson || '',
+      email: donor.email || '',
+      phone: donor.phone || '',
+      address: {
+        street,
+        city,
+        state,
+        zip
+      }
+    };
   }, [donor]);
 
   const form = useForm<DonorFormValues>({
@@ -142,7 +164,7 @@ export function EditDonorForm({
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" {...field} />
+                <Input type="email" placeholder="email@example.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -155,15 +177,15 @@ export function EditDonorForm({
             <FormItem>
               <FormLabel>Phone</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input placeholder="(555) 555-5555" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         
-        <div className="space-y-2">
-            <FormLabel>Address</FormLabel>
+        <div className="space-y-4">
+            <FormLabel>Address Information</FormLabel>
             <FormField
             control={form.control}
             name="address.street"
@@ -176,7 +198,7 @@ export function EditDonorForm({
                 </FormItem>
             )}
             />
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                  <FormField
                 control={form.control}
                 name="address.city"
@@ -216,7 +238,7 @@ export function EditDonorForm({
             </div>
         </div>
 
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isSubmitting ? 'Saving...' : submitButtonText}
         </Button>

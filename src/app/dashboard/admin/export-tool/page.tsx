@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -149,7 +150,6 @@ export default function UniversalExportPage() {
 
       const itemsCsv = Papa.unparse(sortedPhysicalItems.map(i => {
         const addr = i.donor?.address;
-        const addressStr = addr ? `${addr.street || ''}, ${addr.city || ''}, ${addr.state || ''} ${addr.zip || ''}`.trim() : '';
         
         return {
           'SKU': i.sku,
@@ -160,7 +160,10 @@ export default function UniversalExportPage() {
           'Donor Business/Name': i.business || i.donor?.name || 'Anonymous',
           'Donor Email': i.donor?.email || '',
           'Donor Phone': i.donor?.phone || '',
-          'Donor Address': addressStr,
+          'Donor Street': addr?.street || '',
+          'Donor City': addr?.city || '',
+          'Donor State': addr?.state || '',
+          'Donor Zip': addr?.zip || '',
           'Winner Name': i.winner ? `${i.winner.firstName} ${i.winner.lastName}` : 'Unsold',
           'Winner Bidder #': i.winnerId ? (bidderNumberMap.get(i.winnerId) || 'N/A') : 'N/A',
           'Sold Price': i.winningBid || 0,

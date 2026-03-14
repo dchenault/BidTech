@@ -230,12 +230,12 @@ export const donorFormSchema = z.object({
   type: z.enum(['Individual', 'Business'], { required_error: "Donor type is required."}),
   contactPerson: z.string().optional(),
   email: z.string().email("Invalid email address.").optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z.string().regex(/^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/, "Phone must be a valid format like (555) 555-5555").optional().or(z.literal('')),
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
-    zip: z.string().optional(),
+    zip: z.string().regex(/^[0-9]*$/, "Zip must contain only numbers").optional().or(z.literal('')),
   }).optional(),
 });
 
