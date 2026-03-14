@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Gavel, LayoutDashboard, Settings, Users, Gift, Database, ChevronDown, FileOutput } from 'lucide-react';
+import { Gavel, LayoutDashboard, Settings, Users, Gift, Database, ChevronDown, FileOutput, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -110,8 +110,7 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                       <Database className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Update Business Names</TooltipContent>
-                  </Tooltip>
-                ) : (
+                  ) : (
                   "Update Business Names"
                 )}
               </Link>
@@ -130,11 +129,32 @@ export function MainNav({ className, isCollapsed }: { className?: string; isColl
                       <FileOutput className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Universal Master Export</TooltipContent>
-                  </Tooltip>
-                ) : (
+                  ) : (
                   <div className="flex items-center gap-3">
                     <FileOutput className="h-3 w-3" />
                     <span>Master Export Tool</span>
+                  </div>
+                )}
+              </Link>
+
+              <Link
+                href="/dashboard/admin/sync-donors"
+                className={cn(
+                  "flex items-center rounded-lg transition-all hover:text-primary",
+                  isCollapsed ? "h-10 w-10 justify-center mx-auto" : "px-3 py-2 pl-10 text-xs",
+                  pathname === "/dashboard/admin/sync-donors" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
+              >
+                {isCollapsed ? (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <RefreshCw className="h-4 w-4" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Sync Donor Data</TooltipContent>
+                  ) : (
+                  <div className="flex items-center gap-3">
+                    <RefreshCw className="h-3 w-3" />
+                    <span>Sync Donor Data</span>
                   </div>
                 )}
               </Link>

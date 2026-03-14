@@ -1,13 +1,11 @@
-import { z } from 'zod';
+import { z } from 'z';
 
 export type User = {
   id: string;
   name: string;
   email: string;
   avatarUrl: string;
-  // A user can be an admin of one account and a manager of others.
   accounts: { [accountId: string]: 'admin' | 'manager' };
-  // The account the user is currently viewing.
   activeAccountId: string;
   role?: string;
 };
@@ -67,10 +65,12 @@ export type Lot = {
 export type Donor = {
   id: string;
   accountId: string;
-  name: string; // Business Name
+  businessName?: string; // New primary field
+  name?: string; // Legacy fallback
   firstName?: string;
   lastName?: string;
   type: 'Individual' | 'Business';
+  isBusiness?: boolean;
   contactPerson?: string;
   email?: string;
   phone?: string;
@@ -228,7 +228,7 @@ export const lotFormSchema = z.object({
 export type LotFormValues = z.infer<typeof lotFormSchema>;
 
 export const donorFormSchema = z.object({
-  name: z.string().min(2, "Donor name is required."),
+  businessName: z.string().min(2, "Business or Donor name is required."),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   type: z.enum(['Individual', 'Business'], { required_error: "Donor type is required."}),

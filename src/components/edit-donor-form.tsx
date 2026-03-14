@@ -35,7 +35,7 @@ export function EditDonorForm({
   const defaultValues = useMemo<DonorFormValues>(() => {
     if (!donor) {
       return {
-        name: "",
+        businessName: "",
         firstName: "",
         lastName: "",
         type: "Individual",
@@ -45,6 +45,9 @@ export function EditDonorForm({
         address: { street: "", city: "", state: "ID", zip: "" }
       };
     }
+
+    // Migration Logic: Prefer businessName, fallback to legacy name
+    const businessName = donor.businessName || donor.name || "";
 
     // Migration Logic: Handle legacy string-based address field
     let street = "";
@@ -62,7 +65,7 @@ export function EditDonorForm({
     }
 
     return {
-      name: donor.name,
+      businessName,
       firstName: donor.firstName || "",
       lastName: donor.lastName || "",
       type: donor.type,
@@ -92,7 +95,12 @@ export function EditDonorForm({
 
   function onSubmit(values: DonorFormValues) {
     if (onSuccess) {
-      onSuccess(values);
+      // Logic for migration script: if businessName is not empty, isBusiness is true
+      const finalData = {
+        ...values,
+        isBusiness: values.type === 'Business' || !!values.businessName
+      };
+      onSuccess(finalData as DonorFormValues);
     }
     if (!donor) {
       form.reset();
@@ -133,43 +141,12 @@ export function EditDonorForm({
           )}
         />
         
-        {donorType === 'Individual' && (
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="firstName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>First Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="lastName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Last Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        )}
-
         <FormField
           control={form.control}
-          name="name"
+          name="businessName"
           render={({ field }) => (
               <FormItem>
-              <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Display Name (Legacy)'}</FormLabel>
+              <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Display/Legacy Name'}</FormLabel>
               <FormControl>
                   <Input {...field} />
               </FormControl>
@@ -177,15 +154,45 @@ export function EditDonorForm({
               </FormItem>
           )}
         />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="firstName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{donorType === 'Business' ? 'Contact First Name' : 'First Name'}</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="lastName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{donorType === 'Business' ? 'Contact Last Name' : 'Last Name'}</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         {donorType === 'Business' && (
             <FormField
             control={form.control}
             name="contactPerson"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Contact Person (Optional)</FormLabel>
+                <FormLabel>Position/Role (Optional)</FormLabel>
                 <FormControl>
-                    <Input {...field} />
+                    <Input placeholder="e.g. Marketing Director" {...field} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>

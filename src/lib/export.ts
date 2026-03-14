@@ -78,7 +78,7 @@ export function exportDonorsToCSV(donors: Donor[], fileName = 'all_donors.csv') 
     [
       d.id,
       d.accountId,
-      `"${d.name}"`,
+      `"${d.businessName || d.name || ''}"`,
       `"${d.firstName || ''}"`,
       `"${d.lastName || ''}"`,
       d.type,
@@ -144,7 +144,8 @@ export function exportItemsToCSV(
     'Donor Business',
     'Donor First Name',
     'Donor Last Name',
-    'Donor Contact Person',
+    'Donor Contact First Name',
+    'Donor Contact Last Name',
     'Donor Email',
     'Donor Phone',
     'Donor Street',
@@ -165,8 +166,26 @@ export function exportItemsToCSV(
 
   const csvRows = sorted.map(item => {
     const d = item.donor;
+    const isBusiness = d?.type === 'Business' || d?.isBusiness;
     const donorAddr = d?.address;
     
+    // Logic for Donor Business name mapping with fallback
+    const donorBusinessName = d?.businessName || d?.name || '';
+    
+    // Logic for Name splitting: if business, names go to "Contact" columns.
+    let donorFirstName = '';
+    let donorLastName = '';
+    let contactFirstName = '';
+    let contactLastName = '';
+
+    if (!isBusiness) {
+        donorFirstName = d?.firstName || '';
+        donorLastName = d?.lastName || '';
+    } else {
+        contactFirstName = d?.firstName || '';
+        contactLastName = d?.lastName || '';
+    }
+
     const winner = item.winnerId ? patronMap.get(item.winnerId) : null;
     const winnerFirstName = winner?.firstName || '';
     const winnerLastName = winner?.lastName || '';
@@ -182,10 +201,11 @@ export function exportItemsToCSV(
       `"${item.description?.replace(/"/g, '""') || ''}"`,
       item.estimatedValue || 0,
       `"${item.assignedRunner || ''}"`,
-      `"${item.business || (d?.type === 'Business' ? d.name : '')}"`,
-      `"${d?.firstName || ''}"`,
-      `"${d?.lastName || ''}"`,
-      `"${d?.contactPerson || ''}"`,
+      `"${donorBusinessName}"`,
+      `"${donorFirstName}"`,
+      `"${donorLastName}"`,
+      `"${contactFirstName}"`,
+      `"${contactLastName}"`,
       `"${d?.email || ''}"`,
       `"${d?.phone || ''}"`,
       `"${donorAddr?.street || ''}"`,
@@ -225,7 +245,7 @@ export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) 
       `"${item.category.name}"`,
       item.estimatedValue,
       `"${item.assignedRunner || ''}"`,
-      `"${item.business || (item.donor?.type === 'Business' ? item.donor.name : '')}"`,
+      `"${item.donor?.businessName || item.donor?.name || ''}"`,
       `"${item.donor?.firstName || ''}"`,
       `"${item.donor?.lastName || ''}"`
     ].join(',')
@@ -376,7 +396,7 @@ export function exportAuctionCatalogToHTML(auction: Auction & { items: Item[], l
                         <td class="sku-cell">${item.sku}</td>
                         <td class="name-cell">
                             ${item.name}
-                            ${item.donor?.name ? `<div class="donor-info">Donated by: ${item.donor.name}</div>` : ''}
+                            ${item.donor?.businessName || item.donor?.name ? `<div class="donor-info">Donated by: ${item.donor?.businessName || item.donor?.name}</div>` : ''}
                         </td>
                         <td class="description-cell">${item.description}</td>
                         <td class="notes-cell"></td>
@@ -640,7 +660,7 @@ export function exportAuctioneerSheetToHTML(item: Item, auction: Auction) {
         <div class="footer">
           <div class="footer-box">
             <span class="footer-label">Donated By</span>
-            <span class="footer-value">${item.donor?.name || 'Anonymous'}</span>
+            <span class="footer-value">${item.donor?.businessName || item.donor?.name || 'Anonymous'}</span>
           </div>
           <div class="footer-box">
             <span class="footer-label">Starting Value</span>
@@ -686,7 +706,7 @@ export function exportFullAuctionOutcome(data: {
       `"${i.name.replace(/"/g, '""')}"`,
       `"${i.category?.name || 'Misc'}"`,
       `"${i.assignedRunner || ''}"`,
-      `"${(i.business || i.donor?.name || '').replace(/"/g, '""')}"`,
+      `"${(i.donor?.businessName || i.donor?.name || '').replace(/"/g, '""')}"`,
       i.winner ? `"${i.winner.firstName}"` : 'Unsold',
       i.winner ? `"${i.winner.lastName}"` : '',
       i.winningBid || 0,

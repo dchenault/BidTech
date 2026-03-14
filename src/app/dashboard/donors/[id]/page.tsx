@@ -72,7 +72,7 @@ export default function DonorDetailsPage() {
     const form = useForm<DonorFormValues>({
         resolver: zodResolver(donorFormSchema),
         defaultValues: {
-            name: '',
+            businessName: '',
             firstName: '',
             lastName: '',
             type: 'Individual',
@@ -89,7 +89,7 @@ export default function DonorDetailsPage() {
     useEffect(() => {
         if (donor) {
             form.reset({
-                name: donor.name || '',
+                businessName: donor.businessName || donor.name || '',
                 firstName: donor.firstName || '',
                 lastName: donor.lastName || '',
                 type: donor.type || 'Individual',
@@ -127,10 +127,15 @@ export default function DonorDetailsPage() {
         setIsSaving(true);
         try {
             const donorRef = doc(firestore, 'accounts', accountId, 'donors', donorId);
-            await updateDoc(donorRef, values);
+            // Auto-categorization logic
+            const updatePayload = {
+                ...values,
+                isBusiness: values.type === 'Business' || !!values.businessName
+            };
+            await updateDoc(donorRef, updatePayload);
             toast({
                 title: "Profile Synced",
-                description: `Successfully updated details for ${values.name}.`,
+                description: `Successfully updated details for ${values.businessName}.`,
             });
             form.reset(values); // Reset dirty state to new values
         } catch (error: any) {
@@ -244,14 +249,27 @@ export default function DonorDetailsPage() {
                                         )}
                                     />
                                     
-                                    {donorType === 'Individual' && (
-                                      <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="businessName"
+                                        render={({ field }) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Donor Display Name'}</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <div className="grid grid-cols-2 gap-4 md:col-span-2">
                                         <FormField
                                           control={form.control}
                                           name="firstName"
                                           render={({ field }) => (
                                             <FormItem>
-                                              <FormLabel>First Name</FormLabel>
+                                              <FormLabel>{donorType === 'Business' ? 'Contact First Name' : 'First Name'}</FormLabel>
                                               <FormControl>
                                                 <Input {...field} />
                                               </FormControl>
@@ -264,7 +282,7 @@ export default function DonorDetailsPage() {
                                           name="lastName"
                                           render={({ field }) => (
                                             <FormItem>
-                                              <FormLabel>Last Name</FormLabel>
+                                              <FormLabel>{donorType === 'Business' ? 'Contact Last Name' : 'Last Name'}</FormLabel>
                                               <FormControl>
                                                 <Input {...field} />
                                               </FormControl>
@@ -272,31 +290,17 @@ export default function DonorDetailsPage() {
                                             </FormItem>
                                           )}
                                         />
-                                      </div>
-                                    )}
+                                    </div>
 
-                                    <FormField
-                                        control={form.control}
-                                        name="name"
-                                        render={({ field }) => (
-                                            <FormItem className="md:col-span-2">
-                                                <FormLabel>{donorType === 'Business' ? 'Business Name' : 'Display Name (Legacy)'}</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
                                     {donorType === 'Business' && (
                                         <FormField
                                             control={form.control}
                                             name="contactPerson"
                                             render={({ field }) => (
                                                 <FormItem className="md:col-span-2">
-                                                    <FormLabel>Primary Contact Name</FormLabel>
+                                                    <FormLabel>Primary Position/Role</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Person to reach for logistics" {...field} />
+                                                        <Input placeholder="e.g. Owner, Manager" {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -446,7 +450,7 @@ export default function DonorDetailsPage() {
                         <CardHeader>
                             <CardTitle>History</CardTitle>
                             <CardDescription>
-                                Items donated by {donor.name}.
+                                Items donated by {form.watch('businessName') || 'this donor'}.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">
