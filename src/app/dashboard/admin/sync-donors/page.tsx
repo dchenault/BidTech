@@ -65,6 +65,8 @@ export default function DataCleanupPage() {
             const needsUpdate = 
                 !itemData.donor || 
                 itemData.donor.businessName !== masterDonor.businessName ||
+                itemData.donor.firstName !== masterDonor.firstName ||
+                itemData.donor.lastName !== masterDonor.lastName ||
                 itemData.donor.name !== masterDonor.name ||
                 itemData.donor.email !== masterDonor.email ||
                 itemData.donor.phone !== masterDonor.phone;

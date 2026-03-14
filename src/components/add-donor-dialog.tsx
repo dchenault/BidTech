@@ -39,15 +39,24 @@ export function AddDonorDialog({ isOpen, onClose, onSuccess, accountId }: AddDon
     setIsSubmitting(true);
     try {
       const donorsRef = collection(firestore, 'accounts', accountId, 'donors');
-      const newDonorData: Omit<Donor, 'id'> = { ...values, accountId: accountId };
+      const newDonorData: Omit<Donor, 'id'> = { 
+        ...values, 
+        accountId: accountId,
+        // Ensure the legacy name field is populated for backward compatibility
+        name: values.businessName || `${values.firstName} ${values.lastName}`.trim()
+      };
       const docRef = await addDoc(donorsRef, newDonorData);
       
       const newDonor = { id: docRef.id, ...newDonorData };
       onSuccess(newDonor);
       
+      const displayName = values.type === 'Business' 
+        ? values.businessName 
+        : `${values.firstName} ${values.lastName}`.trim();
+
       toast({
         title: "Donor Added!",
-        description: `The details for ${values.name} have been successfully added.`,
+        description: `The details for ${displayName} have been successfully added.`,
       });
 
       onClose();

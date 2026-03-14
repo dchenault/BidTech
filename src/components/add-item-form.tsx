@@ -95,7 +95,7 @@ export function AddItemForm({
 
   const donorOptions = donors.map(donor => ({
     value: donor.id,
-    label: donor.name,
+    label: donor.businessName || donor.name || `${donor.firstName} ${donor.lastName}`.trim() || 'Unnamed Donor',
   }));
 
   const handleDonorAdded = (newDonor: Donor) => {
@@ -268,9 +268,9 @@ export function AddItemForm({
               name="assignedRunner"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assigned Runner (e.g. Assigned Child)</FormLabel>
+                  <FormLabel>Item Custodian</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter runner name" {...field} />
+                    <Input placeholder="Enter custodian name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
