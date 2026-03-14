@@ -67,10 +67,16 @@ export default function DonorsPage() {
 
   const filteredDonors = useMemo(() => {
     if (!searchQuery) return donors;
-    return donors.filter(donor =>
-      donor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      donor.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    return donors.filter(donor => {
+      const searchStr = searchQuery.toLowerCase();
+      // Prefer businessName, but include legacy name for safety during migration
+      const businessMatch = (donor.businessName || donor.name)?.toLowerCase().includes(searchStr);
+      const firstMatch = donor.firstName?.toLowerCase().includes(searchStr);
+      const lastMatch = donor.lastName?.toLowerCase().includes(searchStr);
+      const emailMatch = donor.email?.toLowerCase().includes(searchStr);
+
+      return !!(businessMatch || firstMatch || lastMatch || emailMatch);
+    });
   }, [donors, searchQuery]);
 
   const handleDonorUpdated = (updatedDonorData: DonorFormValues) => {
@@ -79,7 +85,7 @@ export default function DonorsPage() {
     setEditingDonor(null);
      toast({
         title: "Donor Updated!",
-        description: `The details for ${updatedDonorData.name} have been successfully updated.`,
+        description: `The details for ${updatedDonorData.businessName} have been successfully updated.`,
     });
   };
   
@@ -90,7 +96,7 @@ export default function DonorsPage() {
         setAddFormKey(Date.now()); // Reset the form for the next time
         toast({
             title: "Donor Added!",
-            description: `The details for ${newDonorData.name} have been successfully added.`,
+            description: `The details for ${newDonorData.businessName} have been successfully added.`,
         });
     } catch (error) {
         toast({
@@ -114,7 +120,7 @@ export default function DonorsPage() {
       await deleteDonor(donorToDelete.id);
       toast({
         title: "Donor Deleted",
-        description: `"${donorToDelete.name}" has been successfully deleted.`,
+        description: `"${donorToDelete.businessName || donorToDelete.name}" has been successfully deleted.`,
       });
       setDonorToDelete(null);
     } catch (error: any) {
@@ -162,7 +168,7 @@ export default function DonorsPage() {
                 <Search className="absolute left-2.5 top-6 h-4 w-4 text-muted-foreground" />
                 <Input
                 type="search"
-                placeholder="Search donors by name or email..."
+                placeholder="Search by business, name, or email..."
                 className="w-full rounded-lg bg-background pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -176,7 +182,7 @@ export default function DonorsPage() {
             <Table>
                 <TableHeader>
                 <TableRow>
-                    <TableHead>Name</TableHead>
+                    <TableHead>Name / Business</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead className="hidden md:table-cell">Phone</TableHead>
@@ -193,7 +199,10 @@ export default function DonorsPage() {
                         className="cursor-pointer"
                     >
                     <TableCell className="font-medium">
-                        {donor.name}
+                        {donor.businessName || donor.name}
+                        {donor.type === 'Business' && donor.firstName && (
+                          <p className="text-[10px] text-muted-foreground font-normal">Contact: {donor.firstName} {donor.lastName}</p>
+                        )}
                     </TableCell>
                     <TableCell><Badge variant="secondary">{donor.type}</Badge></TableCell>
                     <TableCell>{donor.email}</TableCell>
@@ -247,7 +256,7 @@ export default function DonorsPage() {
           <DialogHeader>
             <DialogTitle>Edit Donor</DialogTitle>
             <DialogDescription>
-              Update the details for {editingDonor?.name}.
+              Update the details for {editingDonor?.businessName || editingDonor?.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -260,12 +269,12 @@ export default function DonorsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!donorToDelete} onOpenChange={(isOpen) => !isOpen && setDonorToDelete(null)}>
+      <AlertDialog open={!!donorToDelete} onOpenChange={(isOpen) => !isOpen && setEditingDonor(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the donor "{donorToDelete?.name}" from your master list.
+              This action cannot be undone. This will permanently delete the donor "{donorToDelete?.businessName || donorToDelete?.name}" from your master list.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
