@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -30,12 +31,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatCurrency, cn } from '@/lib/utils';
-import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2, Trash2 } from 'lucide-react';
+import { Mail, Phone, Home, DollarSign, Award, Pencil, Printer, HeartHandshake, CreditCard, Loader2, Trash2, Save, RotateCcw } from 'lucide-react';
 import type { Item, PatronFormValues, Auction, PaymentMethod, Patron, RegisteredPatron } from '@/lib/types';
 import { useAuctions } from '@/hooks/use-auctions';
 import { usePatrons } from '@/hooks/use-patrons';
 import { Button } from '@/components/ui/button';
-import { EditPatronDialog } from '@/components/edit-patron-dialog';
 import { exportPatronReceiptToHTML } from '@/lib/export';
 import { AddDonationDialog } from '@/components/add-donation-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +46,12 @@ import { MarkAsPaidDialog } from '@/components/mark-as-paid-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { patronFormSchema } from '@/lib/types';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 interface WonItem extends Item {
   auctionName: string;
@@ -75,12 +81,25 @@ export default function PatronDetailsPage() {
     error: null,
   });
 
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [itemsToPay, setItemsToPay] = useState<Item[]>([]);
   const [itemToRemove, setItemToRemove] = useState<WonItem | null>(null);
   const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const form = useForm<PatronFormValues>({
+    resolver: zodResolver(patronFormSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      address: { street: '', city: '', state: 'ID', zip: '' }
+    }
+  });
+
+  const { isDirty } = form.formState;
 
   // Waterfall data fetching
   useEffect(() => {
@@ -92,7 +111,6 @@ export default function PatronDetailsPage() {
       let fetchedPatron: Patron | null = null;
       let patronFetchError: string | null = null;
 
-      // Waterfall Step 1: Fetch the Patron document. This is critical.
       try {
         const patronRef = doc(firestore, 'accounts', accountId, 'patrons', patronId);
         const patronSnap = await getDoc(patronRef);
@@ -102,14 +120,28 @@ export default function PatronDetailsPage() {
         }
         fetchedPatron = { id: patronSnap.id, ...patronSnap.data() } as Patron;
         setNotes(fetchedPatron.notes || '');
+        
+        // Populate form
+        form.reset({
+            firstName: fetchedPatron.firstName,
+            lastName: fetchedPatron.lastName,
+            email: fetchedPatron.email || '',
+            phone: fetchedPatron.phone || '',
+            address: {
+                street: fetchedPatron.address?.street || '',
+                city: fetchedPatron.address?.city || '',
+                state: fetchedPatron.address?.state || 'ID',
+                zip: fetchedPatron.address?.zip || ''
+            }
+        });
+
       } catch (err: any) {
         console.error("CRITICAL: Failed to fetch patron document:", err);
         patronFetchError = err.message || "Failed to load patron details.";
         setPageData({ patron: null, wonItems: [], isInitialLoad: false, error: patronFetchError });
-        return; // Hard stop if we can't get the patron.
+        return;
       }
 
-      // Waterfall Step 2: Fetch won items. This is a "soft failure".
       let fetchedWonItems: WonItem[] = [];
       try {
         const itemsQuery = query(
@@ -133,17 +165,16 @@ export default function PatronDetailsPage() {
           console.error("NON-CRITICAL: Failed to fetch won items:", err);
       }
 
-      // Final state update
       setPageData({
         patron: fetchedPatron,
-        wonItems: fetchedWonItems, // This will be [] if the fetch failed
+        wonItems: fetchedWonItems,
         isInitialLoad: false,
-        error: null, // No CRITICAL error
+        error: null,
       });
     };
 
     fetchData();
-  }, [firestore, accountId, patronId, isLoadingAuctions, auctions]);
+  }, [firestore, accountId, patronId, isLoadingAuctions, auctions, form]);
 
   const { patron, wonItems, isInitialLoad, error } = pageData;
   
@@ -171,11 +202,19 @@ export default function PatronDetailsPage() {
     }, new Map<string, { auctionName: string, items: WonItem[] }>());
   }, [wonItems, auctions]);
   
-  const handlePatronUpdated = (updatedPatronData: PatronFormValues) => {
+  const onSaveProfile = async (values: PatronFormValues) => {
     if (!patron) return;
-    updatePatron(patron.id, updatedPatronData);
-    setPageData(prev => ({ ...prev, patron: { ...prev.patron!, ...updatedPatronData }}));
-    setIsEditDialogOpen(false);
+    setIsSaving(true);
+    try {
+        await updatePatron(patron.id, values);
+        setPageData(prev => ({ ...prev, patron: { ...prev.patron!, ...values }}));
+        toast({ title: "Profile Updated", description: "The patron's contact info has been synced." });
+        form.reset(values);
+    } catch (e: any) {
+        toast({ variant: "destructive", title: "Update Failed", description: e.message });
+    } finally {
+        setIsSaving(false);
+    }
   };
   
   const handlePrintReceipt = async (auctionId: string) => {
@@ -384,94 +423,210 @@ export default function PatronDetailsPage() {
   return (
     <>
       <div className="grid gap-6">
+        <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight">Patron CRM</h1>
+            <div className="flex items-center gap-2">
+                {isDirty && (
+                    <Button variant="ghost" size="sm" onClick={() => form.reset()} disabled={isSaving}>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Discard Changes
+                    </Button>
+                )}
+                <Button 
+                    size="sm" 
+                    onClick={form.handleSubmit(onSaveProfile)} 
+                    disabled={!isDirty || isSaving}
+                >
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save Profile Changes
+                </Button>
+            </div>
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div className="flex items-center gap-4">
+              <CardHeader className="flex flex-row items-start gap-4">
                   <Avatar className="h-20 w-20">
                     <AvatarFallback className="text-3xl">
                       {patron.firstName.charAt(0)}
                       {patron.lastName.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <CardTitle className="text-4xl">{`${patron.firstName} ${patron.lastName}`}</CardTitle>
-                    <CardDescription>Patron since 2023</CardDescription>
+                    <CardDescription>Master Patron Profile</CardDescription>
                   </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Patron
-                </Button>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2 rounded-lg border p-4 md:grid-cols-2">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{patron.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{patron.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2 col-span-full">
-                    <Home className="h-4 w-4 text-muted-foreground" />
-                    <span>{`${patron.address?.street || ''}, ${patron.address?.city || ''}, ${patron.address?.state || ''} ${patron.address?.zip || ''}`}</span>
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Total Contributions</CardTitle>
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                          <div className="text-2xl font-bold">{formatCurrency(totalSpent)}</div>
-                      </CardContent>
-                  </Card>
-                  <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Items Won</CardTitle>
-                          <Award className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                          <div className="text-2xl font-bold">{itemsWonCount}</div>
-                      </CardContent>
-                  </Card>
-                </div>
+              <CardContent className="space-y-6">
+                <Form {...form}>
+                    <form className="grid gap-6">
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="firstName"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>First Name</FormLabel>
+                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="lastName"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Last Name</FormLabel>
+                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email Address</FormLabel>
+                                        <FormControl><Input type="email" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="phone"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Phone Number</FormLabel>
+                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                        <div className="space-y-4 pt-4 border-t">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Mailing Address</Label>
+                            <FormField
+                                control={form.control}
+                                name="address.street"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Street Address</FormLabel>
+                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                <FormField
+                                    control={form.control}
+                                    name="address.city"
+                                    render={({ field }) => (
+                                        <FormItem className="md:col-span-2">
+                                            <FormLabel>City</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="address.state"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>State</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="ID" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="ID">ID</SelectItem>
+                                                    <SelectItem value="WA">WA</SelectItem>
+                                                    <SelectItem value="OR">OR</SelectItem>
+                                                    <SelectItem value="MT">MT</SelectItem>
+                                                    <SelectItem value="CA">CA</SelectItem>
+                                                    <SelectItem value="NV">NV</SelectItem>
+                                                    <SelectItem value="UT">UT</SelectItem>
+                                                    <SelectItem value="WY">WY</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="address.zip"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>ZIP</FormLabel>
+                                            <FormControl><Input {...field} maxLength={5} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    </form>
+                </Form>
               </CardContent>
             </Card>
           </div>
-           <Card>
-            <CardHeader>
-              <CardTitle>Patron Notes</CardTitle>
-              <CardDescription>
-                Internal notes for this patron. Not visible to them.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Label htmlFor="notes" className="sr-only">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any relevant notes here..."
-                className="min-h-[200px]"
-              />
-            </CardContent>
-             <CardFooter>
-              <Button onClick={handleSaveNotes} className="ml-auto">Save Notes</Button>
-            </CardFooter>
-          </Card>
+          
+          <div className="space-y-6">
+            <Card className="bg-primary/5 border-primary/20">
+                <CardHeader>
+                    <CardTitle className="text-lg">Key Statistics</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex justify-between items-end border-b pb-2">
+                        <span className="text-sm text-muted-foreground">Total Contributions</span>
+                        <span className="text-2xl font-bold text-primary">{formatCurrency(totalSpent)}</span>
+                    </div>
+                    <div className="flex justify-between items-end">
+                        <span className="text-sm text-muted-foreground">Items Won</span>
+                        <span className="text-2xl font-bold">{itemsWonCount}</span>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                <CardTitle>Internal Notes</CardTitle>
+                <CardDescription>
+                    Notes for staff use only.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                <Label htmlFor="notes" className="sr-only">Notes</Label>
+                <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add any relevant notes here..."
+                    className="min-h-[150px]"
+                />
+                </CardContent>
+                <CardFooter>
+                <Button variant="outline" size="sm" onClick={handleSaveNotes} className="ml-auto">Save Notes</Button>
+                </CardFooter>
+            </Card>
+          </div>
         </div>
 
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
-                <CardTitle>Contributions</CardTitle>
-                <CardDescription>All items won and donations made by this patron, grouped by auction.</CardDescription>
+                <CardTitle>Contributions Ledger</CardTitle>
+                <CardDescription>History of wins and donations grouped by auction.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
                  <Button 
@@ -569,13 +724,6 @@ export default function PatronDetailsPage() {
           </CardContent>
         </Card>
       </div>
-      
-      <EditPatronDialog
-        isOpen={isEditDialogOpen}
-        onClose={() => setIsEditDialogOpen(false)}
-        patron={patron}
-        onSuccess={handlePatronUpdated}
-      />
 
       <AddDonationDialog
         isOpen={isDonationDialogOpen}

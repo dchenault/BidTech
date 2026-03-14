@@ -1,5 +1,5 @@
 
-import { z } from 'zod';
+import { z } from 'z';
 
 export type User = {
   id: string;
@@ -188,8 +188,8 @@ export const patronFormSchema = z.object({
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
-    state: z.string().optional(),
-    zip: z.string().optional(),
+    state: z.string().default('ID'),
+    zip: z.string().regex(/^[0-9]*$/, "Zip must contain only numbers").optional().or(z.literal('')),
   }).optional(),
 });
 
@@ -234,7 +234,7 @@ export const donorFormSchema = z.object({
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
-    state: z.string().optional(),
+    state: z.string().default('ID'),
     zip: z.string().regex(/^[0-9]*$/, "Zip must contain only numbers").optional().or(z.literal('')),
   }).optional(),
 });

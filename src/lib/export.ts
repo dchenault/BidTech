@@ -1,3 +1,4 @@
+
 import type { Auction, Patron, Item, Lot, Donor } from './types';
 import { formatCurrency } from './utils';
 
@@ -95,9 +96,9 @@ export function exportDonorsToCSV(donors: Donor[], fileName = 'all_donors.csv') 
 }
 
 // 3. Export Auction Patrons
-export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: number})[], auctionName: string) {
+export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: number, amountDueInAuction?: number})[], auctionName: string) {
     const csvHeader = [
-    'Bidder Number', 'First Name', 'Last Name', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
+    'Bidder Number', 'First Name', 'Last Name', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP', 'Auction Total Spent'
   ].join(',');
 
   const csvRows = patrons.map((p) =>
@@ -111,6 +112,7 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
       `"${p.address?.city || ''}"`,
       p.address?.state || '',
       p.address?.zip || '',
+      p.amountDueInAuction || 0
     ].join(',')
   );
 
@@ -480,7 +482,7 @@ export function exportPatronReceiptToHTML(data: { patron: Patron, items: Item[],
           </table>
         </main>
         <footer class="footer">
-          <p>We sincerely thank you for your generous support of {auction.name}.</p>
+          <p>We sincerely thank you for your generous support of ${auction.name}.</p>
         </footer>
       </div>
     </body>

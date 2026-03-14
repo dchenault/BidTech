@@ -15,6 +15,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Patron, PatronFormValues } from "@/lib/types";
 import { patronFormSchema } from "@/lib/types";
@@ -39,7 +46,7 @@ export function EditPatronForm({
     address: {
       street: patron.address?.street || '',
       city: patron.address?.city || '',
-      state: patron.address?.state || '',
+      state: patron.address?.state || 'ID',
       zip: patron.address?.zip || ''
     }
   } : {
@@ -47,7 +54,7 @@ export function EditPatronForm({
     lastName: "",
     email: "",
     phone: "",
-    address: { street: "", city: "", state: "", zip: "" }
+    address: { street: "", city: "", state: "ID", zip: "" }
   }, [patron]);
 
   const form = useForm<PatronFormValues>({
@@ -105,35 +112,37 @@ export function EditPatronForm({
             )}
             />
         </div>
-         <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-         <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                    <Input type="email" placeholder="email@example.com" {...field} />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Phone</FormLabel>
+                <FormControl>
+                    <Input placeholder="(555) 555-5555" {...field} />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+        </div>
         
-        <div className="space-y-2">
-            <FormLabel>Address</FormLabel>
+        <div className="space-y-4">
+            <FormLabel>Mailing Address</FormLabel>
             <FormField
             control={form.control}
             name="address.street"
@@ -146,12 +155,12 @@ export function EditPatronForm({
                 </FormItem>
             )}
             />
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                  <FormField
                 control={form.control}
                 name="address.city"
                 render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="md:col-span-2">
                     <FormControl>
                         <Input placeholder="City" {...field} />
                     </FormControl>
@@ -164,9 +173,23 @@ export function EditPatronForm({
                 name="address.state"
                 render={({ field }) => (
                     <FormItem>
-                    <FormControl>
-                        <Input placeholder="State" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="ID" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="ID">ID</SelectItem>
+                            <SelectItem value="WA">WA</SelectItem>
+                            <SelectItem value="OR">OR</SelectItem>
+                            <SelectItem value="MT">MT</SelectItem>
+                            <SelectItem value="CA">CA</SelectItem>
+                            <SelectItem value="NV">NV</SelectItem>
+                            <SelectItem value="UT">UT</SelectItem>
+                            <SelectItem value="WY">WY</SelectItem>
+                        </SelectContent>
+                    </Select>
                     <FormMessage />
                     </FormItem>
                 )}
@@ -177,7 +200,7 @@ export function EditPatronForm({
                 render={({ field }) => (
                     <FormItem>
                     <FormControl>
-                        <Input placeholder="ZIP Code" {...field} />
+                        <Input placeholder="ZIP" {...field} maxLength={5} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -186,7 +209,7 @@ export function EditPatronForm({
             </div>
         </div>
 
-        <Button type="submit">{submitButtonText}</Button>
+        <Button type="submit" className="w-full">{submitButtonText}</Button>
       </form>
     </Form>
   );
