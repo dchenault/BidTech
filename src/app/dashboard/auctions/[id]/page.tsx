@@ -312,7 +312,6 @@ export default function AuctionDetailsPage() {
   const handleExportCatalog = () => {
     if (!auction || !items) return;
     setIsExporting(true);
-    // Simulate generation delay for user feedback
     setTimeout(() => {
         exportAuctionCatalogToHTML({ ...auction, items, lots });
         setIsExporting(false);
@@ -452,9 +451,7 @@ export default function AuctionDetailsPage() {
   const handleAddDonation = async (amount: number, patron: Patron) => {
     if (!auctionId || !patron.id) return;
     try {
-      // For donations added in-auction, we assume they are paid immediately (cash/check).
       await addDonationToAuction(auctionId, patron, amount, true);
-      // toast is handled inside the dialog
       setIsAddDonationDialogOpen(false);
     } catch (e: any) {
       toast({
@@ -559,7 +556,7 @@ export default function AuctionDetailsPage() {
                 </TableHead>
                 <TableHead className="hidden lg:table-cell">
                     <Button variant="ghost" onClick={() => requestSort('assignedRunner')} className="-ml-4 h-8">
-                        Runner {sortConfig?.key === 'assignedRunner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
+                        Custodian {sortConfig?.key === 'assignedRunner' && (sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
                     </Button>
                 </TableHead>
                 <TableHead className="hidden lg:table-cell">
@@ -767,7 +764,7 @@ export default function AuctionDetailsPage() {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search items by SKU, name, description, or runner..."
+          placeholder="Search items by SKU, name, description, or custodian..."
           className="w-full rounded-lg bg-background pl-8"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -931,7 +928,7 @@ export default function AuctionDetailsPage() {
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="search"
-                            placeholder="Search items by SKU, name, description, or runner..."
+                            placeholder="Search items by SKU, name, description, or custodian..."
                             className="w-full rounded-lg bg-background pl-8"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}

@@ -126,7 +126,7 @@ export default function ItemDetailsPage() {
     try {
       await updateDoc(itemRef, { assignedRunner: runnerName });
       toast({
-        title: "Runner Assigned",
+        title: "Custodian Assigned",
         description: `"${runnerName}" has been assigned to this item.`
       });
     } catch (e) {
@@ -153,8 +153,8 @@ export default function ItemDetailsPage() {
                 <Badge variant="outline">{item.category.name}</Badge>
                 {item.assignedRunner && (
                     <Badge variant="secondary" className="flex items-center gap-1">
-                        <UserCircle className="h-3 w-3" />
-                        Runner: {item.assignedRunner}
+                        <UserCircle className="h-3.5 w-3.5" />
+                        Custodian: {item.assignedRunner}
                     </Badge>
                 )}
             </div>
@@ -225,7 +225,7 @@ export default function ItemDetailsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="runner">Assigned Runner / Child</Label>
+                    <Label htmlFor="runner">Item Custodian</Label>
                     <div className="flex gap-2">
                         <Input 
                             id="runner"

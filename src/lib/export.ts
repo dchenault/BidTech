@@ -140,7 +140,7 @@ export function exportItemsToCSV(
     'Category',
     'Description',
     'Estimated Value',
-    'Assigned Runner',
+    'Item Custodian',
     'Donor Business',
     'Donor First Name',
     'Donor Last Name',
@@ -213,7 +213,7 @@ export function exportItemsToCSV(
 // 5. Export All Items
 export function exportAllItemsToCSV(items: (Item & { auctionName?: string })[]) {
   const csvHeader = [
-    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Assigned Runner', 'Donor Business', 'Donor First Name', 'Donor Last Name'
+    'Auction Name', 'SKU', 'Name', 'Description', 'Category', 'Estimated Value', 'Item Custodian', 'Donor Business', 'Donor First Name', 'Donor Last Name'
   ].join(',');
 
   const csvRows = items.map(item => 
@@ -679,7 +679,7 @@ export function exportFullAuctionOutcome(data: {
 
   // Section A: Itemized Results
   csvRows.push('SECTION A: ITEMIZED RESULTS');
-  csvRows.push(['SKU', 'Item Name', 'Category', 'Assigned Runner', 'Business/Donor', 'Winner First Name', 'Winner Last Name', 'Winning Bid', 'Status', 'Payment Method'].join(','));
+  csvRows.push(['SKU', 'Item Name', 'Category', 'Item Custodian', 'Business/Donor', 'Winner First Name', 'Winner Last Name', 'Winning Bid', 'Status', 'Payment Method'].join(','));
   sortedPhysical.forEach(i => {
     csvRows.push([
       i.sku,

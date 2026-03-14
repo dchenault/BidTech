@@ -1,4 +1,4 @@
-import { z } from 'z';
+import { z } from 'zod';
 
 export type User = {
   id: string;
@@ -46,10 +46,10 @@ export type Item = {
   donorId?: string;
   donor?: Donor;
   donorName?: string;
-  business?: string; // New field for bulk update
+  business?: string; 
   imageUrl?: string;
   thumbnailUrl?: string;
-  assignedRunner?: string;
+  assignedRunner?: string; // This is the 'Item Custodian'
   metadata?: {
       updatedBy: string;
       updatedAt: any;
@@ -67,7 +67,7 @@ export type Lot = {
 export type Donor = {
   id: string;
   accountId: string;
-  name: string;
+  name: string; // Business Name
   firstName?: string;
   lastName?: string;
   type: 'Individual' | 'Business';
@@ -90,7 +90,7 @@ export type Auction = {
   status: 'upcoming' | 'active' | 'completed';
   itemCount: number;
   startDate: Date | string;
-  items: Item[]; // This will be handled by a subcollection
+  items: Item[]; 
   categories: Category[];
   lots: Lot[];
   accountId: string;
@@ -139,7 +139,6 @@ export type RegisteredPatron = {
     };
 };
 
-//made updates
 export type Invitation = {
   id: string;
   accountId: string;
@@ -147,7 +146,7 @@ export type Invitation = {
   email: string;
   role: string;
   status: 'pending' | 'accepted';
-  acceptedBy?: string; // UID of the user who accepted
+  acceptedBy?: string; 
 }
 
 

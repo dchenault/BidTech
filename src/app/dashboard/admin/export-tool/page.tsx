@@ -48,10 +48,7 @@ export default function UniversalExportPage() {
     addLog(`Initiating Universal Master Export for ID: ${auctionId}`);
 
     try {
-      // 1. Verify Admin Status & Log Diagnostics
-      addLog(`Diagnostic UID: ${user.uid}`);
       addLog('Verifying administrative privileges...');
-      
       const userProfileRef = doc(firestore, 'users', user.uid);
       const userProfileSnap = await getDoc(userProfileRef);
       const userProfile = userProfileSnap.data() as UserProfile;
@@ -60,18 +57,14 @@ export default function UniversalExportPage() {
       const hasAccountAdmin = userProfile?.accounts ? Object.values(userProfile.accounts).includes('admin') : false;
       
       addLog(`Detected Profile Role: ${detectedRole}`);
-      addLog(`Is Account Admin: ${hasAccountAdmin ? 'Yes' : 'No'}`);
 
-      // Bypass check for the Project Owner / Force Access
       if (detectedRole !== 'admin' && !hasAccountAdmin) {
-        addLog('PERMISSION NOTICE: No explicit admin role found. Proceeding via owner override.');
+        addLog('PERMISSION NOTICE: Proceeding via owner override.');
       } else {
         addLog('Permissions verified.');
       }
 
-      // 2. Locate Auction Globally using manual range filtering on __name__
       addLog('Searching for auction identity across all accounts...');
-      
       const auctionsQuery = query(
         collectionGroup(firestore, 'auctions'), 
         where('__name__', '>=', 'auctions/' + auctionId), 
@@ -81,7 +74,6 @@ export default function UniversalExportPage() {
       let auctionsSnapshot = await getDocs(auctionsQuery);
 
       if (auctionsSnapshot.empty) {
-        addLog('Range search yielded no results. Trying global equality fallback...');
         const equalityQuery = query(collectionGroup(firestore, 'auctions'), where('__name__', '==', auctionId));
         auctionsSnapshot = await getDocs(equalityQuery);
         
@@ -90,7 +82,7 @@ export default function UniversalExportPage() {
             auctionsSnapshot = await getDocs(docIdQuery);
             
             if (auctionsSnapshot.empty) {
-                throw new Error('Auction ID not found in database. Please verify the ID.');
+                throw new Error('Auction ID not found in database.');
             }
         }
       }
@@ -98,17 +90,15 @@ export default function UniversalExportPage() {
       const auctionDoc = auctionsSnapshot.docs[0];
       const auctionData = auctionDoc.data() as Auction;
       const auctionRef = auctionDoc.ref;
-      
       const pathSegments = auctionRef.path.split('/');
       const foundAccountId = pathSegments[1]; 
       
       if (!foundAccountId) {
-        throw new Error('Could not resolve parent account from the discovered auction path.');
+        throw new Error('Could not resolve parent account.');
       }
       
       addLog(`Connected to: ${auctionData.name} (Account: ${foundAccountId})`);
 
-      // 3. Fetch Items & Donations
       addLog('Fetching catalog items and donations...');
       const itemsSnapshot = await getDocs(collection(auctionRef, 'items'));
       const allItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Item));
@@ -116,7 +106,6 @@ export default function UniversalExportPage() {
       const donations = allItems.filter(i => i.sku.toString().startsWith('DON-'));
       addLog(`Retrieved ${physicalItems.length} items and ${donations.length} donations.`);
 
-      // 4. Fetch Registered Patrons for mapping
       addLog('Reconciling bidder registry...');
       const regSnapshot = await getDocs(collection(auctionRef, 'registered_patrons'));
       const regData = regSnapshot.docs.map(d => d.data() as RegisteredPatron);
@@ -133,16 +122,13 @@ export default function UniversalExportPage() {
           fullPatrons = [...fullPatrons, ...pSnap.docs.map(d => ({ id: d.id, ...d.data() } as Patron))];
         }
       }
-      addLog(`Matched ${fullPatrons.length} registered patrons with master profiles.`);
+      addLog(`Matched ${fullPatrons.length} registered patrons.`);
 
-      // Create a map for quick profile lookups
       const patronMap = new Map(fullPatrons.map(p => [p.id, p]));
       const bidderNumberMap = new Map(regData.map(r => [r.patronId, r.bidderNumber]));
 
-      // 5. Generate CSVs
       addLog('Compiling final data packages...');
 
-      // Items CSV with Detailed Mapping
       const sortedPhysicalItems = [...physicalItems].sort((a, b) => 
         a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -158,7 +144,7 @@ export default function UniversalExportPage() {
           'Description': i.description || '',
           'Category': i.category?.name || 'Misc',
           'Estimated Value': i.estimatedValue || 0,
-          'Assigned Runner': i.assignedRunner || '',
+          'Item Custodian': i.assignedRunner || '',
           'Donor Business': i.business || (i.donor?.type === 'Business' ? i.donor.name : ''),
           'Donor First Name': i.donor?.firstName || '',
           'Donor Last Name': i.donor?.lastName || '',
@@ -183,7 +169,6 @@ export default function UniversalExportPage() {
         };
       }));
 
-      // Patrons CSV
       const patronsCsv = Papa.unparse(regData.map(r => {
         const p = patronMap.get(r.patronId);
         return {
@@ -199,7 +184,6 @@ export default function UniversalExportPage() {
         };
       }).sort((a, b) => a['Bidder Number'] - b['Bidder Number']));
 
-      // Donations CSV
       const donationsCsv = Papa.unparse(donations.map(d => ({
         'Donation SKU': d.sku,
         'Amount': d.winningBid || 0,
@@ -210,14 +194,13 @@ export default function UniversalExportPage() {
         'Payment Method': d.paymentMethod || 'N/A'
       })));
 
-      // 6. Trigger Downloads
       const safeName = auctionData.name.replace(/\s+/g, '_').toLowerCase();
       triggerDownload(itemsCsv, `master_items_${safeName}.csv`);
       triggerDownload(patronsCsv, `master_patrons_${safeName}.csv`);
       triggerDownload(donationsCsv, `master_donations_${safeName}.csv`);
 
-      addLog('MASTER EXPORT COMPLETE. Downloads initiated.');
-      toast({ title: 'Export Successful', description: 'Catalog, Patron, and Donation files generated.' });
+      addLog('MASTER EXPORT COMPLETE.');
+      toast({ title: 'Export Successful' });
 
     } catch (e: any) {
       addLog(`ERROR: ${e.message}`);
@@ -236,7 +219,7 @@ export default function UniversalExportPage() {
             <CardTitle>Universal Auction Master Exporter</CardTitle>
           </div>
           <CardDescription>
-            Enter any Auction ID to extract its full data package. This tool includes complete winner contact info and natural SKU sorting.
+            Enter any Auction ID to extract its full data package.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -255,18 +238,15 @@ export default function UniversalExportPage() {
                 Generate Master Export
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground italic">
-              Find IDs in the URL when viewing an auction (e.g., /dashboard/auctions/[ID])
-            </p>
           </div>
 
           <div className="border rounded-md overflow-hidden">
             <div className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wider border-b">
-              Global Search Status Log
+              Search Status Log
             </div>
             <ScrollArea className="h-64 w-full p-4 font-code text-xs bg-slate-950 text-green-400">
               {logs.length === 0 ? (
-                <span className="text-slate-500 italic">Ready for input...</span>
+                <span className="text-slate-500 italic">Ready...</span>
               ) : (
                 logs.map((log, i) => <div key={i} className="mb-1">{log}</div>)
               )}
@@ -276,7 +256,7 @@ export default function UniversalExportPage() {
         <CardFooter className="flex justify-between items-center bg-muted/30 py-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <AlertCircle className="h-3 w-3" />
-            Admin diagnostics enabled for owner override.
+            Admin diagnostics active.
           </div>
           <Button variant="ghost" onClick={() => window.history.back()}>Back</Button>
         </CardFooter>
