@@ -57,11 +57,11 @@ export function exportPatronsToCSV(patrons: Patron[]) {
       `"${p.firstName}"`,
       `"${p.lastName}"`,
       p.email || '',
-      p.phone || '',
+      `"${p.phone || ''}"`,
       `"${p.address?.street || ''}"`,
       `"${p.address?.city || ''}"`,
       p.address?.state || '',
-      p.address?.zip || '',
+      `"${p.address?.zip || ''}"`,
     ].join(',')
   );
 
@@ -83,11 +83,11 @@ export function exportDonorsToCSV(donors: Donor[], fileName = 'all_donors.csv') 
       d.type,
       `"${d.contactPerson || ''}"`,
       d.email || '',
-      d.phone || '',
+      `"${d.phone || ''}"`,
       `"${d.address?.street || ''}"`,
       `"${d.address?.city || ''}"`,
       d.address?.state || '',
-      d.address?.zip || '',
+      `"${d.address?.zip || ''}"`,
     ].join(',')
   );
 
@@ -107,11 +107,11 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
       `"${p.firstName}"`,
       `"${p.lastName}"`,
       p.email || '',
-      p.phone || '',
+      `"${p.phone || ''}"`,
       `"${p.address?.street || ''}"`,
       `"${p.address?.city || ''}"`,
       p.address?.state || '',
-      p.address?.zip || '',
+      `"${p.address?.zip || ''}"`,
       p.amountDueInAuction || 0
     ].join(',')
   );
@@ -122,7 +122,7 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 }
 
 
-// 4. Export Auction Items (Detailed Metadata CSV)
+// 4. Export Auction Items (Detailed Metadata CSV with Full Winner Info)
 export function exportItemsToCSV(
   items: Item[], 
   auctionName: string, 
@@ -130,8 +130,8 @@ export function exportItemsToCSV(
 ) {
   const sorted = getSortedItemsForCatalog(items);
   
-  // Create a map for quick bidder number lookups: patronId -> bidderNumber
-  const bidderNumberMap = new Map(registeredPatrons.map(rp => [rp.id, rp.biddingNumber]));
+  // Create a map for quick full profile lookups: patronId -> Full Patron Object
+  const patronMap = new Map(registeredPatrons.map(rp => [rp.id, rp]));
 
   const csvHeader = [
     'SKU', 
@@ -149,15 +149,25 @@ export function exportItemsToCSV(
     'Donor Zip',
     'Winner Name',
     'Winner Bidder #',
-    'Sold Price'
+    'Sold Price',
+    'Winner Address',
+    'Winner City',
+    'Winner State',
+    'Winner Zip',
+    'Winner Phone',
+    'Winner Email'
   ].join(',');
 
   const csvRows = sorted.map(item => {
     const d = item.donor;
-    const addr = d?.address;
-    const winnerName = item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'Unsold';
-    const bidderNumber = item.winnerId ? (bidderNumberMap.get(item.winnerId) || 'N/A') : 'N/A';
+    const donorAddr = d?.address;
+    
+    const winner = item.winnerId ? patronMap.get(item.winnerId) : null;
+    const winnerName = winner ? `${winner.firstName} ${winner.lastName}` : 'Unsold';
+    const bidderNumber = winner ? (winner.biddingNumber || 'N/A') : 'N/A';
     const soldPrice = item.winningBid || 0;
+
+    const winAddr = winner?.address;
 
     return [
       `"${item.sku}"`,
@@ -169,13 +179,19 @@ export function exportItemsToCSV(
       `"${d?.contactPerson || ''}"`,
       `"${d?.email || ''}"`,
       `"${d?.phone || ''}"`,
-      `"${addr?.street || ''}"`,
-      `"${addr?.city || ''}"`,
-      `"${addr?.state || ''}"`,
-      `"${addr?.zip || ''}"`,
+      `"${donorAddr?.street || ''}"`,
+      `"${donorAddr?.city || ''}"`,
+      `"${donorAddr?.state || ''}"`,
+      `"${donorAddr?.zip || ''}"`,
       `"${winnerName}"`,
       `"${bidderNumber}"`,
-      soldPrice
+      soldPrice,
+      `"${winAddr?.street || ''}"`,
+      `"${winAddr?.city || ''}"`,
+      `"${winAddr?.state || ''}"`,
+      `"${winAddr?.zip || ''}"`,
+      `"${winner?.phone || ''}"`,
+      `"${winner?.email || ''}"`
     ].join(',');
   });
 
@@ -228,7 +244,7 @@ export function exportWinningBidsToCSV(items: Item[], auctionName: string) {
       item.winningBid || 0,
       `"${item.winner!.firstName} ${item.winner!.lastName}"`,
       item.winner?.email || '',
-      item.winner?.phone || '',
+      `"${item.winner?.phone || ''}"`,
       `"${item.winner?.address?.street || ''}"`,
       `"${item.winner?.address?.city || ''}"`,
       `"${item.winner?.address?.state || ''}"`,

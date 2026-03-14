@@ -117,14 +117,11 @@ export default function UniversalExportPage() {
       const donations = allItems.filter(i => i.sku.toString().startsWith('DON-'));
       addLog(`Retrieved ${physicalItems.length} items and ${donations.length} donations.`);
 
-      // 4. Fetch Registered Patrons for winner mapping
+      // 4. Fetch Registered Patrons for mapping
       addLog('Reconciling bidder registry...');
       const regSnapshot = await getDocs(collection(auctionRef, 'registered_patrons'));
       const regData = regSnapshot.docs.map(d => d.data() as RegisteredPatron);
       
-      // Create a map for quick bidder number lookups
-      const bidderNumberMap = new Map(regData.map(r => [r.patronId, r.bidderNumber]));
-
       const patronIds = regData.map(r => r.patronId);
       let fullPatrons: Patron[] = [];
       
@@ -139,17 +136,22 @@ export default function UniversalExportPage() {
       }
       addLog(`Matched ${fullPatrons.length} registered patrons with master profiles.`);
 
+      // Create a map for quick profile lookups
+      const patronMap = new Map(fullPatrons.map(p => [p.id, p]));
+      const bidderNumberMap = new Map(regData.map(r => [r.patronId, r.bidderNumber]));
+
       // 5. Generate CSVs
       addLog('Compiling final data packages...');
 
       // Items CSV with Detailed Mapping
-      // Sort items naturally by SKU
       const sortedPhysicalItems = [...physicalItems].sort((a, b) => 
         a.sku.toString().localeCompare(b.sku.toString(), undefined, { numeric: true, sensitivity: 'base' })
       );
 
       const itemsCsv = Papa.unparse(sortedPhysicalItems.map(i => {
-        const addr = i.donor?.address;
+        const donorAddr = i.donor?.address;
+        const winner = i.winnerId ? patronMap.get(i.winnerId) : null;
+        const winAddr = winner?.address;
         
         return {
           'SKU': i.sku,
@@ -160,20 +162,25 @@ export default function UniversalExportPage() {
           'Donor Business/Name': i.business || i.donor?.name || 'Anonymous',
           'Donor Email': i.donor?.email || '',
           'Donor Phone': i.donor?.phone || '',
-          'Donor Street': addr?.street || '',
-          'Donor City': addr?.city || '',
-          'Donor State': addr?.state || '',
-          'Donor Zip': addr?.zip || '',
-          'Winner Name': i.winner ? `${i.winner.firstName} ${i.winner.lastName}` : 'Unsold',
+          'Donor Street': donorAddr?.street || '',
+          'Donor City': donorAddr?.city || '',
+          'Donor State': donorAddr?.state || '',
+          'Donor Zip': donorAddr?.zip || '',
+          'Winner Name': winner ? `${winner.firstName} ${winner.lastName}` : 'Unsold',
           'Winner Bidder #': i.winnerId ? (bidderNumberMap.get(i.winnerId) || 'N/A') : 'N/A',
           'Sold Price': i.winningBid || 0,
           'Paid Status': i.paid ? 'PAID' : 'UNPAID',
-          'Payment Method': i.paymentMethod || 'N/A'
+          'Payment Method': i.paymentMethod || 'N/A',
+          'Winner Address': winAddr?.street || '',
+          'Winner City': winAddr?.city || '',
+          'Winner State': winAddr?.state || '',
+          'Winner Zip': winAddr?.zip || '',
+          'Winner Phone': winner?.phone || '',
+          'Winner Email': winner?.email || ''
         };
       }));
 
       // Patrons CSV
-      const patronMap = new Map(fullPatrons.map(p => [p.id, p]));
       const patronsCsv = Papa.unparse(regData.map(r => {
         const p = patronMap.get(r.patronId);
         return {
@@ -225,7 +232,7 @@ export default function UniversalExportPage() {
             <CardTitle>Universal Auction Master Exporter</CardTitle>
           </div>
           <CardDescription>
-            Enter any Auction ID to extract its full data package. This tool now includes detailed donor contact info and winner bidder numbers.
+            Enter any Auction ID to extract its full data package. This tool includes complete winner contact info and natural SKU sorting.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
