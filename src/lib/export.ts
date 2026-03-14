@@ -120,19 +120,62 @@ export function exportAuctionPatronsToCSV(patrons: (Patron & {biddingNumber: num
 }
 
 
-// 4. Export Auction Items (Simplified CSV - SKU, Name, Description, Donor)
-export function exportItemsToCSV(items: Item[], auctionName: string) {
+// 4. Export Auction Items (Detailed Metadata CSV)
+export function exportItemsToCSV(
+  items: Item[], 
+  auctionName: string, 
+  registeredPatrons: (Patron & { biddingNumber: number })[] = []
+) {
   const sorted = getSortedItemsForCatalog(items);
-  const csvHeader = ['SKU', 'Name', 'Description', 'Donor'].join(',');
+  
+  // Create a map for quick bidder number lookups: patronId -> bidderNumber
+  const bidderNumberMap = new Map(registeredPatrons.map(rp => [rp.id, rp.biddingNumber]));
 
-  const csvRows = sorted.map(item => 
-    [
+  const csvHeader = [
+    'SKU', 
+    'Item Name', 
+    'Category',
+    'Description',
+    'Estimated Value',
+    'Donor Business/Name',
+    'Donor Contact Person',
+    'Donor Email',
+    'Donor Phone',
+    'Donor Street',
+    'Donor City',
+    'Donor State',
+    'Donor Zip',
+    'Winner Name',
+    'Winner Bidder #',
+    'Sold Price'
+  ].join(',');
+
+  const csvRows = sorted.map(item => {
+    const d = item.donor;
+    const addr = d?.address;
+    const winnerName = item.winner ? `${item.winner.firstName} ${item.winner.lastName}` : 'Unsold';
+    const bidderNumber = item.winnerId ? (bidderNumberMap.get(item.winnerId) || 'N/A') : 'N/A';
+    const soldPrice = item.winningBid || 0;
+
+    return [
       `"${item.sku}"`,
       `"${item.name.replace(/"/g, '""')}"`,
+      `"${item.category?.name || 'Misc'}"`,
       `"${item.description?.replace(/"/g, '""') || ''}"`,
-      `"${item.donor?.name || ''}"`
-    ].join(',')
-  );
+      item.estimatedValue || 0,
+      `"${d?.name || 'Anonymous'}"`,
+      `"${d?.contactPerson || ''}"`,
+      `"${d?.email || ''}"`,
+      `"${d?.phone || ''}"`,
+      `"${addr?.street || ''}"`,
+      `"${addr?.city || ''}"`,
+      `"${addr?.state || ''}"`,
+      `"${addr?.zip || ''}"`,
+      `"${winnerName}"`,
+      `"${bidderNumber}"`,
+      soldPrice
+    ].join(',');
+  });
 
   const csvContent = [csvHeader, ...csvRows].join('\n');
   const fileName = `items_${auctionName.replace(/\s+/g, '_').toLowerCase()}.csv`;

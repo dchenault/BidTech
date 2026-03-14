@@ -87,7 +87,8 @@ export default function SettingsPage() {
                     exportAllItemsToCSV(allItems);
                 } else if (auctionId) {
                     const items = await fetchAuctionItems(firestore, accountId, auctionId);
-                    exportItemsToCSV(items, getAuctionName(auctionId));
+                    const registeredPatrons = await fetchRegisteredPatronsWithDetails(firestore, accountId, auctionId);
+                    exportItemsToCSV(items, getAuctionName(auctionId), registeredPatrons);
                 }
                 break;
             
